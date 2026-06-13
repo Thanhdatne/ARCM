@@ -28,30 +28,48 @@ interface OutcomeSelectorProps {
   noPrice?: number;
 }
 
-export function OutcomeSelector({ outcome, onSelect, label = "Outcome", yesPrice, noPrice }: OutcomeSelectorProps) {
+export function OutcomeSelector({
+  outcome,
+  onSelect,
+  label = "Outcome",
+  yesPrice,
+  noPrice,
+}: OutcomeSelectorProps) {
   return (
     <div>
-      <p className="text-xs font-medium text-muted-foreground mb-2">
+      <p className="mb-2 text-xs font-bold text-[#707A8A]">
         {label}
       </p>
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => onSelect("yes")}
-          className={`rounded-lg py-2.5 text-sm font-semibold transition-colors ${outcome === "yes"
-            ? "bg-green-600 text-white"
-            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-            }`}
+          className={`focus-ring rounded-2xl border px-3 py-3 text-left transition active:translate-y-px ${
+            outcome === "yes"
+              ? "border-[#0ECB81] bg-[#0ECB81] text-white"
+              : "border-[#2B3139] bg-[#0B0E11] text-[#EAECEF] hover:-translate-y-px hover:border-[#0ECB81] hover:bg-[#0ECB81]/15"
+          }`}
         >
-          Yes {yesPrice !== undefined ? `${Math.round(yesPrice)}¢` : ""}
+          <span className="block text-xs font-black uppercase tracking-[0.06em]">
+            YES
+          </span>
+          <span className="mt-1 block font-mono text-2xl font-black leading-none">
+            {yesPrice !== undefined ? `${Math.round(yesPrice)}c` : "--"}
+          </span>
         </button>
         <button
           onClick={() => onSelect("no")}
-          className={`rounded-lg py-2.5 text-sm font-semibold transition-colors ${outcome === "no"
-            ? "bg-red-500 text-white"
-            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-            }`}
+          className={`focus-ring rounded-2xl border px-3 py-3 text-left transition active:translate-y-px ${
+            outcome === "no"
+              ? "border-[#F6465D] bg-[#F6465D] text-white"
+              : "border-[#2B3139] bg-[#0B0E11] text-[#EAECEF] hover:-translate-y-px hover:border-[#F6465D] hover:bg-[#F6465D]/15"
+          }`}
         >
-          No {noPrice !== undefined ? `${Math.round(noPrice)}¢` : ""}
+          <span className="block text-xs font-black uppercase tracking-[0.06em]">
+            NO
+          </span>
+          <span className="mt-1 block font-mono text-2xl font-black leading-none">
+            {noPrice !== undefined ? `${Math.round(noPrice)}c` : "--"}
+          </span>
         </button>
       </div>
     </div>

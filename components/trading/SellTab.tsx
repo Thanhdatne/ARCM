@@ -21,7 +21,6 @@
 import { parseUnits, formatUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCollateral } from "@/hooks/market/helpers";
 import { COLLATERAL_DECIMALS } from "@/lib/contracts";
@@ -91,7 +90,7 @@ export function SellTab({
       />
 
       {!hasTokens ? (
-        <p className="text-sm text-muted-foreground text-center py-4">
+        <p className="rounded-xl border border-[#2B3139] bg-[#0B0E11] px-3 py-4 text-center text-sm text-[#707A8A]">
           You don&apos;t have any {outcome === "yes" ? "Yes" : "No"} tokens to sell.
           {(!longBalance || longBalance === 0n) && (!shortBalance || shortBalance === 0n)
             ? " Buy tokens first on the Buy tab."
@@ -99,18 +98,17 @@ export function SellTab({
         </p>
       ) : (
         <>
-          <div className="rounded-lg bg-secondary/50 p-3">
-            <p className="text-xs text-muted-foreground">Your balance</p>
-            <p className="font-mono text-lg">
-              {formatCollateral(selectedBalance)}{" "}
-              {outcome === "yes" ? "Yes" : "No"} tokens
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">
-              Amount (tokens)
-            </p>
+          <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label className="text-xs font-bold text-[#707A8A]">Amount</label>
+              <span className="text-xs text-[#707A8A]">
+                Balance{" "}
+                <span className="font-mono font-bold text-[#EAECEF]">
+                  {formatCollateral(selectedBalance)} {outcome === "yes" ? "YES" : "NO"}
+                </span>
+              </span>
+            </div>
+            <div className="relative">
             <Input
               type="number"
               placeholder="0"
@@ -131,25 +129,38 @@ export function SellTab({
                   onAmountChange(raw);
                 }
               }}
-              className="text-right text-lg font-mono h-12"
+                className="h-14 rounded-xl border-[#2B3139] bg-[#1E2329] pr-20 text-right font-mono text-2xl font-bold text-[#EAECEF]"
             />
-            <button
-              className="mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => {
-                const safeMax = selectedBalance > 1n ? selectedBalance - 1n : selectedBalance;
-                onAmountChange(formatUnits(safeMax, COLLATERAL_DECIMALS));
-              }}
-            >
-              Max
-            </button>
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#707A8A]">
+                {outcome === "yes" ? "YES" : "NO"}
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-4 gap-2">
+              {["10", "25", "50"].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => onAmountChange(v)}
+                  className="preset-button focus-ring rounded-lg px-2 py-2 text-xs font-bold"
+                >
+                  {v}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  const safeMax = selectedBalance > 1n ? selectedBalance - 1n : selectedBalance;
+                  onAmountChange(formatUnits(safeMax, COLLATERAL_DECIMALS));
+                }}
+                className="preset-button focus-ring rounded-lg px-2 py-2 text-xs font-bold"
+              >
+                Max
+              </button>
+            </div>
           </div>
 
-          <Separator />
-
-          <div className="space-y-2 text-sm">
+          <div className="space-y-2 rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">You receive</span>
-              <span className="font-mono">
+              <span className="text-[#707A8A]">Estimated receive</span>
+              <span className="font-mono font-bold text-[#EAECEF]">
                 {sellPreview !== undefined
                   ? `${parseFloat(formatUnits(sellPreview, COLLATERAL_DECIMALS)).toFixed(2)}`
                   : "0.00"} ARCT
@@ -157,14 +168,16 @@ export function SellTab({
             </div>
             {avgPrice !== undefined && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg price</span>
-                <span className="font-mono">{avgPrice.toFixed(4)} ARCT</span>
+                <span className="text-[#707A8A]">Avg price</span>
+                <span className="font-mono text-[#EAECEF]">{avgPrice.toFixed(4)} ARCT</span>
               </div>
             )}
             {priceImpact !== undefined && priceImpact > 0.1 && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Price impact</span>
-                <span className={`font-mono ${priceImpact > 5 ? "text-red-400" : "text-yellow-500"}`}>
+                <span className={priceImpact > 5 ? "font-bold text-[#F6465D]" : "text-[#707A8A]"}>
+                  Price impact
+                </span>
+                <span className={`font-mono font-bold ${priceImpact > 5 ? "text-[#F6465D]" : "text-[#FCD535]"}`}>
                   {priceImpact.toFixed(2)}%
                 </span>
               </div>
@@ -176,21 +189,24 @@ export function SellTab({
           ) : needsApproval ? (
             <>
               <Button
-                className="w-full"
+                className="focus-ring h-12 w-full rounded-xl border border-[#FCD535] bg-[#FCD535] text-base font-black text-[#181A20] hover:bg-[#F0B90B] active:translate-y-px disabled:cursor-not-allowed disabled:border-[#2B3139] disabled:bg-[#2B3139] disabled:text-[#707A8A]"
                 variant="outline"
                 onClick={() => approveHook.approve(parseUnits("1000000", COLLATERAL_DECIMALS))}
                 disabled={approveHook.isPending || approveHook.isConfirming}
               >
                 {approveHook.isPending || approveHook.isConfirming
                   ? "Approving..."
-                  : `Approve ${outcome === "yes" ? "Yes" : "No"} Token`}
+                  : `Approve ${outcome === "yes" ? "YES" : "NO"}`}
               </Button>
               <TxStatus {...approveHook} />
             </>
           ) : (
             <>
               <Button
-                className="w-full"
+                className={`focus-ring h-12 w-full rounded-xl text-base font-black text-white transition active:translate-y-px disabled:cursor-not-allowed disabled:border-[#2B3139] disabled:bg-[#2B3139] disabled:text-[#707A8A] ${outcome === "yes"
+                  ? "border border-[#0ECB81] bg-[#0ECB81] hover:-translate-y-px hover:bg-[#00D084] hover:shadow-[0_0_18px_rgba(14,203,129,0.18)]"
+                  : "border border-[#F6465D] bg-[#F6465D] hover:-translate-y-px hover:bg-[#FF4D4F] hover:shadow-[0_0_18px_rgba(246,70,93,0.18)]"
+                }`}
                 onClick={() => sellHook.sell(amount)}
                 disabled={
                   sellHook.isPending || sellHook.isConfirming ||
@@ -200,7 +216,7 @@ export function SellTab({
               >
                 {sellHook.isPending || sellHook.isConfirming
                   ? "Selling..."
-                  : `Sell ${outcome === "yes" ? "Yes" : "No"}`}
+                  : `Sell ${outcome === "yes" ? "YES" : "NO"}`}
               </Button>
               <TxStatus {...sellHook} />
             </>

@@ -110,8 +110,29 @@ interface StoredMarket {
   createdAt: string;
 }
 
+interface WorldCupDeployment {
+  worldCupMarketId: string;
+  fixtureId: string;
+  group: string;
+  question: string;
+  outcomeType: string;
+  marketAddress: string;
+  ammAddress: string;
+  createdAt: string;
+  txHash?: string;
+  transactionHash?: string;
+}
+
 function getMarketsFilePath() {
   return path.resolve(process.cwd(), "data", "markets.json");
+}
+
+function getWorldCupDeploymentsFilePath() {
+  return path.resolve(process.cwd(), "data", "world-cup-deployments.json");
+}
+
+function ensureDataDirectory() {
+  fs.mkdirSync(path.resolve(process.cwd(), "data"), { recursive: true });
 }
 
 function readMarkets(): StoredMarket[] {
@@ -124,7 +145,31 @@ function readMarkets(): StoredMarket[] {
 }
 
 function writeMarkets(markets: StoredMarket[]) {
+  ensureDataDirectory();
   fs.writeFileSync(getMarketsFilePath(), JSON.stringify(markets, null, 2) + "\n");
+}
+
+function readWorldCupDeployments(): WorldCupDeployment[] {
+  try {
+    const data = fs.readFileSync(getWorldCupDeploymentsFilePath(), "utf-8");
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+function writeWorldCupDeployments(deployments: WorldCupDeployment[]) {
+  ensureDataDirectory();
+  fs.writeFileSync(getWorldCupDeploymentsFilePath(), JSON.stringify(deployments, null, 2) + "\n");
+}
+
+function upsertWorldCupDeployment(deployment: WorldCupDeployment) {
+  const deployments = readWorldCupDeployments();
+  const nextDeployments = [
+    deployment,
+    ...deployments.filter((item) => item.worldCupMarketId !== deployment.worldCupMarketId),
+  ];
+  writeWorldCupDeployments(nextDeployments);
 }
 
 /** Waits for a tx receipt with a reasonable timeout and polling interval. */
@@ -142,20 +187,69 @@ async function waitForTx(
 // --- POST handler ------------------------------------------------------
 
 export async function POST(request: Request) {
+  if (process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE !== "true") {
+    return NextResponse.json({ error: "Public market creation is disabled during testnet preview." }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
-    const { title } = body;
+    const { title, category, fixtureId, group, outcomeType, worldCupMarketId } = body;
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
     const trimmedTitle = title.trim();
+    const trimmedCategory =
+      typeof category === "string" && category.trim().length > 0
+        ? category.trim().slice(0, 40)
+        : "Crypto";
+    const trimmedWorldCupMarketId =
+      typeof worldCupMarketId === "string" && worldCupMarketId.trim().length > 0
+        ? worldCupMarketId.trim().slice(0, 80)
+        : null;
+    const trimmedFixtureId =
+      typeof fixtureId === "string" && fixtureId.trim().length > 0
+        ? fixtureId.trim().slice(0, 100)
+        : "";
+    const trimmedGroup =
+      typeof group === "string" && group.trim().length > 0
+        ? group.trim().slice(0, 40)
+        : "";
+    const trimmedOutcomeType =
+      typeof outcomeType === "string" && outcomeType.trim().length > 0
+        ? outcomeType.trim().slice(0, 40)
+        : "";
+
+    if (trimmedWorldCupMarketId) {
+      const existingDeployment = readWorldCupDeployments().find(
+        (deployment) =>
+          deployment.worldCupMarketId === trimmedWorldCupMarketId &&
+          deployment.marketAddress &&
+          deployment.ammAddress,
+      );
+
+      if (existingDeployment) {
+        return NextResponse.json({
+          success: true,
+          skipped: true,
+          deployment: existingDeployment,
+          market: {
+            id: `world-cup-${existingDeployment.worldCupMarketId}`,
+            address: existingDeployment.marketAddress,
+            ammAddress: existingDeployment.ammAddress,
+            title: existingDeployment.question,
+            category: "World Cup",
+            createdAt: existingDeployment.createdAt,
+          },
+        });
+      }
+    }
 
     // Validate env vars
     const privateKey = process.env.PRIVATE_KEY?.trim();
     if (!privateKey) {
-      return NextResponse.json({ error: "Server not configured: missing PRIVATE_KEY" }, { status: 500 });
+      return NextResponse.json({ error: "Server deployer is not configured." }, { status: 500 });
     }
 
     const arctAddress = process.env.NEXT_PUBLIC_ARCT_ADDRESS as Address;
@@ -164,7 +258,7 @@ export async function POST(request: Request) {
 
     if (!arctAddress || !finderAddress || !timerAddress) {
       return NextResponse.json(
-        { error: "Server not configured: missing contract addresses. Run deploy script first." },
+        { error: "Server contract configuration is incomplete." },
         { status: 500 }
       );
     }
@@ -311,19 +405,33 @@ export async function POST(request: Request) {
       address: marketAddress,
       ammAddress: ammAddress,
       title: trimmedTitle,
-      category: "Crypto",
+      category: trimmedCategory,
       createdAt: new Date().toISOString(),
     };
     markets.unshift(newMarket);
     writeMarkets(markets);
 
+    if (trimmedWorldCupMarketId) {
+      upsertWorldCupDeployment({
+        worldCupMarketId: trimmedWorldCupMarketId,
+        fixtureId: trimmedFixtureId,
+        group: trimmedGroup,
+        question: trimmedTitle,
+        outcomeType: trimmedOutcomeType,
+        marketAddress,
+        ammAddress,
+        createdAt: newMarket.createdAt,
+        txHash: marketHash,
+        transactionHash: marketHash,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       market: newMarket,
     });
-  } catch (error) {
-    console.error("Market creation failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: `Market creation failed: ${message}` }, { status: 500 });
+  } catch {
+    console.error("Market creation failed.");
+    return NextResponse.json({ error: "Market creation failed. Check server configuration and try again." }, { status: 500 });
   }
 }

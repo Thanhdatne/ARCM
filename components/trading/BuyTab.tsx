@@ -21,8 +21,8 @@
 import { parseUnits, formatUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCollateral } from "@/hooks/market/helpers";
 import { COLLATERAL_DECIMALS } from "@/lib/contracts";
 import { TxStatus, type TxStatusProps } from "./TxStatus";
 import { OutcomeSelector } from "./OutcomeSelector";
@@ -36,6 +36,7 @@ interface BuyTabProps {
   onAmountChange: (a: string) => void;
   yesPrice?: number;
   noPrice?: number;
+  arctBalance: bigint | undefined;
   buyPreview: bigint | undefined;
   needsApproval: boolean;
   isAllowancesLoading: boolean;
@@ -50,6 +51,7 @@ export function BuyTab({
   onAmountChange,
   yesPrice,
   noPrice,
+  arctBalance,
   buyPreview,
   needsApproval,
   isAllowancesLoading,
@@ -58,6 +60,7 @@ export function BuyTab({
 }: BuyTabProps) {
   const amountBigInt = amount ? parseUnits(amount, COLLATERAL_DECIMALS) : 0n;
   const spotPrice = outcome === "yes" ? yesPrice : noPrice;
+  const quickAmounts = ["10", "25", "50"];
 
   let avgPrice: number | undefined;
   let priceImpact: number | undefined;
@@ -82,51 +85,65 @@ export function BuyTab({
         noPrice={noPrice}
       />
 
-      <div>
-        <p className="text-xs font-medium text-muted-foreground mb-2">
-          Amount (ARCT)
-        </p>
+      <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <label className="text-xs font-bold text-[#707A8A]">Amount</label>
+          <span className="text-xs text-[#707A8A]">
+            Balance <span className="font-mono font-bold text-[#EAECEF]">{formatCollateral(arctBalance)} ARCT</span>
+          </span>
+        </div>
+        <div className="relative">
         <Input
           type="number"
           placeholder="0"
           value={amount}
           onChange={(e) => onAmountChange(e.target.value)}
-          className="text-right text-lg font-mono h-12"
+            className="h-14 rounded-xl border-[#2B3139] bg-[#1E2329] pr-16 text-right font-mono text-2xl font-bold text-[#EAECEF]"
         />
-        <div className="flex gap-1 mt-2">
-          {["10", "50", "100", "500"].map((v) => (
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#707A8A]">
+            ARCT
+          </span>
+        </div>
+        <div className="mt-2 grid grid-cols-4 gap-2">
+          {quickAmounts.map((v) => (
             <button
               key={v}
               onClick={() => onAmountChange(v)}
-              className="flex-1 rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+              className="preset-button focus-ring rounded-lg px-2 py-2 text-xs font-bold"
             >
               {v}
             </button>
           ))}
+          <button
+            onClick={() => onAmountChange(formatCollateral(arctBalance, true))}
+            className="preset-button focus-ring rounded-lg px-2 py-2 text-xs font-bold"
+          >
+            Max
+          </button>
         </div>
       </div>
 
-      <Separator />
-
-      <div className="space-y-2 text-sm">
+      <div className="space-y-2 rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3 text-sm">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">You receive</span>
-          <span className="font-mono">
+          <span className="text-[#707A8A]">Estimated receive</span>
+          <span className="font-mono font-bold text-[#EAECEF]">
             {buyPreview !== undefined
-              ? `${parseFloat(formatUnits(buyPreview, COLLATERAL_DECIMALS)).toFixed(2)} ${outcome === "yes" ? "Yes" : "No"}`
-              : `0 ${outcome === "yes" ? "Yes" : "No"}`} tokens
+              ? `${parseFloat(formatUnits(buyPreview, COLLATERAL_DECIMALS)).toFixed(2)} ${outcome === "yes" ? "YES" : "NO"}`
+              : `0 ${outcome === "yes" ? "YES" : "NO"}`}
           </span>
         </div>
         {avgPrice !== undefined && (
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Avg price</span>
-            <span className="font-mono">{avgPrice.toFixed(4)} ARCT</span>
+            <span className="text-[#707A8A]">Avg price</span>
+            <span className="font-mono text-[#EAECEF]">{avgPrice.toFixed(4)} ARCT</span>
           </div>
         )}
         {priceImpact !== undefined && priceImpact > 0.1 && (
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Price impact</span>
-            <span className={`font-mono ${priceImpact > 5 ? "text-red-400" : "text-yellow-500"}`}>
+            <span className={priceImpact > 5 ? "font-bold text-[#F6465D]" : "text-[#707A8A]"}>
+              Price impact
+            </span>
+            <span className={`font-mono font-bold ${priceImpact > 5 ? "text-[#F6465D]" : "text-[#FCD535]"}`}>
               {priceImpact.toFixed(2)}%
             </span>
           </div>
@@ -138,7 +155,7 @@ export function BuyTab({
       ) : needsApproval ? (
         <>
           <Button
-            className="w-full"
+            className="focus-ring h-12 w-full rounded-xl border border-[#FCD535] bg-[#FCD535] text-base font-black text-[#181A20] hover:bg-[#F0B90B] active:translate-y-px disabled:cursor-not-allowed disabled:border-[#2B3139] disabled:bg-[#2B3139] disabled:text-[#707A8A]"
             variant="outline"
             onClick={() =>
               approveArct.approve(parseUnits("1000000", COLLATERAL_DECIMALS))
@@ -154,10 +171,10 @@ export function BuyTab({
       ) : (
         <>
           <Button
-            className={`w-full text-white ${outcome === "yes"
-              ? "bg-green-600 hover:bg-green-700"
-              : "bg-red-500 hover:bg-red-600"
-              }`}
+            className={`focus-ring h-12 w-full rounded-xl text-base font-black text-white transition active:translate-y-px disabled:cursor-not-allowed disabled:border-[#2B3139] disabled:bg-[#2B3139] disabled:text-[#707A8A] ${outcome === "yes"
+              ? "border border-[#0ECB81] bg-[#0ECB81] hover:-translate-y-px hover:bg-[#00D084] hover:shadow-[0_0_18px_rgba(14,203,129,0.18)]"
+              : "border border-[#F6465D] bg-[#F6465D] hover:-translate-y-px hover:bg-[#FF4D4F] hover:shadow-[0_0_18px_rgba(246,70,93,0.18)]"
+            }`}
             onClick={() => buyHook.buy(amount)}
             disabled={
               buyHook.isPending || buyHook.isConfirming ||
@@ -167,7 +184,7 @@ export function BuyTab({
           >
             {buyHook.isPending || buyHook.isConfirming
               ? "Buying..."
-              : `Buy ${outcome === "yes" ? "Yes" : "No"}`}
+              : `Buy ${outcome === "yes" ? "YES" : "NO"}`}
           </Button>
           <TxStatus {...buyHook} />
         </>

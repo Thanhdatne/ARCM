@@ -39,7 +39,7 @@ export function parseTxError(error: Error): { title: string; detail?: string } {
   ) {
     return {
       title: "Insufficient funds",
-      detail: "Your wallet doesn't have enough ETH to cover gas fees. Please add funds and try again.",
+      detail: "Your wallet doesn't have enough Arc Testnet USDC to cover gas fees. Please add funds and try again.",
     };
   }
 

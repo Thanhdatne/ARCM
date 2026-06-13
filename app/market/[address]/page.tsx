@@ -20,7 +20,7 @@
 
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { MarketDetail } from "@/components/MarketDetail";
 import { TradingPanel } from "@/components/TradingPanel";
 import { MARKET_ADDRESS, AMM_ADDRESS } from "@/lib/contracts";
@@ -79,25 +79,26 @@ export default function MarketPage({
   const { resolved, loading } = useResolveMarket(address);
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-6 space-y-6">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 overflow-x-hidden px-3 py-4 sm:px-4 lg:px-5">
       <Link
         href="/"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="terminal-button inline-flex w-fit items-center gap-2 px-3 py-1.5 text-xs font-bold"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Markets
       </Link>
 
       {loading ? (
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="exchange-panel p-4">
           <div className="animate-pulse space-y-4">
-            <div className="h-6 w-48 bg-secondary rounded" />
-            <div className="h-4 w-full bg-secondary rounded" />
+            <div className="h-7 w-64 bg-[#1E2329]" />
+            <div className="h-4 w-full bg-[#1E2329]" />
+            <div className="h-48 bg-[#1E2329]" />
           </div>
         </div>
       ) : !resolved ? (
-        <div className="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-6 text-center space-y-2">
-          <p className="font-medium">Market not found</p>
-          <p className="text-sm text-muted-foreground">
+        <div className="exchange-panel p-6 text-center">
+          <p className="font-bold text-[#F59E0B]">Market not found</p>
+          <p className="mt-2 text-sm text-[#707A8A]">
             This market address does not match any configured contract.
           </p>
         </div>
@@ -106,7 +107,14 @@ export default function MarketPage({
           marketAddress={resolved.marketAddress}
           ammAddress={resolved.ammAddress}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#707A8A]">
+            <span className="terminal-card inline-flex items-center gap-1.5 px-3 py-1.5 font-bold text-[#EAECEF]">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Arc Testnet market
+            </span>
+            <span>Trading and settlement use Arc Testnet market contracts.</span>
+          </div>
+          <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
             <MarketDetail />
             <TradingPanel />
           </div>

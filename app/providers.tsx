@@ -20,6 +20,7 @@
 
 import { type ReactNode } from "react";
 import { WagmiProvider } from "wagmi";
+import { darkTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { config } from "@/lib/wagmi";
 import { WalletProvider } from "@/contexts/WalletContext";
@@ -30,7 +31,16 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <WalletProvider>{children}</WalletProvider>
+        <RainbowKitProvider
+          modalSize="compact"
+          theme={darkTheme({
+            accentColor: "#FCD535",
+            accentColorForeground: "#ffffff",
+            borderRadius: "medium",
+          })}
+        >
+          <WalletProvider>{children}</WalletProvider>
+        </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

@@ -1,0 +1,71 @@
+[
+  {
+    "worldCupMarketId": "worldcup-group-a-mexico-vs-japan-away",
+    "fixtureId": "group-a-mexico-vs-japan",
+    "group": "Group A",
+    "question": "Will Japan beat Mexico?",
+    "outcomeType": "away_win",
+    "marketAddress": "0x6b7d422f3132d82f759151ab49ac2c5c5deaec26",
+    "ammAddress": "0xb91e036f9bacd62e402ec0793d79bf9a4451ab16",
+    "createdAt": "2026-06-13T10:22:26.165Z",
+    "txHash": "0x897fa0c3f9953dd1d72e0821c0ae0e7faf447878a085a2d86183f636ea931c5c",
+    "transactionHash": "0x897fa0c3f9953dd1d72e0821c0ae0e7faf447878a085a2d86183f636ea931c5c"
+  },
+  {
+    "worldCupMarketId": "worldcup-group-a-mexico-vs-japan-draw",
+    "fixtureId": "group-a-mexico-vs-japan",
+    "group": "Group A",
+    "question": "Will Mexico vs Japan end in a draw?",
+    "outcomeType": "draw",
+    "marketAddress": "0xac9a070da1138791505849573667eb06e50ee2cf",
+    "ammAddress": "0x7e687fb8d28a27fe51f16f3ed06415adac324512",
+    "createdAt": "2026-06-13T10:22:05.138Z",
+    "txHash": "0xbe73d00e046c7101c1e76d3ff4121bfdda058df02e910a76552437563ba5a2e2",
+    "transactionHash": "0xbe73d00e046c7101c1e76d3ff4121bfdda058df02e910a76552437563ba5a2e2"
+  },
+  {
+    "worldCupMarketId": "worldcup-group-a-mexico-vs-japan-home",
+    "fixtureId": "group-a-mexico-vs-japan",
+    "group": "Group A",
+    "question": "Will Mexico beat Japan?",
+    "outcomeType": "home_win",
+    "marketAddress": "0x364018fc6df266fa189122332680c74d045f9064",
+    "ammAddress": "0xdad092f210800898bef60feb975a3079ac894a4c",
+    "createdAt": "2026-06-13T10:21:41.980Z",
+    "txHash": "0x2e09a2ffeaada86192834447caae5a4e121059bf6b1ea132609ababbb1136fe0",
+    "transactionHash": "0x2e09a2ffeaada86192834447caae5a4e121059bf6b1ea132609ababbb1136fe0"
+  },
+  {
+    "worldCupMarketId": "worldcup-group-a-brazil-vs-morocco-away",
+    "fixtureId": "group-a-brazil-vs-morocco",
+    "group": "Group A",
+    "question": "Will Morocco beat Brazil?",
+    "outcomeType": "away_win",
+    "marketAddress": "0x9abbeadc0746c9d4facfc50e11a8242e46325c12",
+    "ammAddress": "0x74f492a3f10f071e32e2c2759fc0aa957c6bef89",
+    "createdAt": "2026-06-13T10:21:19.820Z",
+    "txHash": "0xf42377ec383ef84afbf6f40cfeb5a69828227329b9c7d8454a026f5b1e307c16",
+    "transactionHash": "0xf42377ec383ef84afbf6f40cfeb5a69828227329b9c7d8454a026f5b1e307c16"
+  },
+  {
+    "worldCupMarketId": "worldcup-group-a-brazil-vs-morocco-draw",
+    "fixtureId": "group-a-brazil-vs-morocco",
+    "group": "Group A",
+    "question": "Will Brazil vs Morocco end in a draw?",
+    "outcomeType": "draw",
+    "marketAddress": "0xf1b37ee9275aa3d8048f0f2cdae0a38c411e3a75",
+    "ammAddress": "0xdd3cd6c0a7df06d44a0cc2b317041f5b5716eb6b",
+    "createdAt": "2026-06-13T10:20:55.918Z",
+    "txHash": "0x60036b37fc2ab724a3a6e4ee460239407c5c6bea8e30862ee2cf2a1912af3e1b",
+    "transactionHash": "0x60036b37fc2ab724a3a6e4ee460239407c5c6bea8e30862ee2cf2a1912af3e1b"
+  },
+  {
+    "worldCupMarketId": "wc-brazil-morocco",
+    "question": "Will Brazil beat Morocco?",
+    "marketAddress": "0x1fabf213ec66e3ecb11df33a5b482f99c4d74866",
+    "ammAddress": "0xd6dead9aa527b4eb18806b2da36067c8270476e6",
+    "createdAt": "2026-06-13T09:49:36.892Z",
+    "txHash": "0x6ab693d45a35b82091e83eb1f0d9f7f4a32c88fa5479c65bd65419ea33c0e310",
+    "transactionHash": "0x6ab693d45a35b82091e83eb1f0d9f7f4a32c88fa5479c65bd65419ea33c0e310"
+  }
+]

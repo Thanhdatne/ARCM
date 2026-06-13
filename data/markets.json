@@ -1,0 +1,50 @@
+[
+  {
+    "id": "user-1781346146165",
+    "address": "0x6b7d422f3132d82f759151ab49ac2c5c5deaec26",
+    "ammAddress": "0xb91e036f9bacd62e402ec0793d79bf9a4451ab16",
+    "title": "Will Japan beat Mexico?",
+    "category": "World Cup",
+    "createdAt": "2026-06-13T10:22:26.165Z"
+  },
+  {
+    "id": "user-1781346125138",
+    "address": "0xac9a070da1138791505849573667eb06e50ee2cf",
+    "ammAddress": "0x7e687fb8d28a27fe51f16f3ed06415adac324512",
+    "title": "Will Mexico vs Japan end in a draw?",
+    "category": "World Cup",
+    "createdAt": "2026-06-13T10:22:05.138Z"
+  },
+  {
+    "id": "user-1781346101980",
+    "address": "0x364018fc6df266fa189122332680c74d045f9064",
+    "ammAddress": "0xdad092f210800898bef60feb975a3079ac894a4c",
+    "title": "Will Mexico beat Japan?",
+    "category": "World Cup",
+    "createdAt": "2026-06-13T10:21:41.980Z"
+  },
+  {
+    "id": "user-1781346079820",
+    "address": "0x9abbeadc0746c9d4facfc50e11a8242e46325c12",
+    "ammAddress": "0x74f492a3f10f071e32e2c2759fc0aa957c6bef89",
+    "title": "Will Morocco beat Brazil?",
+    "category": "World Cup",
+    "createdAt": "2026-06-13T10:21:19.820Z"
+  },
+  {
+    "id": "user-1781346055918",
+    "address": "0xf1b37ee9275aa3d8048f0f2cdae0a38c411e3a75",
+    "ammAddress": "0xdd3cd6c0a7df06d44a0cc2b317041f5b5716eb6b",
+    "title": "Will Brazil vs Morocco end in a draw?",
+    "category": "World Cup",
+    "createdAt": "2026-06-13T10:20:55.918Z"
+  },
+  {
+    "id": "user-1781344176892",
+    "address": "0x1fabf213ec66e3ecb11df33a5b482f99c4d74866",
+    "ammAddress": "0xd6dead9aa527b4eb18806b2da36067c8270476e6",
+    "title": "Will Brazil beat Morocco?",
+    "category": "World Cup",
+    "createdAt": "2026-06-13T09:49:36.892Z"
+  }
+]

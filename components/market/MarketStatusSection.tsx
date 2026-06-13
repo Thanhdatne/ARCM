@@ -59,27 +59,27 @@ export function MarketStatusSection({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-3">
-      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-        Market Status
-      </h2>
-      <div className="flex items-center gap-2">
-        <span className={`inline-block h-2 w-2 rounded-full ${displayState === OracleState.Requested ? "bg-amber-500 animate-pulse" :
-            displayState === OracleState.Proposed ? "bg-blue-500" :
-              displayState === OracleState.Expired || displayState === OracleState.Resolved ? "bg-green-500" :
-                displayState === OracleState.Disputed ? "bg-red-500" :
-                  displayState === OracleState.Invalid && priceRequested ? "bg-red-400" :
-                    "bg-muted-foreground"
+    <div className="exchange-panel">
+      <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">
+        Oracle status
+      </div>
+      <div className="m-3 flex items-center gap-2 terminal-card px-4 py-3">
+        <span className={`inline-block h-2 w-2 ${displayState === OracleState.Requested ? "animate-pulse bg-[#f59e0b]" :
+            displayState === OracleState.Proposed ? "bg-[#FCD535]" :
+              displayState === OracleState.Expired || displayState === OracleState.Resolved ? "bg-[#22C55E]" :
+                displayState === OracleState.Disputed ? "bg-[#F43F5E]" :
+                  displayState === OracleState.Invalid && priceRequested ? "bg-[#F43F5E]" :
+                    "bg-[#2B3139]"
           }`} />
-        <span className="font-medium">
+        <span className="font-semibold text-[#EAECEF]">
           {oracleStateLabel(displayState, { priceRequested: !!priceRequested })}
         </span>
       </div>
 
       {displayState === OracleState.Requested && (
-        <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
-          <p className="text-sm font-medium text-amber-400">Awaiting Proposal</p>
-          <p className="text-xs text-muted-foreground mt-1">
+        <div className="terminal-card m-3 p-4">
+          <p className="text-sm font-bold text-[#F59E0B]">Awaiting Proposal</p>
+          <p className="mt-1 text-xs leading-5 text-[#707A8A]">
             The market is open and waiting for someone to propose a resolution.
             Anyone can propose YES, NO, or Undetermined via the Resolve tab.
           </p>
@@ -87,19 +87,19 @@ export function MarketStatusSection({
       )}
 
       {displayState === OracleState.Proposed && (
-        <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 space-y-2">
-          <p className="text-sm font-medium text-blue-400">Proposal Active</p>
-          <p className="text-xs text-muted-foreground">
+        <div className="terminal-card m-3 space-y-2 p-4">
+          <p className="text-sm font-bold text-[#FCD535]">Proposal Active</p>
+          <p className="text-xs leading-5 text-[#707A8A]">
             A resolution has been proposed. It can be disputed during the liveness window. Trading remains open.
           </p>
           {expirationSeconds !== undefined && (
             expirationSeconds > 0 ? (
-              <p className="text-sm font-mono text-yellow-500">
+              <p className="text-sm font-mono font-bold text-[#F59E0B]">
                 Dispute window: {Math.floor(expirationSeconds / 3600) > 0 ? `${Math.floor(expirationSeconds / 3600)}h ` : ""}
                 {Math.floor((expirationSeconds % 3600) / 60)}m {expirationSeconds % 60}s
               </p>
             ) : (
-              <p className="text-sm font-mono text-green-500">
+              <p className="text-sm font-mono font-bold text-[#22C55E]">
                 Liveness expired - ready to settle
               </p>
             )
@@ -108,18 +108,18 @@ export function MarketStatusSection({
       )}
 
       {(displayState === OracleState.Expired || displayState === OracleState.Resolved) && (
-        <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3">
-          <p className="text-sm font-medium text-green-400">Ready to Settle</p>
-          <p className="text-xs text-muted-foreground mt-1">
+        <div className="terminal-card m-3 p-4">
+          <p className="text-sm font-bold text-[#22C55E]">Ready to Settle</p>
+          <p className="mt-1 text-xs leading-5 text-[#707A8A]">
             The liveness window has passed. Settle the oracle request via the Resolve tab to finalize the market.
           </p>
         </div>
       )}
 
       {displayState === OracleState.Disputed && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
-          <p className="text-sm font-medium text-red-400">Dispute Submitted</p>
-          <p className="text-xs text-muted-foreground mt-1">
+        <div className="terminal-card m-3 p-4">
+          <p className="text-sm font-bold text-[#F43F5E]">Dispute Submitted</p>
+          <p className="mt-1 text-xs leading-5 text-[#707A8A]">
             The proposed price was disputed. The dispute has been escalated to UMA&apos;s DVM for arbitration.
             A new price request will be made once the DVM resolves.
           </p>
@@ -127,9 +127,9 @@ export function MarketStatusSection({
       )}
 
       {displayState === OracleState.Invalid && priceRequested && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
-          <p className="text-sm font-medium text-red-400">Dispute Escalated</p>
-          <p className="text-xs text-muted-foreground mt-1">
+        <div className="terminal-card m-3 p-4">
+          <p className="text-sm font-bold text-[#F43F5E]">Dispute Escalated</p>
+          <p className="mt-1 text-xs leading-5 text-[#707A8A]">
             A previous proposal was disputed and escalated to UMA&apos;s DVM for arbitration.
             The market remains open for trading. A new proposal can be submitted.
           </p>

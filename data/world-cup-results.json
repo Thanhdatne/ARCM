@@ -1,0 +1,13 @@
+{
+  "group-a-brazil-vs-morocco": {
+    "fixtureId": "group-a-brazil-vs-morocco",
+    "homeTeam": "Brazil",
+    "awayTeam": "Morocco",
+    "homeScore": 2,
+    "awayScore": 1,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-13T11:11:18.945Z",
+    "source": "manual_admin"
+  }
+}

@@ -20,6 +20,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { formatUnits } from "viem";
+import { Database, ShieldCheck } from "lucide-react";
 
 interface MarketHeaderProps {
   pairName: string | undefined;
@@ -43,10 +44,10 @@ export function MarketHeader({
       : "Not Initialized";
 
   const statusColor = receivedSettlementPrice
-    ? "bg-green-500/15 text-green-500 border-green-500/30"
+    ? "text-[#0ECB81]"
     : priceRequested
-      ? "bg-green-500/15 text-green-500 border-green-500/30"
-      : "bg-secondary text-secondary-foreground";
+      ? "text-[#FCD535]"
+      : "text-[#FCD535]";
 
   let outcomeText: string | undefined;
   if (receivedSettlementPrice && settlementPrice !== undefined) {
@@ -58,30 +59,48 @@ export function MarketHeader({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-2xl">
+    <div className="exchange-panel overflow-hidden">
+      <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#FCD535] bg-[#FCD535] text-xl text-[#181A20]">
             {pairName?.startsWith("BTC") ? "\u20BF" : "\u{1F52E}"}
           </div>
-          <div>
-            <h1 className="text-xl font-bold">
+          <div className="min-w-0">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+                {pairName ?? "Market"}
+              </Badge>
+              <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+                UMA OO V2
+              </Badge>
+              <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+                ARCT collateral
+              </Badge>
+            </div>
+            <h1 className="max-w-4xl text-2xl font-bold leading-tight tracking-tight text-[#EAECEF] sm:text-3xl">
               {question ?? pairName ?? "Market"}
             </h1>
-            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-              <span>{pairName}</span>
-              <span className="text-muted-foreground/40">|</span>
-              <span>UMA Optimistic Oracle V2</span>
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[#707A8A]">
+              <span className="market-chip inline-flex items-center gap-1.5 px-3 py-1.5">
+                <Database className="h-3.5 w-3.5 text-[#FCD535]" />
+                Arc Testnet market
+              </span>
+              <span className="market-chip inline-flex items-center gap-1.5 px-3 py-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-[#FCD535]" />
+                Positions public today
+              </span>
             </div>
           </div>
         </div>
-        <Badge className={statusColor}>{status}</Badge>
+        <Badge variant="outline" className={`h-8 border-[#2B3139] bg-[#1E2329] px-3 text-xs font-bold text-[#EAECEF] ${statusColor}`}>
+          {status}
+        </Badge>
       </div>
 
       {outcomeText && (
-        <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-4">
-          <p className="text-sm text-muted-foreground">Outcome</p>
-          <p className="text-xl font-bold text-green-500">{outcomeText}</p>
+        <div className="m-5 mt-0 rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#707A8A]">Settlement outcome</p>
+          <p className="mt-1 font-mono text-2xl font-bold text-[#0ECB81]">{outcomeText}</p>
         </div>
       )}
     </div>

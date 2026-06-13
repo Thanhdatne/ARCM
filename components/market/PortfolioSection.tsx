@@ -45,33 +45,31 @@ export function PortfolioSection({
     : undefined;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-3">
-      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-        Your Portfolio
-      </h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <div>
-          <p className="text-xs text-muted-foreground">ARCT Balance</p>
-          <p className="font-mono text-sm">{formatCollateral(arctBalance)}</p>
+    <div className="exchange-panel">
+      <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Your Portfolio</div>
+      <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-3">
+        <div className="terminal-card p-3">
+          <p className="text-xs font-bold text-[#707A8A]">ARCT Balance</p>
+          <p className="mt-1 font-mono text-lg font-bold text-[#EAECEF]">{formatCollateral(arctBalance)}</p>
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Yes Tokens</p>
-          <p className="font-mono text-sm text-green-500">
+        <div className="terminal-card p-3">
+          <p className="text-xs font-bold text-[#22C55E]">Yes Tokens</p>
+          <p className="mt-1 font-mono text-lg font-bold text-[#22C55E]">
             {formatCollateral(longBalance)}
           </p>
           {yesTokenValue !== undefined && yesTokenValue > 0 && (
-            <p className="text-xs text-muted-foreground font-mono">
+            <p className="mt-1 font-mono text-xs text-[#707A8A]">
               ~{yesTokenValue.toFixed(2)} ARCT
             </p>
           )}
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground">No Tokens</p>
-          <p className="font-mono text-sm text-red-400">
+        <div className="terminal-card p-3">
+          <p className="text-xs font-bold text-[#F43F5E]">No Tokens</p>
+          <p className="mt-1 font-mono text-lg font-bold text-[#F43F5E]">
             {formatCollateral(shortBalance)}
           </p>
           {noTokenValue !== undefined && noTokenValue > 0 && (
-            <p className="text-xs text-muted-foreground font-mono">
+            <p className="mt-1 font-mono text-xs text-[#707A8A]">
               ~{noTokenValue.toFixed(2)} ARCT
             </p>
           )}

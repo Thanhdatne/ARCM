@@ -39,27 +39,56 @@ export function ProbabilityBar({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-3">
-      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-        Market Probability
-      </h2>
-      <div className="flex items-baseline gap-3">
-        <span className="text-4xl font-bold text-green-500">{yesPct}%</span>
-        <span className="text-sm text-muted-foreground">chance of Yes</span>
+    <div className="exchange-panel">
+      <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-1.5">
+        <h2 className="text-sm font-bold">
+          Outcome odds
+        </h2>
+        <span className="text-xs">
+          AMM price
+        </span>
       </div>
-      <div className="flex h-3 rounded-full overflow-hidden">
+
+      <div className="grid gap-2 p-3 sm:grid-cols-2">
+        <div className="terminal-card p-4 text-[#0ECB81]">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em]">Yes</p>
+              <p className="mt-1 text-xs text-[#707A8A]">Bullish outcome</p>
+            </div>
+            <p className="font-mono text-4xl font-black leading-none">{yesPct}%</p>
+          </div>
+          <p className="mt-3 text-xs text-[#707A8A]">
+            {yesPrice !== undefined ? (yesPrice / 100).toFixed(2) : "--"} ARCT
+          </p>
+        </div>
+        <div className="terminal-card p-4 text-[#F6465D]">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em]">No</p>
+              <p className="mt-1 text-xs text-[#707A8A]">Bearish outcome</p>
+            </div>
+            <p className="font-mono text-4xl font-black leading-none">{noPct}%</p>
+          </div>
+          <p className="mt-3 text-xs text-[#707A8A]">
+            {noPrice !== undefined ? (noPrice / 100).toFixed(2) : "--"} ARCT
+          </p>
+        </div>
+      </div>
+
+      <div className="mx-3 flex h-3 overflow-hidden rounded border border-[#2B3139] bg-[#0B0E11]">
         <div
-          className="bg-green-500 transition-all duration-500"
+          className="bg-[#0ECB81] transition-all duration-500"
           style={{ width: `${yesPct}%` }}
         />
         <div
-          className="bg-red-400 transition-all duration-500"
+          className="bg-[#F6465D] transition-all duration-500"
           style={{ width: `${noPct}%` }}
         />
       </div>
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>Yes {yesPrice !== undefined ? (yesPrice / 100).toFixed(2) : "--"} ARCT</span>
-        <span>No {noPrice !== undefined ? (noPrice / 100).toFixed(2) : "--"} ARCT</span>
+      <div className="mx-3 mb-3 mt-2 flex justify-between text-xs text-[#707A8A]">
+        <span>Yes liquidity pressure</span>
+        <span>No liquidity pressure</span>
       </div>
     </div>
   );

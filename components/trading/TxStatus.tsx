@@ -36,18 +36,18 @@ export function TxStatus({
   hash,
 }: TxStatusProps) {
   if (isPending)
-    return <p className="text-xs text-yellow-500">Confirm in wallet...</p>;
+    return <p className="rounded-xl border border-[#FCD535]/60 bg-[#FCD535]/15 px-3 py-2 text-xs font-bold text-[#FFF3AF]">Confirm in wallet...</p>;
   if (isConfirming)
-    return <p className="text-xs text-blue-500">Waiting for confirmation...</p>;
+    return <p className="rounded-xl border border-[#FCD535]/60 bg-[#FCD535]/15 px-3 py-2 text-xs font-bold text-[#FFF3AF]">Waiting for confirmation...</p>;
   if (isSuccess && hash) {
     return (
-      <p className="text-xs text-green-500">
+      <p className="rounded-xl border border-[#0ECB81]/60 bg-[#0ECB81]/15 px-3 py-2 text-xs font-bold text-[#BFFFE7]">
         Success!{" "}
         <a
           href={`https://testnet.arcscan.app/tx/${hash}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline"
+          className="interactive-link font-black"
         >
           View tx
         </a>
@@ -57,9 +57,9 @@ export function TxStatus({
   if (error) {
     const { title, detail } = parseTxError(error);
     return (
-      <div className="rounded-md bg-red-500/10 px-2.5 py-1.5 text-xs text-red-500">
-        <p className="font-medium">{title}</p>
-        {detail && <p className="mt-0.5 text-red-400">{detail}</p>}
+      <div className="rounded-xl border border-[#F6465D] bg-[#F6465D]/15 px-3 py-2 text-xs text-[#FFD7DD]">
+        <p className="font-bold">{title}</p>
+        {detail && <p className="mt-0.5 text-[#FCA5A5]">{detail}</p>}
       </div>
     );
   }

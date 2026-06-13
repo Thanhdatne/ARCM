@@ -27,7 +27,7 @@ import { LIVE_STATE_REFETCH_INTERVAL } from "@/lib/wagmi";
 export function useAMMState() {
   const { ammAddress } = useMarketAddress();
 
-  const { data, isLoading, refetch } = useReadContracts({
+  const { data, dataUpdatedAt, isLoading, refetch } = useReadContracts({
     contracts: [
       { address: ammAddress, abi: AMM_ABI, functionName: "getYesPrice" },
       { address: ammAddress, abi: AMM_ABI, functionName: "getNoPrice" },
@@ -63,6 +63,7 @@ export function useAMMState() {
     feeBps,
     initialized,
     isLoading,
+    dataUpdatedAt,
     refetch,
   };
 }

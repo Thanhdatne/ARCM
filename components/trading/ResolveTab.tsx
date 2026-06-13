@@ -27,6 +27,8 @@ import { formatCollateral, oracleStateLabel } from "@/hooks/market/helpers";
 import { OracleState, COLLATERAL_DECIMALS } from "@/lib/contracts";
 import { TxStatus, type TxStatusProps } from "./TxStatus";
 
+const ONE = 1000000000000000000n;
+
 interface ResolveTabProps {
   oracleState: OracleState | undefined;
   priceRequested: boolean | undefined;
@@ -47,6 +49,7 @@ interface ResolveTabProps {
   settleOracleWithTimer: TxStatusProps & { settleOracle: () => void };
   isOracleSettlementRefreshing: boolean;
   settlePos: TxStatusProps & { settle: (longAmt: bigint, shortAmt: bigint) => void };
+  adminSettlementEnabled: boolean;
 }
 
 export function ResolveTab({
@@ -69,9 +72,11 @@ export function ResolveTab({
   settleOracleWithTimer,
   isOracleSettlementRefreshing,
   settlePos,
+  adminSettlementEnabled,
 }: ResolveTabProps) {
   const [longSettleAmt, setLongSettleAmt] = useState("");
   const [shortSettleAmt, setShortSettleAmt] = useState("");
+  const [advancedClaimOpen, setAdvancedClaimOpen] = useState(false);
   const [disputeEscalated, setDisputeEscalated] = useState(false);
 
   useEffect(() => {
@@ -97,6 +102,7 @@ export function ResolveTab({
     if (settlePos.isSuccess) {
       setLongSettleAmt("");
       setShortSettleAmt("");
+      setAdvancedClaimOpen(false);
     }
   }, [settlePos.isSuccess]);
 
@@ -119,21 +125,58 @@ export function ResolveTab({
     settleOracleWithTimer.isPending ||
     settleOracleWithTimer.isConfirming ||
     isOracleSettlementRefreshing;
+  const settlementPriceNumber = settlementPrice !== undefined ? Number(settlementPrice) / 1e18 : undefined;
+  const longPaysOut = settlementPriceNumber !== undefined && settlementPriceNumber > 0;
+  const shortPaysOut = settlementPriceNumber !== undefined && settlementPriceNumber < 1;
+  const claimableLong = receivedSettlementPrice && longPaysOut ? longBalance ?? 0n : 0n;
+  const claimableShort = receivedSettlementPrice && shortPaysOut ? shortBalance ?? 0n : 0n;
+  const hasClaimablePayout = claimableLong > 0n || claimableShort > 0n;
+  const proposalLivenessActive =
+    displayOracleState === OracleState.Proposed &&
+    expirationSeconds !== undefined &&
+    expirationSeconds > 0;
+  const readyToSettleOracle =
+    displayOracleState === OracleState.Expired ||
+    displayOracleState === OracleState.Resolved ||
+    (displayOracleState === OracleState.Proposed &&
+      expirationSeconds !== undefined &&
+      expirationSeconds <= 0);
 
   return (
     <div className="space-y-4">
       {/* Oracle status badge */}
-      <div className="rounded-lg bg-muted/50 border p-3 text-center">
-        <p className="text-xs text-muted-foreground mb-1">Oracle Status</p>
+      <div className="terminal-card p-3 text-center">
+        <p className="mb-1 text-xs font-bold text-[#707A8A]">Oracle Status</p>
         <p className="font-mono text-sm font-semibold">
           {oracleStateLabel(displayOracleState, { priceRequested: !!priceRequested })}
         </p>
       </div>
 
+      <ResolveStatePanel
+        hasClaimablePayout={hasClaimablePayout}
+        priceRequested={priceRequested}
+        proposalLivenessActive={proposalLivenessActive}
+        readyToSettleOracle={readyToSettleOracle}
+        receivedSettlementPrice={receivedSettlementPrice}
+        oracleState={displayOracleState}
+      />
+
+      {!priceRequested && (
+        <div className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
+          Market not initialized. The market must request a price from UMA Optimistic Oracle V2 before resolution actions are available.
+        </div>
+      )}
+
+      {!adminSettlementEnabled && !receivedSettlementPrice && (
+        <div className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
+          Settlement admin controls are hidden during public preview. Public users can trade active markets and claim rewards after onchain settlement.
+        </div>
+      )}
+
       {/* Phase 1: Awaiting proposal */}
-      {(oracleState === OracleState.Requested || oracleState === OracleState.Disputed || (oracleState === OracleState.Invalid && priceRequested) || (disputeEscalated && disputePrice.isSuccess)) && (
+      {adminSettlementEnabled && (oracleState === OracleState.Requested || oracleState === OracleState.Disputed || (oracleState === OracleState.Invalid && priceRequested) || (disputeEscalated && disputePrice.isSuccess)) && (
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
             No one has proposed a resolution yet. Propose YES (1e18), NO (0), or Undetermined (5e17).
             Requires a bond of {bond !== undefined ? formatCollateral(bond) : "..."} ARCT.
           </p>
@@ -158,7 +201,7 @@ export function ResolveTab({
               <div className="grid grid-cols-3 gap-2">
                 <Button
                   size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="terminal-button text-[#22C55E]"
                   onClick={() => proposePrice.propose(BigInt("1000000000000000000"))}
                   disabled={proposePrice.isPending || proposePrice.isConfirming}
                 >
@@ -166,7 +209,7 @@ export function ResolveTab({
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-red-500 hover:bg-red-600 text-white"
+                  className="terminal-button text-[#F43F5E]"
                   onClick={() => proposePrice.propose(0n)}
                   disabled={proposePrice.isPending || proposePrice.isConfirming}
                 >
@@ -188,10 +231,10 @@ export function ResolveTab({
       )}
 
       {/* Phase 2: Proposal active - can dispute */}
-      {oracleState === OracleState.Proposed && (
+      {adminSettlementEnabled && oracleState === OracleState.Proposed && (
         <div className="space-y-3">
-          <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3 space-y-1">
-            <p className="text-xs text-muted-foreground">Proposed Resolution</p>
+          <div className="terminal-card space-y-1 p-3">
+            <p className="text-xs font-bold text-[#707A8A]">Proposed Resolution</p>
             <p className="font-mono text-lg font-semibold">
               {proposedPrice !== undefined
                 ? proposedPrice >= BigInt("1000000000000000000") ? "YES"
@@ -200,11 +243,11 @@ export function ResolveTab({
                       : `${formatUnits(proposedPrice, 18)}`
                 : "..."}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#707A8A]">
               by {proposer ? `${proposer.slice(0, 6)}...${proposer.slice(-4)}` : "..."}
             </p>
             {expirationDisplay && (
-              <p className="text-xs text-yellow-500 font-mono">
+              <p className="font-mono text-xs font-bold text-[#F59E0B]">
                 Dispute window: {expirationDisplay}
               </p>
             )}
@@ -228,7 +271,7 @@ export function ResolveTab({
           ) : expirationSeconds !== undefined && expirationSeconds <= 0 ? (
             <>
               <Button
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                className="w-full"
                 onClick={() => settleOracleWithTimer.settleOracle()}
                 disabled={isSettleOracleWithTimerBusy}
               >
@@ -240,7 +283,7 @@ export function ResolveTab({
               </Button>
               <TxStatus {...settleOracleWithTimer} />
               {isOracleSettlementRefreshing && (
-                <p className="text-xs text-blue-500">
+                <p className="text-xs font-bold text-[#FCD535]">
                   Refreshing oracle state until settlement is fully reflected in the UI...
                 </p>
               )}
@@ -248,7 +291,7 @@ export function ResolveTab({
           ) : (
             <>
               <Button
-                className="w-full text-red-500 border-red-500/30 hover:bg-red-500/10"
+                className="w-full text-[#F43F5E]"
                 variant="outline"
                 onClick={() => disputePrice.dispute()}
                 disabled={disputePrice.isPending || disputePrice.isConfirming}
@@ -262,13 +305,13 @@ export function ResolveTab({
       )}
 
       {/* Phase 3: Expired or Resolved - settle the OO request */}
-      {(oracleState === OracleState.Expired || oracleState === OracleState.Resolved) && (
+      {adminSettlementEnabled && (oracleState === OracleState.Expired || oracleState === OracleState.Resolved) && (
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
             The oracle request is ready to be settled. Anyone can call settle to finalize the resolution.
           </p>
           <Button
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            className="w-full"
             onClick={() => settleOracle.settleOracle()}
             disabled={isSettleOracleBusy}
           >
@@ -280,7 +323,7 @@ export function ResolveTab({
           </Button>
           <TxStatus {...settleOracle} />
           {isOracleSettlementRefreshing && (
-            <p className="text-xs text-blue-500">
+            <p className="text-xs font-bold text-[#FCD535]">
               Refreshing oracle state until settlement is fully reflected in the UI...
             </p>
           )}
@@ -289,12 +332,16 @@ export function ResolveTab({
 
       {/* Phase 5: Market settled - redeem tokens */}
       {(receivedSettlementPrice || oracleState === OracleState.Settled) && (() => {
-        const price = settlementPrice !== undefined ? Number(settlementPrice) / 1e18 : undefined;
-        const longPaysOut = price !== undefined && price > 0;
-        const shortPaysOut = price !== undefined && price < 1;
+        const price = settlementPriceNumber;
         const redeemableLong = longPaysOut ? longBalance ?? 0n : 0n;
         const redeemableShort = shortPaysOut ? shortBalance ?? 0n : 0n;
         const hasRedeemableTokens = redeemableLong > 0n || redeemableShort > 0n;
+        const isClaiming = settlePos.isPending || settlePos.isConfirming;
+        const isClaimed = settlePos.isSuccess;
+        const payoutAmount =
+          settlementPrice !== undefined
+            ? (redeemableLong * settlementPrice + redeemableShort * (ONE - settlementPrice)) / ONE
+            : 0n;
 
         const priceLabel = settlementPrice !== undefined
           ? settlementPrice === BigInt("1000000000000000000") ? "YES (1.0)"
@@ -305,106 +352,245 @@ export function ResolveTab({
 
         return (
           <>
-            <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3">
-              <p className="text-xs text-muted-foreground">Settlement Price</p>
-              <p className="font-mono text-lg text-green-500">{priceLabel}</p>
+            <div className="terminal-card p-3">
+              <p className="text-xs font-bold text-[#707A8A]">Settlement Price</p>
+              <p className="font-mono text-lg font-bold text-[#22C55E]">{priceLabel}</p>
             </div>
 
             {!hasRedeemableTokens ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
+              <p className="terminal-card px-3 py-4 text-center text-sm text-[#707A8A]">
                 {(!longBalance && !shortBalance)
                   ? "Market resolved. You have no tokens to settle."
                   : `Market resolved to ${price === 1 ? "Yes" : price === 0 ? "No" : price}. Your ${longBalance ? "Yes" : "No"} tokens have no payout.`}
               </p>
             ) : receivedSettlementPrice ? (
               <>
-                <div className={redeemableLong > 0n && redeemableShort > 0n ? "grid grid-cols-2 gap-2" : ""}>
-                  {redeemableLong > 0n && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">
-                        Yes tokens
-                        <span className="float-right font-mono">{formatCollateral(redeemableLong)}</span>
-                      </p>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        min="0"
-                        max={formatCollateral(redeemableLong, true)}
-                        value={longSettleAmt}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          if (!raw || parseFloat(raw) <= 0) {
-                            setLongSettleAmt(raw);
-                            return;
-                          }
-                          const parsed = parseUnits(raw, COLLATERAL_DECIMALS);
-                          if (parsed > redeemableLong) {
-                            setLongSettleAmt(formatUnits(redeemableLong, COLLATERAL_DECIMALS));
-                          } else {
-                            setLongSettleAmt(raw);
-                          }
-                        }}
-                        className="font-mono"
-                      />
+                <div className="terminal-card p-3">
+                  <p className="text-xs font-bold text-[#707A8A]">Claimable reward</p>
+                  <div className="mt-2 grid gap-2 text-sm font-bold">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>ARCT payout</span>
+                      <span className="font-mono">{formatCollateral(payoutAmount)} ARCT</span>
                     </div>
-                  )}
-                  {redeemableShort > 0n && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">
-                        No tokens
-                        <span className="float-right font-mono">{formatCollateral(redeemableShort)}</span>
-                      </p>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        min="0"
-                        max={formatCollateral(redeemableShort, true)}
-                        value={shortSettleAmt}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          if (!raw || parseFloat(raw) <= 0) {
-                            setShortSettleAmt(raw);
-                            return;
-                          }
-                          const parsed = parseUnits(raw, COLLATERAL_DECIMALS);
-                          if (parsed > redeemableShort) {
-                            setShortSettleAmt(formatUnits(redeemableShort, COLLATERAL_DECIMALS));
-                          } else {
-                            setShortSettleAmt(raw);
-                          }
-                        }}
-                        className="font-mono"
-                      />
-                    </div>
-                  )}
+                    {redeemableLong > 0n && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span>YES tokens</span>
+                        <span className="font-mono">{formatCollateral(redeemableLong)} tokens</span>
+                      </div>
+                    )}
+                    {redeemableShort > 0n && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span>NO tokens</span>
+                        <span className="font-mono">{formatCollateral(redeemableShort)} tokens</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[#707A8A]">
+                    Claim Reward redeems your winning YES/NO tokens for ARCT payout.
+                  </p>
                 </div>
 
                 <Button
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => {
-                    const longVal = longSettleAmt ? parseUnits(longSettleAmt, COLLATERAL_DECIMALS) : 0n;
-                    const shortVal = shortSettleAmt ? parseUnits(shortSettleAmt, COLLATERAL_DECIMALS) : 0n;
-                    settlePos.settle(
-                      longVal > redeemableLong ? redeemableLong : longVal,
-                      shortVal > redeemableShort ? redeemableShort : shortVal,
-                    );
-                  }}
-                  disabled={
-                    settlePos.isPending ||
-                    settlePos.isConfirming ||
-                    (!Number(longSettleAmt) && !Number(shortSettleAmt))
-                  }
+                  className="w-full text-[#22C55E]"
+                  onClick={() => settlePos.settle(redeemableLong, redeemableShort)}
+                  disabled={isClaiming || isClaimed}
                 >
-                  {settlePos.isPending || settlePos.isConfirming
-                    ? "Settling..."
-                    : "Settle Position"}
+                  {isClaiming ? "Claiming..." : isClaimed ? "Claimed" : "Claim Reward"}
                 </Button>
                 <TxStatus {...settlePos} />
+
+                {!isClaimed && (
+                  <button
+                    className="text-[11px] font-bold text-[#707A8A] underline underline-offset-2 hover:text-[#FCD535]"
+                    onClick={() => setAdvancedClaimOpen((value) => !value)}
+                    type="button"
+                  >
+                    {advancedClaimOpen ? "Hide advanced amount" : "Advanced: partial amount"}
+                  </button>
+                )}
+
+                {advancedClaimOpen && !isClaimed && (
+                  <div className="space-y-3 rounded-lg border border-[#2B3139] bg-[#1E2329] p-3">
+                    <p className="text-xs font-bold text-[#707A8A]">
+                      Optional manual amount. Normal users should use Claim Reward.
+                    </p>
+                    <div className={redeemableLong > 0n && redeemableShort > 0n ? "grid grid-cols-2 gap-2" : ""}>
+                      {redeemableLong > 0n && (
+                        <div>
+                          <p className="mb-1 text-xs font-bold text-[#707A8A]">
+                            Yes tokens
+                            <span className="float-right font-mono">{formatCollateral(redeemableLong)}</span>
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              min="0"
+                              max={formatCollateral(redeemableLong, true)}
+                              value={longSettleAmt}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (!raw || parseFloat(raw) <= 0) {
+                                  setLongSettleAmt(raw);
+                                  return;
+                                }
+                                const parsed = parseUnits(raw, COLLATERAL_DECIMALS);
+                                if (parsed > redeemableLong) {
+                                  setLongSettleAmt(formatUnits(redeemableLong, COLLATERAL_DECIMALS));
+                                } else {
+                                  setLongSettleAmt(raw);
+                                }
+                              }}
+                              className="font-mono"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setLongSettleAmt(formatUnits(redeemableLong, COLLATERAL_DECIMALS))}
+                            >
+                              MAX
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {redeemableShort > 0n && (
+                        <div>
+                          <p className="mb-1 text-xs font-bold text-[#707A8A]">
+                            No tokens
+                            <span className="float-right font-mono">{formatCollateral(redeemableShort)}</span>
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              min="0"
+                              max={formatCollateral(redeemableShort, true)}
+                              value={shortSettleAmt}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (!raw || parseFloat(raw) <= 0) {
+                                  setShortSettleAmt(raw);
+                                  return;
+                                }
+                                const parsed = parseUnits(raw, COLLATERAL_DECIMALS);
+                                if (parsed > redeemableShort) {
+                                  setShortSettleAmt(formatUnits(redeemableShort, COLLATERAL_DECIMALS));
+                                } else {
+                                  setShortSettleAmt(raw);
+                                }
+                              }}
+                              className="font-mono"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setShortSettleAmt(formatUnits(redeemableShort, COLLATERAL_DECIMALS))}
+                            >
+                              MAX
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      className="w-full text-[#22C55E]"
+                      onClick={() => {
+                        const longVal = longSettleAmt ? parseUnits(longSettleAmt, COLLATERAL_DECIMALS) : 0n;
+                        const shortVal = shortSettleAmt ? parseUnits(shortSettleAmt, COLLATERAL_DECIMALS) : 0n;
+                        settlePos.settle(
+                          longVal > redeemableLong ? redeemableLong : longVal,
+                          shortVal > redeemableShort ? redeemableShort : shortVal,
+                        );
+                      }}
+                      disabled={
+                        isClaiming ||
+                        isClaimed ||
+                        (!Number(longSettleAmt) && !Number(shortSettleAmt))
+                      }
+                    >
+                      {isClaiming ? "Claiming..." : "Claim Selected Amount"}
+                    </Button>
+                  </div>
+                )}
               </>
             ) : null}
           </>
         );
       })()}
+    </div>
+  );
+}
+
+function ResolveStatePanel({
+  hasClaimablePayout,
+  priceRequested,
+  proposalLivenessActive,
+  readyToSettleOracle,
+  receivedSettlementPrice,
+  oracleState,
+}: {
+  hasClaimablePayout: boolean;
+  priceRequested: boolean | undefined;
+  proposalLivenessActive: boolean;
+  readyToSettleOracle: boolean;
+  receivedSettlementPrice: boolean | undefined;
+  oracleState: OracleState | undefined;
+}) {
+  const rows = [
+    {
+      label: "Market initialized",
+      value: priceRequested ? "Price requested" : "Not initialized",
+      active: !!priceRequested,
+    },
+    {
+      label: "Proposal",
+      value:
+        oracleState === OracleState.Proposed
+          ? "Proposal pending"
+          : oracleState === OracleState.Requested
+            ? "Awaiting proposal"
+            : oracleState === OracleState.Disputed || oracleState === OracleState.Invalid
+              ? "Dispute / arbitration"
+              : receivedSettlementPrice
+                ? "Resolved"
+                : "Pending",
+      active:
+        oracleState === OracleState.Proposed ||
+        oracleState === OracleState.Requested ||
+        oracleState === OracleState.Disputed ||
+        oracleState === OracleState.Invalid,
+    },
+    {
+      label: "Liveness",
+      value: proposalLivenessActive ? "Active" : readyToSettleOracle ? "Expired" : "Waiting",
+      active: proposalLivenessActive || readyToSettleOracle,
+    },
+    {
+      label: "Settlement",
+      value: receivedSettlementPrice ? "Settled" : readyToSettleOracle ? "Ready to settle" : "Not settled",
+      active: !!receivedSettlementPrice || readyToSettleOracle,
+    },
+    {
+      label: "Claim",
+      value: hasClaimablePayout ? "Claimable payout available" : receivedSettlementPrice ? "No claimable payout" : "Not available",
+      active: hasClaimablePayout,
+    },
+  ];
+
+  return (
+    <div className="grid gap-1">
+      {rows.map((row) => (
+        <div
+          className={`flex items-center justify-between gap-3 rounded border border-[#2B3139] px-2.5 py-1.5 text-[11px] ${
+            row.active ? "bg-[#0ECB81]/15" : "bg-[#1E2329]"
+          }`}
+          key={row.label}
+        >
+          <span className="font-bold text-[#707A8A]">{row.label}</span>
+          <span className="text-right font-bold text-[#EAECEF]">{row.value}</span>
+        </div>
+      ))}
     </div>
   );
 }

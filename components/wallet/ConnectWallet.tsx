@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { useChainId, useReadContract } from "wagmi";
 import { formatUnits } from "viem";
 import { arcTestnet, LIVE_STATE_REFETCH_INTERVAL } from "@/lib/wagmi";
@@ -34,7 +34,7 @@ import { ConnectDialog } from "./ConnectDialog";
 export function ConnectWallet() {
   const { address, isConnected, walletType, disconnect } = useWallet();
   const chainId = useChainId();
-  const mounted = useSyncExternalStore(() => () => { }, () => true, () => false);
+  const [mounted, setMounted] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: arctBalance, isLoading: isBalanceLoading } = useReadContract({
@@ -54,6 +54,10 @@ export function ConnectWallet() {
   useEffect(() => {
     if (mintArct.isSuccess) queryClient.invalidateQueries();
   }, [mintArct.isSuccess, queryClient]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!mounted) return null;
 

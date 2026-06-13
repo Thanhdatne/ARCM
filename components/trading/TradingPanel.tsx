@@ -19,8 +19,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { parseUnits } from "viem";
+import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useWallet } from "@/contexts/WalletContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -47,16 +48,20 @@ import {
   useApproveTokenForAMM,
   useAMMAllowances,
 } from "@/hooks/useAMM";
-import { COLLATERAL_DECIMALS, OO_V2_ADDRESS, OracleState } from "@/lib/contracts";
+import { OO_V2_ADDRESS, OracleState } from "@/lib/contracts";
+import { formatCollateral } from "@/hooks/market/helpers";
+import { ArctFaucetButton } from "@/components/wallet/ArctFaucetButton";
 import { BuyTab } from "./BuyTab";
 import { SellTab } from "./SellTab";
 import { ResolveTab } from "./ResolveTab";
 
 type Tab = "buy" | "sell" | "resolve";
 type Outcome = "yes" | "no";
+const adminSettlementEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
 
 export function TradingPanel() {
   const { isConnected } = useWallet();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<Tab>("buy");
@@ -77,7 +82,7 @@ export function TradingPanel() {
     refetch: refetchMarket,
   } = useMarketState();
 
-  const { longBalance, shortBalance, isLoading: isBalancesLoading, refetch: refetchBalances } = useTokenBalances(
+  const { arctBalance, longBalance, shortBalance, isLoading: isBalancesLoading, refetch: refetchBalances } = useTokenBalances(
     longTokenAddress,
     shortTokenAddress
   );
@@ -126,6 +131,12 @@ export function TradingPanel() {
     if (receivedSettlementPrice) setTab("resolve");
   }, [receivedSettlementPrice]);
 
+  useEffect(() => {
+    if (searchParams.get("tab") === "resolve" && (adminSettlementEnabled || receivedSettlementPrice)) {
+      setTab("resolve");
+    }
+  }, [searchParams, receivedSettlementPrice]);
+
   // Refetch allowances after approvals
   useEffect(() => {
     if (approveArct.isSuccess || approveLong.isSuccess || approveShort.isSuccess || approveArctForOO.isSuccess) {
@@ -172,10 +183,6 @@ export function TradingPanel() {
     return () => clearInterval(interval);
   }, [isOracleSettlementRefreshing, queryClient, refetchMarket, refetchOracle]);
 
-  const amountBigInt = amount
-    ? parseUnits(amount, COLLATERAL_DECIMALS)
-    : 0n;
-
   const needsBuyApproval =
     tab === "buy" && !approveArct.isSuccess && arctAllowance !== undefined &&
     arctAllowance === 0n;
@@ -192,8 +199,9 @@ export function TradingPanel() {
 
   if ((isMarketLoading || isAMMLoading || isBalancesLoading)) {
     return (
-      <div className="rounded-xl border border-border bg-card sticky top-20">
-        <div className="flex border-b border-border">
+      <div className="sticky top-20 rounded-xl border border-[#2B3139] bg-[#1E2329]">
+        <div className="px-4 py-3 text-sm font-bold text-[#EAECEF]">Trade</div>
+        <div className="flex border-b border-[#2B3139]">
           {["buy", "sell", "resolve"].map((t) => (
             <div key={t} className="flex-1 flex justify-center py-3">
               <Skeleton className="h-4 w-10" />
@@ -222,37 +230,58 @@ export function TradingPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card sticky top-20">
+    <aside className="sticky top-20 overflow-hidden rounded-xl border border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+      <div className="flex items-center justify-between gap-3 border-b border-[#2B3139] px-4 py-3">
+        <div>
+          <span className="text-base font-bold">Trade</span>
+          <p className="mt-0.5 text-xs text-[#707A8A]">ARCT collateral</p>
+        </div>
+        <span className="rounded-full border border-[#FCD535]/70 bg-[#FCD535]/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#FFF3AF]">
+          Arc Testnet
+        </span>
+      </div>
+      <div className="border-b border-[#2B3139] px-4 py-3">
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <div>
+            <p className="font-semibold text-[#707A8A]">Wallet balance</p>
+            <p className="mt-1 font-mono text-sm font-bold text-[#EAECEF]">{formatCollateral(arctBalance)} ARCT</p>
+          </div>
+          <ArctFaucetButton />
+        </div>
+      </div>
       {/* Tab header */}
-      <div className="flex border-b border-border">
-        {(["buy", "sell", "resolve"] as Tab[]).map((t) => {
+      <div className={`grid gap-1 border-b border-[#2B3139] bg-[#0B0E11] p-1.5 ${adminSettlementEnabled || receivedSettlementPrice ? "grid-cols-3" : "grid-cols-2"}`}>
+        {((adminSettlementEnabled || receivedSettlementPrice ? ["buy", "sell", "resolve"] : ["buy", "sell"]) as Tab[]).map((t) => {
           const disabled = receivedSettlementPrice && (t === "buy" || t === "sell");
           return (
             <button
               key={t}
               onClick={() => { if (!disabled) { setTab(t); setAmount(""); } }}
               disabled={!!disabled}
-              className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${disabled
-                ? "text-muted-foreground/40 cursor-not-allowed"
+              className={`focus-ring rounded-xl px-3 py-2 text-sm font-bold capitalize transition active:translate-y-px ${disabled
+                ? "cursor-not-allowed text-[#707A8A]"
                 : tab === t
-                  ? "text-foreground border-b-2 border-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-[#FCD535] text-[#181A20]"
+                  : "text-[#707A8A] hover:bg-[#1E2329] hover:text-[#EAECEF]"
                 }`}
             >
-              {t}
+              {t === "resolve" && !adminSettlementEnabled ? "claim" : t}
             </button>
           );
         })}
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className="space-y-4 p-4">
         {!mounted || !isConnected ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            Connect your wallet to trade
-          </p>
+          <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-center">
+            <p className="mb-3 text-sm font-semibold text-[#EAECEF]">Connect wallet to trade on Arc Testnet.</p>
+            <div className="flex justify-center">
+              <ConnectButton showBalance={false} chainStatus="name" />
+            </div>
+          </div>
         ) : !ammInitialized && tab !== "resolve" ? (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground text-center py-6">
+            <p className="rounded-xl border border-[#2B3139] bg-[#0B0E11] px-4 py-8 text-center text-sm text-[#707A8A]">
               AMM is not yet initialized. Deploy and seed the AMM contract first.
             </p>
           </div>
@@ -264,6 +293,7 @@ export function TradingPanel() {
             onAmountChange={setAmount}
             yesPrice={yesPrice}
             noPrice={noPrice}
+            arctBalance={arctBalance}
             buyPreview={buyPreview}
             needsApproval={needsBuyApproval}
             isAllowancesLoading={isAllowancesLoading}
@@ -307,9 +337,10 @@ export function TradingPanel() {
             settleOracleWithTimer={settleOracleWithTimer}
             isOracleSettlementRefreshing={isOracleSettlementRefreshing}
             settlePos={settlePos}
+            adminSettlementEnabled={adminSettlementEnabled}
           />
         )}
       </div>
-    </div>
+    </aside>
   );
 }
