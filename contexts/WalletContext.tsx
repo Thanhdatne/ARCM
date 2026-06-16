@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,12 +28,7 @@ import {
   type ReactNode,
 } from "react";
 import { type Address, type Hex, encodeFunctionData } from "viem";
-import {
-  useConnection,
-  useConnect,
-  useConnectors,
-  useDisconnect,
-} from "wagmi";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 import {
   toWebAuthnCredential,
   toCircleSmartAccount,
@@ -88,10 +83,13 @@ export function useWallet() {
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   // Wagmi (MetaMask) state
-  const { address: wagmiAddress, isConnected: wagmiConnected } = useConnection();
-  const { mutate: wagmiConnect, isPending: wagmiPending } = useConnect();
-  const connectors = useConnectors();
-  const { mutate: wagmiDisconnect } = useDisconnect();
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
+  const {
+    connect: wagmiConnect,
+    connectors,
+    isPending: wagmiPending,
+  } = useConnect();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
 
   // Circle state
   const [circleAddress, setCircleAddress] = useState<Address | undefined>();
@@ -185,7 +183,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setBundlerClient(null);
       localStorage.removeItem(STORAGE_KEY);
     }
-    wagmiConnect({ connector: connectors[0] });
+    const connector = connectors[0];
+    if (connector) {
+      wagmiConnect({ connector });
+    }
   }, [circleAddress, wagmiConnect, connectors]);
 
   const disconnect = useCallback(() => {
@@ -262,3 +263,4 @@ export function encodeContractCall(params: {
     }),
   };
 }
+
