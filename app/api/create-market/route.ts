@@ -33,7 +33,7 @@ import { arcTestnet } from "@/lib/chain";
 import { getAdminRequestError } from "@/lib/adminGuard";
 
 export const runtime = "nodejs";
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 // --- Config -----------------------------------------------------------
 
