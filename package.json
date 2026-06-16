@@ -5,7 +5,7 @@
   "description": "Bitcoin prediction market built on Arc Testnet",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "compile": "hardhat compile",
