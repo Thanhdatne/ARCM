@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +18,9 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { type Address } from "viem";
 import { CreateMarketDialog } from "@/components/CreateMarketDialog";
 import { MarketCard } from "@/components/MarketCard";
@@ -52,12 +53,24 @@ import {
 } from "@/src/lib/worldCupResults";
 import { PlusCircle } from "lucide-react";
 
-const categories = ["All", "Trending", "World Cup", "Arc", "Crypto", "Stablecoins", "AI", "Macro", "RWA", "Privacy"];
-const filters = ["Featured", "Newest", "Volume", "Open", "Settled"];
+const categories = ["All", "Trending", "World Cup", "Arc", "Crypto", "Stablecoins", "AI", "Macro", "RWA", "Privacy"] as const;
+const filters = ["Featured", "Newest", "Volume", "Open"] as const;
+
+type CategoryFilter = (typeof categories)[number];
+type MarketViewFilter = (typeof filters)[number];
 const adminMarketCreateEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
 const adminResultOverrideEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_RESULT_OVERRIDE === "true";
 const ONE = 1000000000000000000n;
 const arcScanBaseUrl = "https://testnet.arcscan.app";
+
+const WORLD_CUP_DEPLOY_COOLDOWN_MS = 20_000;
+const WORLD_CUP_DEPLOY_RETRY_DELAY_MS = 45_000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 type BulkDeployStatus = {
   state: "pending" | "success" | "failed" | "skipped";
@@ -90,8 +103,619 @@ function isConfiguredOnchainMarket(market: MarketCardData) {
   );
 }
 
+type FilterableMarket = MarketCardData & {
+  createdAt?: string | number;
+  featured?: boolean;
+  group?: string;
+  isSettled?: boolean;
+  settled?: boolean;
+  status?: string;
+  trending?: boolean;
+  volumeLabel?: string;
+  volumeValue?: number;
+};
+
+type WorldCupFixtureOutcomeOption = {
+  outcomeType: WorldCupMarket["outcomeType"];
+  label: string;
+  probability: number;
+  marketAddress: string;
+  ammAddress: string;
+  market: WorldCupMarket;
+};
+
+type WorldCupFixtureCardData = {
+  fixtureId: string;
+  category: string;
+  group: WorldCupGroup;
+  homeTeam: string;
+  awayTeam: string;
+  kickoffTime: string;
+  imageSrc?: string;
+  imageAlt?: string;
+  isCompleted: boolean;
+  options: WorldCupFixtureOutcomeOption[];
+};
+
+function normalizeMarketText(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function getMarketCategory(market: MarketCardData) {
+  const category = (market as FilterableMarket).category;
+  return category && category.trim().length > 0 ? category.trim() : "Arc";
+}
+
+function isMarketFeatured(market: MarketCardData) {
+  const filterable = market as FilterableMarket;
+  return filterable.featured === true || filterable.trending === true;
+}
+
+function isMarketSettled(market: MarketCardData) {
+  const filterable = market as FilterableMarket;
+  const status = normalizeMarketText(filterable.status);
+
+  return (
+    filterable.settled === true ||
+    filterable.isSettled === true ||
+    status === "settled" ||
+    status === "closed" ||
+    status === "claimed"
+  );
+}
+
+function getMarketVolumeScore(market: MarketCardData) {
+  const filterable = market as FilterableMarket;
+  const rawVolume = filterable.volumeValue ?? filterable.volume;
+
+  if (typeof rawVolume === "number") return rawVolume;
+  if (typeof rawVolume === "bigint") return Number(rawVolume);
+  if (typeof rawVolume === "string") {
+    const parsed = Number(rawVolume.replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function getMarketCreatedAtScore(market: MarketCardData) {
+  const createdAt = (market as FilterableMarket).createdAt;
+  if (!createdAt) return 0;
+
+  if (typeof createdAt === "number") return createdAt;
+
+  const parsed = new Date(createdAt).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function marketMatchesCategory(market: MarketCardData, activeCategory: CategoryFilter) {
+  if (activeCategory === "All") return true;
+  if (activeCategory === "Trending") return isMarketFeatured(market);
+
+  return normalizeMarketText(getMarketCategory(market)) === normalizeMarketText(activeCategory);
+}
+
+function marketMatchesViewFilter(
+  market: MarketCardData,
+  activeFilter: MarketViewFilter,
+  currentCategoryMarkets: MarketCardData[],
+) {
+  if (activeFilter === "Featured") {
+    const hasFeaturedMarkets = currentCategoryMarkets.some(isMarketFeatured);
+    return hasFeaturedMarkets ? isMarketFeatured(market) : true;
+  }
+
+  if (activeFilter === "Open") return !isMarketSettled(market);
+
+  return true;
+}
+
+function sortMarketsByViewFilter(a: MarketCardData, b: MarketCardData, activeFilter: MarketViewFilter) {
+  if (activeFilter === "Newest") {
+    return getMarketCreatedAtScore(b) - getMarketCreatedAtScore(a);
+  }
+
+  if (activeFilter === "Volume") {
+    return getMarketVolumeScore(b) - getMarketVolumeScore(a);
+  }
+
+  return 0;
+}
+
+function marketMatchesSearch(market: MarketCardData, rawQuery: string) {
+  const query = normalizeMarketText(rawQuery);
+  if (!query) return true;
+
+  const filterable = market as FilterableMarket;
+  const searchableText = [
+    market.id,
+    market.title,
+    market.category,
+    market.icon,
+    market.address,
+    market.ammAddress,
+    filterable.group,
+    filterable.status,
+    filterable.volumeLabel,
+    market.volume === undefined ? "" : String(market.volume),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return searchableText.includes(query);
+}
+
+function getWorldCupOutcomeLabel(market: WorldCupMarket) {
+  switch (market.outcomeType) {
+    case "home_win":
+      return market.homeTeam;
+    case "draw":
+      return "Draw";
+    case "away_win":
+      return market.awayTeam;
+  }
+}
+
+function normalizeFixtureProbabilities(markets: WorldCupMarket[]) {
+  const rawValues = markets.map((market) => market.externalYesPrice ?? 0.5);
+  const total = rawValues.reduce((sum, value) => sum + value, 0);
+
+  if (!Number.isFinite(total) || total <= 0) {
+    return rawValues.map(() => 1 / Math.max(rawValues.length, 1));
+  }
+
+  return rawValues.map((value) => value / total);
+}
+
+function buildWorldCupFixtureCards(
+  markets: WorldCupMarket[],
+  resultsByFixture: Record<string, WorldCupResultRecord>,
+) {
+  const grouped = markets.reduce<Record<string, WorldCupMarket[]>>((acc, market) => {
+    acc[market.fixtureId] = [...(acc[market.fixtureId] ?? []), market];
+    return acc;
+  }, {});
+
+  const outcomeOrder: WorldCupMarket["outcomeType"][] = ["home_win", "draw", "away_win"];
+
+  return Object.values(grouped)
+    .map<WorldCupFixtureCardData | null>((fixtureMarkets) => {
+      const orderedMarkets = outcomeOrder
+        .map((outcomeType) => fixtureMarkets.find((market) => market.outcomeType === outcomeType))
+        .filter((market): market is WorldCupMarket => Boolean(market));
+
+      if (orderedMarkets.length !== 3) return null;
+      if (orderedMarkets.some((market) => !market.marketAddress || !market.ammAddress)) return null;
+
+      const fixtureLead = orderedMarkets[0];
+      const result = resultsByFixture[fixtureLead.fixtureId];
+      const isCompleted = result?.status === "final" || result?.status === "cancelled";
+      const normalizedProbabilities = normalizeFixtureProbabilities(orderedMarkets);
+
+      return {
+        fixtureId: fixtureLead.fixtureId,
+        category: fixtureLead.category,
+        group: fixtureLead.group,
+        homeTeam: fixtureLead.homeTeam,
+        awayTeam: fixtureLead.awayTeam,
+        kickoffTime: fixtureLead.kickoffTime,
+        imageSrc: fixtureLead.imageSrc,
+        imageAlt: fixtureLead.imageAlt,
+        isCompleted,
+        options: orderedMarkets.map((market, index) => ({
+          outcomeType: market.outcomeType,
+          label: getWorldCupOutcomeLabel(market),
+          probability: normalizedProbabilities[index] ?? 0,
+          marketAddress: market.marketAddress!,
+          ammAddress: market.ammAddress!,
+          market,
+        })),
+      };
+    })
+    .filter((fixture): fixture is WorldCupFixtureCardData => Boolean(fixture));
+}
+
+function fixtureMatchesCategory(fixture: WorldCupFixtureCardData, activeCategory: CategoryFilter) {
+  if (activeCategory === "All") return true;
+  if (activeCategory === "Trending") return true;
+
+  return normalizeMarketText(fixture.category) === normalizeMarketText(activeCategory);
+}
+
+function fixtureMatchesViewFilter(activeFilter: MarketViewFilter) {
+  return activeFilter === "Featured" || activeFilter === "Newest" || activeFilter === "Volume" || activeFilter === "Open";
+}
+
+function fixtureMatchesSearch(fixture: WorldCupFixtureCardData, rawQuery: string) {
+  const query = normalizeMarketText(rawQuery);
+  if (!query) return true;
+
+  const searchableText = [
+    fixture.fixtureId,
+    fixture.category,
+    fixture.group,
+    fixture.homeTeam,
+    fixture.awayTeam,
+    ...fixture.options.map((option) => option.label),
+    ...fixture.options.map((option) => option.marketAddress),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return searchableText.includes(query);
+}
+
+function formatFixtureProbability(probability: number) {
+  return `${Math.max(0, Math.round(probability * 100))}%`;
+}
+
+function getFixtureKickoffScore(fixture: WorldCupFixtureCardData) {
+  const parsed = new Date(fixture.kickoffTime).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sortFixturesByKickoff(fixtures: WorldCupFixtureCardData[]) {
+  return [...fixtures].sort((a, b) => getFixtureKickoffScore(a) - getFixtureKickoffScore(b));
+}
+
+function getFixtureDateKey(kickoffTime: string) {
+  const parsed = new Date(kickoffTime);
+  if (Number.isNaN(parsed.getTime())) return "unknown";
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function formatFixtureDateHeading(kickoffTime: string) {
+  const parsed = new Date(kickoffTime);
+  if (Number.isNaN(parsed.getTime())) return "Date TBA";
+
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    weekday: "short",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function formatFixtureKickoffTime(kickoffTime: string) {
+  const parsed = new Date(kickoffTime);
+  if (Number.isNaN(parsed.getTime())) return "Time TBA";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
+function formatFixtureCardDate(kickoffTime: string) {
+  const parsed = new Date(kickoffTime);
+  if (Number.isNaN(parsed.getTime())) return "Date TBA";
+
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    weekday: "short",
+  }).format(parsed);
+}
+
+function groupFixturesByDate(fixtures: WorldCupFixtureCardData[]) {
+  return sortFixturesByKickoff(fixtures).reduce<Array<{
+    dateKey: string;
+    dateLabel: string;
+    fixtures: WorldCupFixtureCardData[];
+  }>>((groups, fixture) => {
+    const dateKey = getFixtureDateKey(fixture.kickoffTime);
+    const existingGroup = groups.find((group) => group.dateKey === dateKey);
+
+    if (existingGroup) {
+      existingGroup.fixtures.push(fixture);
+      return groups;
+    }
+
+    groups.push({
+      dateKey,
+      dateLabel: formatFixtureDateHeading(fixture.kickoffTime),
+      fixtures: [fixture],
+    });
+
+    return groups;
+  }, []);
+}
+
+
+const countryFlagCodes: Record<string, string> = {
+  "Algeria": "dz",
+  "Argentina": "ar",
+  "Australia": "au",
+  "Austria": "at",
+  "Belgium": "be",
+  "Bosnia and Herzegovina": "ba",
+  "Bosnia": "ba",
+  "Brazil": "br",
+  "Cameroon": "cm",
+  "Canada": "ca",
+  "Cape Verde": "cv",
+  "Chile": "cl",
+  "Colombia": "co",
+  "Costa Rica": "cr",
+  "Croatia": "hr",
+  "Curacao": "cw",
+  "Czech Republic": "cz",
+  "Czechia": "cz",
+  "DR Congo": "cd",
+  "D.R. Congo": "cd",
+  "Democratic Republic of the Congo": "cd",
+  "Denmark": "dk",
+  "Ecuador": "ec",
+  "Egypt": "eg",
+  "England": "gb-eng",
+  "France": "fr",
+  "Germany": "de",
+  "Ghana": "gh",
+  "Haiti": "ht",
+  "Iran": "ir",
+  "Iraq": "iq",
+  "Italy": "it",
+  "Ivory Coast": "ci",
+  "Cote d'Ivoire": "ci",
+  "Jamaica": "jm",
+  "Japan": "jp",
+  "Jordan": "jo",
+  "South Korea": "kr",
+  "Mexico": "mx",
+  "Morocco": "ma",
+  "Netherlands": "nl",
+  "New Zealand": "nz",
+  "Nigeria": "ng",
+  "Norway": "no",
+  "Panama": "pa",
+  "Paraguay": "py",
+  "Peru": "pe",
+  "Poland": "pl",
+  "Portugal": "pt",
+  "Qatar": "qa",
+  "Saudi Arabia": "sa",
+  "Scotland": "gb-sct",
+  "Senegal": "sn",
+  "Serbia": "rs",
+  "South Africa": "za",
+  "Spain": "es",
+  "Sweden": "se",
+  "Switzerland": "ch",
+  "Tunisia": "tn",
+  "Turkey": "tr",
+  "Turkiye": "tr",
+  "TÃ¼rkiye": "tr",
+  "Ukraine": "ua",
+  "United States": "us",
+  "USA": "us",
+  "Uruguay": "uy",
+  "Uzbekistan": "uz",
+  "Wales": "gb-wls",
+};
+
+function normalizeCountryName(team: string) {
+  return team
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[?!.]+$/g, "");
+}
+
+function getCountryFlagCode(team: string) {
+  const normalized = normalizeCountryName(team);
+  const direct = countryFlagCodes[normalized];
+
+  if (direct) return direct;
+
+  const normalizedKey = normalized
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[â€™']/g, "")
+    .toLowerCase();
+
+  const aliasMap: Record<string, string> = {
+    "algeria": "dz",
+    "argentina": "ar",
+    "australia": "au",
+    "austria": "at",
+    "belgium": "be",
+    "bosnia and herzegovina": "ba",
+    "bosnia": "ba",
+    "brazil": "br",
+    "canada": "ca",
+    "cape verde": "cv",
+    "colombia": "co",
+    "croatia": "hr",
+    "curacao": "cw",
+    "czech republic": "cz",
+    "czechia": "cz",
+    "dr congo": "cd",
+    "d r congo": "cd",
+    "democratic republic of the congo": "cd",
+    "ecuador": "ec",
+    "egypt": "eg",
+    "england": "gb-eng",
+    "france": "fr",
+    "germany": "de",
+    "ghana": "gh",
+    "haiti": "ht",
+    "iran": "ir",
+    "iraq": "iq",
+    "ivory coast": "ci",
+    "cote divoire": "ci",
+    "japan": "jp",
+    "jordan": "jo",
+    "South Korea": "kr",
+    "south korea": "kr",
+    "mexico": "mx",
+    "morocco": "ma",
+    "netherlands": "nl",
+    "new zealand": "nz",
+    "norway": "no",
+    "panama": "pa",
+    "paraguay": "py",
+    "portugal": "pt",
+    "qatar": "qa",
+    "saudi arabia": "sa",
+    "scotland": "gb-sct",
+    "senegal": "sn",
+    "south africa": "za",
+    "spain": "es",
+    "sweden": "se",
+    "switzerland": "ch",
+    "tunisia": "tn",
+    "turkey": "tr",
+    "turkiye": "tr",
+    "united states": "us",
+    "usa": "us",
+    "uruguay": "uy",
+    "uzbekistan": "uz",
+  };
+
+  return aliasMap[normalizedKey];
+}
+
+function getCountryFallbackLabel(team: string) {
+  const normalized = normalizeCountryName(team);
+
+  const fallbackMap: Record<string, string> = {
+    "Czechia": "CZ",
+    "South Korea": "KR",
+    "South Africa": "ZA",
+    "Bosnia and Herzegovina": "BA",
+    "Cape Verde": "CV",
+    "DR Congo": "CD",
+    "Ivory Coast": "CI",
+    "New Zealand": "NZ",
+    "Saudi Arabia": "SA",
+    "United States": "US",
+  };
+
+  if (fallbackMap[normalized]) return fallbackMap[normalized];
+
+  return normalized
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function WorldCupFlagCircle({
+  team,
+  size = "md",
+}: {
+  team: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  const code = getCountryFlagCode(team);
+  const sizeClass =
+    size === "lg"
+      ? "h-12 w-12"
+      : size === "sm"
+        ? "h-9 w-9"
+        : "h-10 w-10";
+
+  return (
+    <div
+      className={`${sizeClass} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#2B3139] bg-[#0B0E11] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]`}
+      title={team}
+    >
+      {code ? (
+        <img
+          alt={`${team} flag`}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          src={`https://flagcdn.com/${code}.svg`}
+        />
+      ) : (
+        <span className="text-xs font-black text-[#EAECEF]">
+          {getCountryFallbackLabel(team)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function WorldCupFlagPair({
+  awayTeam,
+  homeTeam,
+}: {
+  awayTeam: string;
+  homeTeam: string;
+}) {
+  return (
+    <div className="flex shrink-0 items-center">
+      <WorldCupFlagCircle team={homeTeam} />
+      <div className="-ml-2">
+        <WorldCupFlagCircle team={awayTeam} />
+      </div>
+    </div>
+  );
+}
+
+function WorldCupTeamLabel({
+  align = "left",
+  team,
+}: {
+  align?: "left" | "right";
+  team: string;
+}) {
+  return (
+    <div
+      className={`flex min-w-0 flex-1 items-center gap-2 ${
+        align === "right" ? "justify-end text-right" : "justify-start"
+      }`}
+    >
+      {align === "left" ? <WorldCupFlagCircle size="sm" team={team} /> : null}
+      <span className="min-w-0 truncate text-sm font-black text-[#EAECEF]">{team}</span>
+      {align === "right" ? <WorldCupFlagCircle size="sm" team={team} /> : null}
+    </div>
+  );
+}
+
+function WorldCupMatchupHeader({
+  awayTeam,
+  group,
+  homeTeam,
+}: {
+  awayTeam: string;
+  group: WorldCupGroup;
+  homeTeam: string;
+}) {
+  return (
+    <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3">
+      <div className="flex items-center gap-2">
+        <WorldCupTeamLabel team={homeTeam} />
+        <span className="shrink-0 rounded-md border border-[#2B3139] bg-[#1E2329] px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FCD535]">
+          vs
+        </span>
+        <WorldCupTeamLabel align="right" team={awayTeam} />
+      </div>
+      <p className="mt-2 truncate text-center text-[11px] font-semibold text-[#707A8A]">
+        World Cup Â· {group}
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
+  return (
+    <Suspense fallback={<HomeFallback />}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const { isConnected } = useWallet();
+  const searchParams = useSearchParams();
+  const marketSearchQuery = (searchParams.get("q") ?? "").trim();
   const [dynamicMarkets, setDynamicMarkets] = useState<MarketCardData[]>([]);
   const [deployedWorldCupMarkets, setDeployedWorldCupMarkets] = useState<
     Record<string, { marketAddress: string; ammAddress: string }>
@@ -103,6 +727,9 @@ export default function Home() {
   const [selectedSettlementFilter, setSelectedSettlementFilter] = useState<SettlementFilter>("All");
   const [bulkDeployStatuses, setBulkDeployStatuses] = useState<Record<string, BulkDeployStatus>>({});
   const [isBulkDeploying, setIsBulkDeploying] = useState(false);
+  const [adminKey, setAdminKey] = useState("");
+  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("All");
+  const [activeMarketFilter, setActiveMarketFilter] = useState<MarketViewFilter>("Featured");
 
   const fetchDynamicMarkets = useCallback(async () => {
     try {
@@ -145,6 +772,10 @@ export default function Home() {
     fetchWorldCupDeployments();
     fetchWorldCupResults();
   }, [fetchDynamicMarkets, fetchWorldCupDeployments, fetchWorldCupResults]);
+
+  useEffect(() => {
+    setAdminKey(window.localStorage.getItem("ARCM-admin-key") ?? "");
+  }, []);
 
   const onchainMarkets = [...dynamicMarkets, ...MARKETS].filter(isConfiguredOnchainMarket);
 
@@ -208,36 +839,58 @@ export default function Home() {
     }))
     .sort((a, b) => Number(Boolean(b.marketAddress && b.ammAddress)) - Number(Boolean(a.marketAddress && a.ammAddress)));
 
-  const onchainMarketAddresses = new Set(onchainMarkets.map((market) => market.address.toLowerCase()));
-  const deployedWorldCupCards: MarketCardData[] = worldCupMarkets
-    .filter((market) => market.marketAddress && market.ammAddress)
-    .filter((market) => !onchainMarketAddresses.has(market.marketAddress!.toLowerCase()))
-    .map((market) => ({
-      id: `world-cup-${market.id}`,
-      address: market.marketAddress!,
-      ammAddress: market.ammAddress!,
-      title: market.question,
-      icon: "WC",
-      yesPrice: market.externalYesPrice ?? 0.5,
-      noPrice: market.externalNoPrice ?? 0.5,
-      volume: market.group,
-      category: market.category,
-      isReal: true,
-      imageSrc: market.imageSrc,
-      imageAlt: market.imageAlt,
-    }));
-  const tradableMarkets = [...onchainMarkets, ...deployedWorldCupCards];
-  const visibleWorldCupMarkets = worldCupMarkets.filter(
-    (market) => selectedWorldCupGroup === "All" || market.group === selectedWorldCupGroup,
-  );
-  const deployedWorldCupMarketsForSettlement = worldCupMarkets.filter((market) => market.marketAddress && market.ammAddress);
-  const visibleSettlementMarkets = deployedWorldCupMarketsForSettlement.filter(
-    (market) => selectedWorldCupGroup === "All" || market.group === selectedWorldCupGroup,
-  );
   const worldCupResultsByFixture = worldCupResults.reduce<Record<string, WorldCupResultRecord>>((acc, result) => {
     acc[result.fixtureId] = result;
     return acc;
   }, {});
+
+  const deployedWorldCupFixtureCards = buildWorldCupFixtureCards(worldCupMarkets, worldCupResultsByFixture).filter(
+    (fixture) => !fixture.isCompleted,
+  );
+  const deployedWorldCupMarketAddresses = new Set(
+    worldCupMarkets
+      .filter((market) => market.marketAddress && market.ammAddress)
+      .map((market) => market.marketAddress!.toLowerCase()),
+  );
+  const regularTradableMarkets = onchainMarkets.filter(
+    (market) => !deployedWorldCupMarketAddresses.has(market.address.toLowerCase()),
+  );
+  const homeMarketCount = regularTradableMarkets.length + deployedWorldCupFixtureCards.length;
+
+  const categoryFilteredRegularMarkets = regularTradableMarkets.filter((market) =>
+    marketMatchesCategory(market, activeCategory),
+  );
+  const baseFilteredRegularMarkets = marketSearchQuery
+    ? regularTradableMarkets.filter((market) => marketMatchesSearch(market, marketSearchQuery))
+    : categoryFilteredRegularMarkets.filter((market) =>
+        marketMatchesViewFilter(market, activeMarketFilter, categoryFilteredRegularMarkets),
+      );
+  const filteredRegularMarkets = [...baseFilteredRegularMarkets].sort((a, b) =>
+    sortMarketsByViewFilter(a, b, activeMarketFilter),
+  );
+
+  const categoryFilteredFixtureCards = deployedWorldCupFixtureCards.filter((fixture) =>
+    fixtureMatchesCategory(fixture, activeCategory),
+  );
+  const filteredWorldCupFixtureCards = sortFixturesByKickoff(
+    marketSearchQuery
+      ? deployedWorldCupFixtureCards.filter((fixture) => fixtureMatchesSearch(fixture, marketSearchQuery))
+      : categoryFilteredFixtureCards.filter(() => fixtureMatchesViewFilter(activeMarketFilter)),
+  );
+  const showWorldCupDateSections = activeCategory === "World Cup" && !marketSearchQuery;
+  const hasVisibleHomeMarkets = filteredWorldCupFixtureCards.length > 0 || filteredRegularMarkets.length > 0;
+
+  const visibleWorldCupMarkets = worldCupMarkets.filter(
+    (market) => selectedWorldCupGroup === "All" || market.group === selectedWorldCupGroup,
+  );
+  const undeployedVisibleWorldCupMarkets = visibleWorldCupMarkets.filter(
+    (market) => !deployedWorldCupMarkets[market.id],
+  );
+  const nextFixtureWorldCupMarkets = undeployedVisibleWorldCupMarkets.slice(0, 3);
+  const deployedWorldCupMarketsForSettlement = worldCupMarkets.filter((market) => market.marketAddress && market.ammAddress);
+  const visibleSettlementMarkets = deployedWorldCupMarketsForSettlement.filter(
+    (market) => selectedWorldCupGroup === "All" || market.group === selectedWorldCupGroup,
+  );
   const visibleSettlementFixtures = visibleSettlementMarkets.reduce<WorldCupMarket[]>((acc, market) => {
     if (!acc.some((item) => item.fixtureId === market.fixtureId)) {
       acc.push(market);
@@ -245,6 +898,7 @@ export default function Home() {
     return acc;
   }, []);
   const selectedWorldCupMarkets = visibleWorldCupMarkets.filter((market) => selectedWorldCupMarketIds.includes(market.id));
+  const selectedSafeWorldCupMarkets = selectedWorldCupMarkets.slice(0, 3);
 
   const deployWorldCupMarkets = useCallback(
     async (marketsToDeploy: WorldCupMarket[]) => {
@@ -253,6 +907,22 @@ export default function Home() {
       const uniqueMarkets = marketsToDeploy.filter(
         (market, index, source) => source.findIndex((item) => item.id === market.id) === index,
       );
+
+      if (!adminKey.trim()) {
+        setBulkDeployStatuses((current) => {
+          const next = { ...current };
+
+          for (const market of uniqueMarkets) {
+            next[market.id] = {
+              state: "failed",
+              message: "Admin deploy key missing. Save it in /admin/markets first.",
+            };
+          }
+
+          return next;
+        });
+        return;
+      }
 
       setIsBulkDeploying(true);
 
@@ -268,55 +938,91 @@ export default function Home() {
 
           setBulkDeployStatuses((current) => ({
             ...current,
-            [market.id]: { state: "pending", message: "Deploying market + AMM" },
+            [market.id]: { state: "pending", message: "Deploying market + AMM. Keep this tab open." },
           }));
 
-          try {
-            const response = await fetch("/api/create-market", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: market.question,
-                category: "World Cup",
-                settlementRule: market.settlementRule,
-                worldCupMarketId: market.id,
-                fixtureId: market.fixtureId,
-                group: market.group,
-                outcomeType: market.outcomeType,
-              }),
-            });
-            const data = (await response.json()) as {
-              market?: DynamicMarket;
-              deployment?: WorldCupDeployment;
-              error?: string;
-              skipped?: boolean;
-            };
+          let deployed = false;
+          let lastErrorMessage = "Deployment failed";
 
-            if (!response.ok || !data.market?.address || !data.market.ammAddress) {
-              throw new Error(data.error ?? "Deployment did not return market and AMM addresses.");
+          for (let attempt = 1; attempt <= 2; attempt += 1) {
+            try {
+              const headers: Record<string, string> = { "Content-Type": "application/json" };
+              if (adminKey.trim()) {
+                headers["x-admin-key"] = adminKey.trim();
+              }
+
+              const response = await fetch("/api/create-market", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                  title: market.question,
+                  category: "World Cup",
+                  settlementRule: market.settlementRule,
+                  worldCupMarketId: market.id,
+                  fixtureId: market.fixtureId,
+                  group: market.group,
+                  outcomeType: market.outcomeType,
+                }),
+              });
+              const data = (await response.json()) as {
+                market?: DynamicMarket;
+                deployment?: WorldCupDeployment;
+                error?: string;
+                skipped?: boolean;
+              };
+
+              if (!response.ok || !data.market?.address || !data.market.ammAddress) {
+                throw new Error(data.error ?? "Deployment did not return market and AMM addresses.");
+              }
+
+              setDeployedWorldCupMarkets((current) => ({
+                ...current,
+                [market.id]: {
+                  marketAddress: data.market!.address,
+                  ammAddress: data.market!.ammAddress,
+                },
+              }));
+              setBulkDeployStatuses((current) => ({
+                ...current,
+                [market.id]: data.skipped
+                  ? { state: "skipped", message: "Already deployed" }
+                  : { state: "success", message: "Ready to trade" },
+              }));
+
+              deployed = true;
+              break;
+            } catch (error) {
+              lastErrorMessage = error instanceof Error ? error.message : "Deployment failed";
+
+              if (attempt === 1) {
+                setBulkDeployStatuses((current) => ({
+                  ...current,
+                  [market.id]: {
+                    state: "pending",
+                    message: `RPC delay, retrying once: ${lastErrorMessage}`,
+                  },
+                }));
+                await sleep(WORLD_CUP_DEPLOY_RETRY_DELAY_MS);
+                continue;
+              }
+
+              setBulkDeployStatuses((current) => ({
+                ...current,
+                [market.id]: {
+                  state: "failed",
+                  message: lastErrorMessage,
+                },
+              }));
             }
+          }
 
-            setDeployedWorldCupMarkets((current) => ({
-              ...current,
-              [market.id]: {
-                marketAddress: data.market!.address,
-                ammAddress: data.market!.ammAddress,
-              },
-            }));
+          if (deployed) {
             setBulkDeployStatuses((current) => ({
               ...current,
-              [market.id]: data.skipped
-                ? { state: "skipped", message: "Already deployed" }
-                : { state: "success", message: "Ready to trade" },
+              [market.id]: { state: "success", message: "Ready to trade" },
             }));
-          } catch (error) {
-            setBulkDeployStatuses((current) => ({
-              ...current,
-              [market.id]: {
-                state: "failed",
-                message: error instanceof Error ? error.message : "Deployment failed",
-              },
-            }));
+
+            await sleep(WORLD_CUP_DEPLOY_COOLDOWN_MS);
           }
         }
       } finally {
@@ -326,7 +1032,7 @@ export default function Home() {
         setIsBulkDeploying(false);
       }
     },
-    [fetchDynamicMarkets, fetchWorldCupDeployments, isBulkDeploying],
+    [adminKey, fetchDynamicMarkets, fetchWorldCupDeployments, isBulkDeploying],
   );
 
   const toggleWorldCupSelection = useCallback((marketId: string, selected: boolean) => {
@@ -339,10 +1045,15 @@ export default function Home() {
     <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-4 px-3 py-3 sm:px-5">
       <section className="flex flex-col gap-2">
         <div className="flex gap-1.5 overflow-x-auto pb-1">
-          {categories.map((category, index) => (
+          {categories.map((category) => (
             <button
-              className={index === 0 ? "focus-ring market-chip-active shrink-0 px-3 py-1.5 text-xs font-bold" : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"}
+              className={
+                activeCategory === category
+                  ? "focus-ring market-chip-active shrink-0 px-3 py-1.5 text-xs font-bold"
+                  : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"
+              }
               key={category}
+              onClick={() => setActiveCategory(category)}
               type="button"
             >
               {category}
@@ -351,10 +1062,15 @@ export default function Home() {
         </div>
 
         <div className="flex gap-1.5 overflow-x-auto pb-1">
-          {filters.map((filter, index) => (
+          {filters.map((filter) => (
             <button
-              className={index === 0 ? "focus-ring market-chip-active shrink-0 px-2.5 py-1 text-[11px] font-bold" : "focus-ring market-chip shrink-0 px-2.5 py-1 text-[11px] font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"}
+              className={
+                activeMarketFilter === filter
+                  ? "focus-ring market-chip-active shrink-0 px-2.5 py-1 text-[11px] font-bold"
+                  : "focus-ring market-chip shrink-0 px-2.5 py-1 text-[11px] font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"
+              }
               key={filter}
+              onClick={() => setActiveMarketFilter(filter)}
               type="button"
             >
               {filter}
@@ -363,7 +1079,7 @@ export default function Home() {
         </div>
       </section>
 
-      {tradableMarkets.length === 0 ? (
+      {homeMarketCount === 0 ? (
         <EmptyMarketState isConnected={isConnected} />
       ) : (
         <section className="space-y-3">
@@ -371,15 +1087,56 @@ export default function Home() {
             <div>
               <h2 className="text-lg font-bold text-[#EAECEF]">Markets</h2>
               <p className="mt-1 text-xs text-[#707A8A]">
-                {tradableMarkets.length} tradable ArcSignal market{tradableMarkets.length === 1 ? "" : "s"} on Arc Testnet.
+                {marketSearchQuery
+                  ? `Showing open markets matching â€œ${marketSearchQuery}â€.`
+                  : "Showing open markets on Arc Testnet."}
               </p>
             </div>
+            <div className="rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 py-2 text-xs font-bold text-[#707A8A]">
+              {marketSearchQuery ? `Search: ${marketSearchQuery}` : `${activeCategory} / ${activeMarketFilter}`}
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 min-[1720px]:grid-cols-4">
-            {tradableMarkets.map((market) => (
-              <MarketCard key={market.id} market={market} />
-            ))}
-          </div>
+
+          {hasVisibleHomeMarkets ? (
+            showWorldCupDateSections ? (
+              <div className="space-y-5">
+                <WorldCupDateSections fixtures={filteredWorldCupFixtureCards} />
+
+                {filteredRegularMarkets.length > 0 ? (
+                  <section className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-xs font-black uppercase tracking-[0.14em] text-[#707A8A]">
+                        Other World Cup markets
+                      </h3>
+                      <span className="text-xs font-semibold text-[#707A8A]">
+                        {filteredRegularMarkets.length} markets
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 min-[1720px]:grid-cols-4">
+                      {filteredRegularMarkets.map((market) => (
+                        <LifecycleOpenMarketCard key={market.id} market={market} />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 min-[1720px]:grid-cols-4">
+                {filteredWorldCupFixtureCards.map((fixture) => (
+                  <WorldCupFixtureCard fixture={fixture} key={`fixture-${fixture.fixtureId}`} />
+                ))}
+                {filteredRegularMarkets.map((market) => (
+                  <LifecycleOpenMarketCard key={market.id} market={market} />
+                ))}
+              </div>
+            )
+          ) : (
+            <FilteredMarketEmptyState
+              activeCategory={activeCategory}
+              activeFilter={activeMarketFilter}
+              searchQuery={marketSearchQuery}
+            />
+          )}
         </section>
       )}
 
@@ -416,32 +1173,40 @@ export default function Home() {
           </div>
           <div className="rounded-xl border border-[#2B3139] bg-[#1E2329] p-2">
             <p className="mb-2 text-[11px] font-semibold text-[#FCD535]">
-              Admin only: bulk deploy uses the server-side PRIVATE_KEY and reuses existing UMA/ARCT infrastructure.
+              Admin only: safe deploy is limited to one fixture / 3 markets at a time to avoid Arc RPC 429.
+              <span className={adminKey.trim() ? "ml-2 text-[#0ECB81]" : "ml-2 text-[#F6465D]"}>
+                {adminKey.trim() ? "Admin key ready" : "Admin key missing"}
+              </span>
             </p>
             <div className="flex flex-wrap gap-2">
               <button
                 className="terminal-button focus-ring px-3 py-1.5 text-xs font-bold disabled:cursor-not-allowed"
                 disabled={isBulkDeploying || selectedWorldCupMarkets.length === 0}
-                onClick={() => deployWorldCupMarkets(selectedWorldCupMarkets)}
+                onClick={() => deployWorldCupMarkets(selectedSafeWorldCupMarkets)}
                 type="button"
+                title="Safe mode deploys max 3 markets at a time to avoid Arc RPC rate limits."
               >
-                {isBulkDeploying ? "Deploying..." : `Deploy selected markets (${selectedWorldCupMarkets.length})`}
+                {isBulkDeploying
+                  ? "Deploying..."
+                  : `Deploy selected (${Math.min(selectedWorldCupMarkets.length, 3)}/3)`}
               </button>
               <button
                 className="terminal-button focus-ring px-3 py-1.5 text-xs font-bold disabled:cursor-not-allowed"
-                disabled={isBulkDeploying}
-                onClick={() => deployWorldCupMarkets(visibleWorldCupMarkets)}
+                disabled={isBulkDeploying || nextFixtureWorldCupMarkets.length === 0}
+                onClick={() => deployWorldCupMarkets(nextFixtureWorldCupMarkets)}
                 type="button"
+                title="Deploys the next undeployed fixture only: home win, draw, away win."
               >
-                Deploy visible
+                Deploy next fixture
               </button>
               <button
                 className="terminal-button focus-ring px-3 py-1.5 text-xs font-bold disabled:cursor-not-allowed"
-                disabled={isBulkDeploying || selectedWorldCupGroup === "All"}
-                onClick={() => deployWorldCupMarkets(visibleWorldCupMarkets)}
+                disabled={isBulkDeploying || selectedWorldCupGroup === "All" || nextFixtureWorldCupMarkets.length === 0}
+                onClick={() => deployWorldCupMarkets(nextFixtureWorldCupMarkets)}
                 type="button"
+                title="Safe mode: group deploy is limited to the next fixture to avoid RPC 429."
               >
-                Deploy group
+                Deploy next in group
               </button>
             </div>
           </div>
@@ -450,6 +1215,7 @@ export default function Home() {
           {visibleWorldCupMarkets.map((market) => (
             <WorldCupSignalCard
               adminCreateEnabled={adminMarketCreateEnabled}
+              adminKey={adminKey}
               bulkStatus={bulkDeployStatuses[market.id]}
               key={market.id}
               market={market}
@@ -468,7 +1234,7 @@ export default function Home() {
               World Cup Settlement
             </h2>
             <p className="mt-1 text-xs text-[#707A8A]">
-              Final scores are display-only. Settlement uses ArcSignal resolver / UMA flow.
+              Final scores are display-only. Settlement uses ARCM resolver / UMA flow.
             </p>
             <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
               {settlementFilters.map((filter) => (
@@ -506,6 +1272,7 @@ export default function Home() {
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {visibleSettlementFixtures.map((fixtureMarket) => (
                   <WorldCupResultUpdateCard
+                    adminKey={adminKey}
                     key={`result-${fixtureMarket.fixtureId}`}
                     market={fixtureMarket}
                     onSaved={fetchWorldCupResults}
@@ -552,8 +1319,165 @@ export default function Home() {
   );
 }
 
+function WorldCupDateSections({
+  fixtures,
+}: {
+  fixtures: WorldCupFixtureCardData[];
+}) {
+  const groups = groupFixturesByDate(fixtures);
+
+  if (groups.length === 0) {
+    return (
+      <div className="terminal-card p-5 text-sm text-[#707A8A]">
+        No deployed World Cup fixtures match this filter yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {groups.map((group, index) => (
+        <section className="space-y-3" key={group.dateKey}>
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                {index === 0 ? (
+                  <span className="rounded-full border border-[#FCD535]/50 bg-[#FCD535]/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FCD535]">
+                    Nearest
+                  </span>
+                ) : null}
+                <h3 className="text-sm font-black text-[#EAECEF]">{group.dateLabel}</h3>
+              </div>
+              <p className="mt-1 text-xs text-[#707A8A]">
+                {group.fixtures.length} fixture{group.fixtures.length === 1 ? "" : "s"} Â· sorted by kickoff time
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-[#707A8A]">UTC schedule</span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 min-[1720px]:grid-cols-4">
+            {group.fixtures.map((fixture) => (
+              <WorldCupFixtureCard fixture={fixture} key={`fixture-${fixture.fixtureId}`} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function WorldCupFixtureCard({
+  fixture,
+}: {
+  fixture: WorldCupFixtureCardData;
+}) {
+  return (
+    <article className="interactive-card market-card-hover flex min-h-[236px] flex-col rounded-xl border border-[#2B3139] bg-[#1E2329] p-3 text-[#EAECEF]">
+      <WorldCupMatchupHeader
+        awayTeam={fixture.awayTeam}
+        group={fixture.group}
+        homeTeam={fixture.homeTeam}
+      />
+
+      <div className="mt-3 flex flex-1 flex-col gap-2">
+        {fixture.options.map((option) => (
+          <Link
+            className="focus-ring group flex min-h-[40px] items-center justify-between rounded-lg border border-[#2B3139] bg-[#0B0E11] px-3 py-2 text-sm font-bold text-[#EAECEF] transition hover:border-[#FCD535] hover:bg-[#20262D]"
+            href={`/market/${option.marketAddress}`}
+            key={option.outcomeType}
+          >
+            <span className="min-w-0 truncate pr-3">{option.label}</span>
+            <span className="font-mono text-base font-black text-[#FCD535] transition group-hover:text-[#FFF3AF]">
+              {formatFixtureProbability(option.probability)}
+            </span>
+          </Link>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-semibold">
+        <span className="min-w-0 truncate text-[#EAECEF]">
+          {formatFixtureCardDate(fixture.kickoffTime)}
+        </span>
+        <span className="shrink-0 font-mono text-[#EAECEF]">
+          {formatFixtureKickoffTime(fixture.kickoffTime)} UTC
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function LifecycleOpenMarketCard({
+  market,
+}: {
+  market: MarketCardData;
+}) {
+  if (!market.address || !market.ammAddress) return null;
+
+  return (
+    <MarketAddressProvider
+      ammAddress={market.ammAddress as Address}
+      marketAddress={market.address as Address}
+    >
+      <LifecycleOpenMarketCardInner market={market} />
+    </MarketAddressProvider>
+  );
+}
+
+function LifecycleOpenMarketCardInner({
+  market,
+}: {
+  market: MarketCardData;
+}) {
+  const {
+    priceIdentifier,
+    requestTimestamp,
+    ancillaryDataHex,
+    receivedSettlementPrice,
+  } = useMarketState();
+  const { oracleState } = useOracleState(
+    priceIdentifier,
+    requestTimestamp,
+    ancillaryDataHex,
+  );
+  const isCompleted =
+    isMarketSettled(market) ||
+    Boolean(receivedSettlementPrice) ||
+    oracleState === OracleState.Settled;
+
+  if (isCompleted) return null;
+
+  return <MarketCard market={market} />;
+}
+
+function HomeFallback() {
+  return (
+    <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-4 px-3 py-3 sm:px-5">
+      <section className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-[#EAECEF]">Markets</h2>
+            <p className="mt-1 text-xs text-[#707A8A]">Loading ARCM markets...</p>
+          </div>
+          <div className="rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 py-2 text-xs font-bold text-[#707A8A]">
+            Loading
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 min-[1720px]:grid-cols-4">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div
+              className="h-[184px] rounded-xl border border-[#2B3139] bg-[#1E2329]"
+              key={index}
+            />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function WorldCupSignalCard({
   adminCreateEnabled,
+  adminKey,
   bulkStatus,
   market,
   onCreated,
@@ -561,6 +1485,7 @@ function WorldCupSignalCard({
   selected,
 }: {
   adminCreateEnabled: boolean;
+  adminKey: string;
   bulkStatus?: BulkDeployStatus;
   market: WorldCupMarket;
   onCreated: (market?: DynamicMarket) => void | Promise<void>;
@@ -587,7 +1512,7 @@ function WorldCupSignalCard({
       }`}
     >
       <div className="flex min-h-[58px] gap-3">
-        <WorldCupThumbnail alt={market.imageAlt} imageSrc={market.imageSrc} label="WC" />
+        <WorldCupFlagPair awayTeam={market.awayTeam} homeTeam={market.homeTeam} />
         <div className="min-w-0 flex-1">
           <h3 className="line-clamp-2 min-h-[40px] pt-0.5 text-[15px] font-bold leading-snug text-[#EAECEF]">
             {market.question}
@@ -621,6 +1546,7 @@ function WorldCupSignalCard({
         </span>
         <CardAction
           adminCreateEnabled={adminCreateEnabled}
+          adminKey={adminKey}
           bulkStatus={bulkStatus}
           isTradable={isTradable}
           market={market}
@@ -642,10 +1568,12 @@ function WorldCupSignalCard({
 }
 
 function WorldCupResultUpdateCard({
+  adminKey,
   market,
   onSaved,
   result,
 }: {
+  adminKey: string;
   market: WorldCupMarket;
   onSaved: () => void | Promise<void>;
   result?: WorldCupResultRecord;
@@ -694,9 +1622,14 @@ function WorldCupResultUpdateCard({
     setMessage("");
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (adminKey.trim()) {
+        headers["x-admin-key"] = adminKey.trim();
+      }
+
       const response = await fetch("/api/world-cup/results", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           fixtureId: market.fixtureId,
           homeScore: status === "final" ? homeScoreNumber : null,
@@ -785,7 +1718,7 @@ function WorldCupResultUpdateCard({
         </p>
       )}
       <p className="text-[11px] leading-5 text-[#707A8A]">
-        Final scores are display-only. Settlement uses ArcSignal resolver / UMA flow.
+        Final scores are display-only. Settlement uses ARCM resolver / UMA flow.
       </p>
       <button
         className="terminal-button focus-ring w-full px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
@@ -897,7 +1830,7 @@ function WorldCupSettlementCard({
         </div>
 
         <p className="rounded-xl border border-[#2B3139] bg-[#0B0E11] px-3 py-2 text-[11px] leading-5 text-[#707A8A]">
-          Final scores are display-only. Settlement uses ArcSignal resolver / UMA flow.
+          Final scores are display-only. Settlement uses ARCM resolver / UMA flow.
         </p>
       </div>
 
@@ -1042,12 +1975,14 @@ function LifecycleLink({
 
 function CardAction({
   adminCreateEnabled,
+  adminKey,
   bulkStatus,
   isTradable,
   market,
   onCreated,
 }: {
   adminCreateEnabled: boolean;
+  adminKey: string;
   bulkStatus?: BulkDeployStatus;
   isTradable: boolean;
   market: WorldCupMarket;
@@ -1066,7 +2001,14 @@ function CardAction({
   }
 
   if (bulkStatus?.state === "failed") {
-    return <span className="shrink-0 text-[#F6465D]" title={bulkStatus.message}>Failed</span>;
+    return (
+      <span
+        className="max-w-[160px] shrink-0 truncate text-right text-[#F6465D]"
+        title={bulkStatus.message}
+      >
+        Failed: {bulkStatus.message}
+      </span>
+    );
   }
 
   if (bulkStatus?.state === "skipped") {
@@ -1076,6 +2018,7 @@ function CardAction({
   if (adminCreateEnabled) {
     return (
       <CreateMarketDialog
+        adminKey={adminKey.trim()}
         initialCategory="World Cup"
         initialSettlementRule={market.settlementRule}
         initialTitle={market.question}
@@ -1164,6 +2107,33 @@ function WorldCupThumbnail({
   );
 }
 
+function FilteredMarketEmptyState({
+  activeCategory,
+  activeFilter,
+  searchQuery,
+}: {
+  activeCategory: CategoryFilter;
+  activeFilter: MarketViewFilter;
+  searchQuery?: string;
+}) {
+  return (
+    <section className="rounded-xl border border-[#2B3139] bg-[#1E2329] p-8 text-center">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-[#2B3139] bg-[#0B0E11] text-sm font-black text-[#FCD535]">
+        0
+      </div>
+      <h3 className="text-lg font-bold text-[#EAECEF]">No markets found</h3>
+      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#707A8A]">
+        {searchQuery
+          ? `No open markets match â€œ${searchQuery}â€. Try another team, draw, group, category, or market address.`
+          : `No open markets are available for ${activeCategory} / ${activeFilter} yet.`}
+      </p>
+      <p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-[#707A8A]">
+        Markets will appear here after they are deployed and mapped with a real market address and AMM address.
+      </p>
+    </section>
+  );
+}
+
 function EmptyMarketState({
   isConnected,
 }: {
@@ -1176,7 +2146,7 @@ function EmptyMarketState({
       </div>
       <h2 className="text-2xl font-bold text-[#EAECEF]">No onchain markets found yet.</h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#707A8A]">
-        Create your first ArcSignal market on Arc Testnet, then open it to trade YES or NO with ARCT test collateral.
+        Create your first ARCM market on Arc Testnet, then open it to trade YES or NO with ARCT test collateral.
       </p>
       {!isConnected && (
         <p className="mx-auto mt-4 max-w-lg rounded-lg border border-[#FCD535] bg-[#FCD535]/15 px-4 py-3 text-sm font-bold text-[#FFF3AF]">
@@ -1186,3 +2156,4 @@ function EmptyMarketState({
     </section>
   );
 }
+  

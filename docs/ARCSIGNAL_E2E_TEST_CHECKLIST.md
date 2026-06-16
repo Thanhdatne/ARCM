@@ -1,6 +1,6 @@
-# ArcSignal E2E Test Checklist
+﻿# ARCM E2E Test Checklist
 
-This checklist verifies the real ArcSignal onchain prediction market lifecycle on Arc Testnet. It is written for the current app based on the official `circlefin/arc-prediction-markets` sample flow.
+This checklist verifies the real ARCM onchain prediction market lifecycle on Arc Testnet. It is written for the current app based on the official `circlefin/arc-prediction-markets` sample flow.
 
 Do not use this checklist to validate mock preview cards, privacy preview UX, or fake payouts. The production-critical path is the wallet, deployed contracts, ARCT collateral, AMM trading, UMA Optimistic Oracle V2 settlement, and market payout redemption.
 
@@ -46,7 +46,7 @@ Expected result:
 - The board shows real onchain markets when available.
 - If no markets are available, the primary empty state says:
   - `No onchain markets found yet.`
-  - `Create your first ArcSignal market on Arc Testnet.`
+  - `Create your first ARCM market on Arc Testnet.`
 - Any preview examples are clearly labeled `Preview Examples - Not Onchain` or equivalent and are visually secondary.
 
 Files involved:
@@ -413,3 +413,4 @@ The lifecycle is considered verified when:
 - Winning tokens can be redeemed through `Claim ARCT Payout`.
 - Losing or absent positions show `No claimable payout`.
 - Build passes with `npm run build`.
+

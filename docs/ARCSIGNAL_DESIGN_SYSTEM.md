@@ -1,6 +1,6 @@
-# ArcSignal Design System
+﻿# ARCM Design System
 
-ArcSignal should feel like an institutional dark prediction market exchange: onchain-first, fast, trustworthy, dense, and clean.
+ARCM should feel like an institutional dark prediction market exchange: onchain-first, fast, trustworthy, dense, and clean.
 
 ## Design Principles
 
@@ -68,3 +68,4 @@ ArcSignal should feel like an institutional dark prediction market exchange: onc
 - Separate preview examples under clear "not onchain" labels.
 - Keep color accents functional: cyan for system, emerald for YES, rose for NO, amber for pending/risk.
 - Before shipping, scan for fake numbers, duplicated badges, and gradients that do not encode meaning.
+

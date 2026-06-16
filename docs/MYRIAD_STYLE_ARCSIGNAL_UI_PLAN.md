@@ -1,8 +1,8 @@
-# Myriad-Style ArcSignal UI Migration Plan
+﻿# Myriad-Style ARCM UI Migration Plan
 
 ## Scope
 
-This document plans the UI migration from the official `circlefin/arc-prediction-markets` sample app into ArcSignal: a Myriad-inspired, multi-category prediction market interface on Arc Testnet.
+This document plans the UI migration from the official `circlefin/arc-prediction-markets` sample app into ARCM: a Myriad-inspired, multi-category prediction market interface on Arc Testnet.
 
 This planning step is documentation-only.
 
@@ -13,7 +13,7 @@ Do not modify in this step:
 - `hardhat.config.ts`
 - deployed-address or ABI wiring
 - server deployment API behavior
-- `C:\project\arcsignal-v2`
+- `C:\project\ARCM-v2`
 
 The official onchain flow must remain intact while the UI is gradually redesigned.
 
@@ -58,9 +58,9 @@ Important frontend files:
 - `lib/contracts/*` - addresses, ABIs, types
 - `lib/markets.ts` - current static/demo market grid data and real market mapping
 
-## ArcSignal UI Prototype Reference
+## ARCM UI Prototype Reference
 
-The separate `C:\project\arcsignal-v2` prototype contains useful UI patterns that can be referenced, but not modified from this project.
+The separate `C:\project\ARCM-v2` prototype contains useful UI patterns that can be referenced, but not modified from this project.
 
 Relevant prototype concepts:
 
@@ -79,7 +79,7 @@ The onchain migration should borrow the interaction shape and visual hierarchy, 
 
 ## Target Product Direction
 
-ArcSignal = real-time multi-category prediction markets on Arc Testnet.
+ARCM = real-time multi-category prediction markets on Arc Testnet.
 
 Core verticals:
 
@@ -129,7 +129,7 @@ Likely new components:
 
 Target topbar:
 
-- Search ArcSignal
+- Search ARCM
 - Arc Testnet status
 - Wallet connect
 
@@ -463,7 +463,7 @@ Add a normalized view-model layer for UI while preserving raw contract hooks.
 Possible type:
 
 ```ts
-type ArcSignalMarketView = {
+type ARCMMarketView = {
   id: string;
   address?: Address;
   ammAddress?: Address;
@@ -497,7 +497,7 @@ For display-only or roadmap verticals:
 
 ## Migration Phases
 
-### Phase 1: App Shell, Sidebar, Topbar, Dark ArcSignal Branding
+### Phase 1: App Shell, Sidebar, Topbar, Dark ARCM Branding
 
 Goal:
 
@@ -523,7 +523,7 @@ Safest implementation:
 
 Goal:
 
-- Transform `/` into the ArcSignal Markets page.
+- Transform `/` into the ARCM Markets page.
 
 Tasks:
 
@@ -545,7 +545,7 @@ Safety rules:
 
 Goal:
 
-- Make market detail feel like ArcSignal while preserving all buy/sell/resolve behavior.
+- Make market detail feel like ARCM while preserving all buy/sell/resolve behavior.
 
 Tasks:
 
@@ -621,7 +621,7 @@ Required disclaimer:
 
 Goal:
 
-- Make the ArcSignal onchain app deployable without losing dynamic market behavior.
+- Make the ARCM onchain app deployable without losing dynamic market behavior.
 
 Tasks:
 
@@ -647,7 +647,7 @@ The official sample lifecycle must remain:
 5. Users or resolvers propose/dispute/settle through UMA OO V2.
 6. Users redeem/settle positions through existing contract functions.
 
-UI can become ArcSignal, but the transaction path must remain compatible with:
+UI can become ARCM, but the transaction path must remain compatible with:
 
 - `EventBasedPredictionMarket`
 - `PredictionMarketAMM`
@@ -667,8 +667,8 @@ UI can become ArcSignal, but the transaction path must remain compatible with:
 - `components/markets/FilterRow.tsx`
 - `components/markets/PromoBanners.tsx`
 - `components/markets/SpotlightMarket.tsx`
-- `components/markets/ArcSignalMarketCard.tsx`
-- `lib/arcsignal-market-view.ts`
+- `components/markets/ARCMMarketCard.tsx`
+- `lib/ARCM-market-view.ts`
 
 ### First existing files to modify
 
@@ -708,7 +708,7 @@ Start with Phase 1 only:
 
 Why this is safest:
 
-- It gives ArcSignal the Myriad-style navigation frame.
+- It gives ARCM the Myriad-style navigation frame.
 - It preserves the official sample's market grid and all onchain interactions.
 - It creates space for later route additions without touching contract-critical code.
 
@@ -723,5 +723,6 @@ The migration is successful only if:
 - Wallet connection still supports injected and Circle passkey wallet paths.
 - World Cup live scores are display-only until oracle settlement.
 - Privacy Preview never claims live privacy.
-- ArcSignal branding does not obscure ARCT collateral and Arc Testnet USDC gas realities.
+- ARCM branding does not obscure ARCT collateral and Arc Testnet USDC gas realities.
+
 

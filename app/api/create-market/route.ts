@@ -30,6 +30,10 @@ import {
 } from "viem";
 import { privateKeyToAccount, nonceManager } from "viem/accounts";
 import { arcTestnet } from "@/lib/chain";
+import { getAdminRequestError } from "@/lib/adminGuard";
+
+export const runtime = "nodejs";
+export const maxDuration = 600;
 
 // --- Config -----------------------------------------------------------
 
@@ -37,7 +41,7 @@ const PROPOSER_REWARD = parseEther("10"); // 10 ARCT
 const MARKET_LIVENESS = 60n; // 1 minute (testnet)
 const PROPOSER_BOND = parseEther("100"); // 100 ARCT
 const AMM_FEE_BPS = 200n; // 2%
-const SEED_LIQUIDITY = parseEther("1000"); // 1000 ARCT
+const SEED_LIQUIDITY = parseEther("100"); // 100 ARCT - safer for bulk testnet deployment
 
 // --- Load artifacts ---------------------------------------------------
 
@@ -85,6 +89,16 @@ const MARKET_INIT_ABI = [
     name: "initializeMarket",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+const MARKET_READ_ABI = [
+  {
+    inputs: [],
+    name: "priceRequested",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
     type: "function",
   },
 ] as const;
@@ -172,24 +186,199 @@ function upsertWorldCupDeployment(deployment: WorldCupDeployment) {
   writeWorldCupDeployments(nextDeployments);
 }
 
-/** Waits for a tx receipt with a reasonable timeout and polling interval. */
+/** Waits for a tx receipt and throws if the tx was mined as reverted. */
 async function waitForTx(
   publicClient: ReturnType<typeof createPublicClient>,
   hash: Hex,
 ) {
-  return publicClient.waitForTransactionReceipt({
+  const receipt = await publicClient.waitForTransactionReceipt({
     hash,
     pollingInterval: 2_000,
-    timeout: 120_000,
+    timeout: 180_000,
   });
+
+  if (receipt.status === "reverted") {
+    throw new Error(`Transaction reverted after mining: ${hash}`);
+  }
+
+  return receipt;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForPriceRequested(
+  publicClient: ReturnType<typeof createPublicClient>,
+  marketAddress: Address,
+) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const priceRequested = await withRpcRetry("Read priceRequested", () =>
+      publicClient.readContract({
+        address: marketAddress,
+        abi: MARKET_READ_ABI,
+        functionName: "priceRequested",
+      }),
+    );
+
+    if (priceRequested) {
+      return true;
+    }
+
+    await sleep(2_000);
+  }
+
+  return false;
+}
+
+function getErrorChain(error: unknown) {
+  const chain: unknown[] = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+
+  for (let depth = 0; current && depth < 10 && !seen.has(current); depth += 1) {
+    chain.push(current);
+    seen.add(current);
+    current = (current as { cause?: unknown }).cause;
+  }
+
+  return chain;
+}
+
+function getHeaders(error: unknown): Headers | undefined {
+  for (const item of getErrorChain(error)) {
+    const directHeaders = (item as { headers?: Headers }).headers;
+    if (directHeaders?.get) return directHeaders;
+
+    const responseHeaders = (item as { response?: { headers?: Headers } }).response?.headers;
+    if (responseHeaders?.get) return responseHeaders;
+  }
+
+  return undefined;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "string") return error;
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
+}
+
+function isRateLimited(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  if (
+    message.includes("429") ||
+    message.includes("rate limit") ||
+    message.includes("ratelimit") ||
+    message.includes("too many requests")
+  ) {
+    return true;
+  }
+
+  return getErrorChain(error).some((item) => {
+    const status = (item as { status?: number; response?: { status?: number } }).status
+      ?? (item as { status?: number; response?: { status?: number } }).response?.status;
+
+    return status === 429;
+  });
+}
+
+function isTransientRpcError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    isRateLimited(error) ||
+    message.includes("http request failed") ||
+    message.includes("timeout") ||
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("temporarily unavailable")
+  );
+}
+
+function getRetryDelayMs(error: unknown, attempt: number) {
+  const headers = getHeaders(error);
+  const resetHeader = headers?.get("x-ratelimit-reset");
+  const resetSeconds = resetHeader ? Number.parseInt(resetHeader, 10) : Number.NaN;
+
+  if (Number.isFinite(resetSeconds) && resetSeconds > 0) {
+    return Math.min((resetSeconds + 5) * 1_000, 90_000);
+  }
+
+  if (isRateLimited(error)) {
+    return 45_000;
+  }
+
+  return Math.min(8_000 * attempt, 25_000);
+}
+
+async function withRpcRetry<T>(
+  label: string,
+  operation: () => Promise<T>,
+  maxAttempts = 4,
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      if (!isTransientRpcError(error) || attempt === maxAttempts) {
+        break;
+      }
+
+      const delayMs = getRetryDelayMs(error, attempt);
+      console.warn(
+        `[create-market] ${label} hit transient RPC issue. Retry ${attempt}/${maxAttempts - 1} in ${Math.round(delayMs / 1000)}s.`,
+        getErrorMessage(error),
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  throw new Error(`${label} failed: ${getErrorMessage(lastError)}`);
+}
+
+
+function makeStableHash(input: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(36).toUpperCase().padStart(7, "0");
+}
+
+function makePairName(title: string, worldCupMarketId: string | null) {
+  const source = worldCupMarketId ?? title;
+  const cleanedPrefix = (worldCupMarketId ? "WC" : title)
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toUpperCase();
+
+  const prefix = (worldCupMarketId ? "WC" : cleanedPrefix.slice(0, 2) || "MK").slice(0, 2);
+  const suffix = makeStableHash(source).replace(/[^A-Z0-9]/g, "").slice(0, 8);
+
+  return `${prefix}${suffix}`.slice(0, 10);
 }
 
 // --- POST handler ------------------------------------------------------
 
 export async function POST(request: Request) {
-  if (process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE !== "true") {
-    return NextResponse.json({ error: "Public market creation is disabled during testnet preview." }, { status: 403 });
-  }
+  const adminError = getAdminRequestError(
+    request,
+    "Public market creation is disabled during testnet preview.",
+  );
+  if (adminError) return adminError;
 
   try {
     const body = await request.json();
@@ -263,11 +452,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate pair name from title (first 10 chars, uppercase, no spaces)
-    const pairName = trimmedTitle
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .substring(0, 10)
-      .toUpperCase();
+    // Generate a short UMA identifier.
+    //
+    // The old implementation used the first 10 chars of the title, which causes
+    // collisions for repeated team prefixes:
+    // - "Will Australia beat Turkey?"      -> WILLAUSTRA
+    // - "Will Australia beat Paraguay?"   -> WILLAUSTRA
+    //
+    // UMA's IdentifierWhitelist should receive a unique identifier per market.
+    // Use worldCupMarketId when available so World Cup markets are stable and
+    // unique even when titles start with the same words.
+    const pairName = makePairName(trimmedTitle, trimmedWorldCupMarketId);
 
     // Set up viem clients
     // Use the direct Arc RPC for server-side transactions. Alchemy's mempool tracker
@@ -288,6 +483,28 @@ export async function POST(request: Request) {
       transport: http(rpcUrl),
     });
 
+    // Avoid repeated eth_getTransactionCount calls for every tx. Arc public RPC
+    // rate-limits pending nonce reads aggressively, so we read once and then
+    // increment locally for this sequential server request.
+    let nextNonce = await withRpcRetry(
+      "Read deployer pending nonce",
+      () => publicClient.getTransactionCount({
+        address: account.address,
+        blockTag: "pending",
+      }),
+      6,
+    );
+
+    const sendWithManagedNonce = async (
+      label: string,
+      operation: (nonce: number) => Promise<Hex>,
+    ) => {
+      const nonce = nextNonce;
+      const hash = await withRpcRetry(label, () => operation(nonce), 6);
+      nextNonce = nonce + 1;
+      return hash;
+    };
+
     // Load artifacts
     const marketArtifact = loadArtifact(
       "EventBasedPredictionMarket.sol/EventBasedPredictionMarket.json"
@@ -297,22 +514,27 @@ export async function POST(request: Request) {
     );
 
     // Check deployer's ARCT balance and mint more if needed
-    const totalNeeded = PROPOSER_REWARD + SEED_LIQUIDITY; // 1010 ARCT
-    const balance = await publicClient.readContract({
-      address: arctAddress,
-      abi: ERC20_ABI,
-      functionName: "balanceOf",
-      args: [account.address],
-    });
+    const totalNeeded = PROPOSER_REWARD + SEED_LIQUIDITY + parseEther("25"); // proposer reward + AMM seed + buffer
+    const balance = await withRpcRetry("Read ARCT balance", () =>
+      publicClient.readContract({
+        address: arctAddress,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [account.address],
+      }),
+    );
 
     if (balance < totalNeeded) {
       const mintAmount = totalNeeded - balance + parseEther("100"); // mint extra buffer
-      const mintHash = await walletClient.writeContract({
-        address: arctAddress,
-        abi: ERC20_ABI,
-        functionName: "allocateTo",
-        args: [account.address, mintAmount],
-      });
+      const mintHash = await sendWithManagedNonce("Mint ARCT collateral", (nonce) =>
+        walletClient.writeContract({
+          address: arctAddress,
+          abi: ERC20_ABI,
+          functionName: "allocateTo",
+          args: [account.address, mintAmount],
+          nonce,
+        }),
+      );
       await waitForTx(publicClient, mintHash);
     }
 
@@ -321,20 +543,23 @@ export async function POST(request: Request) {
 
     // --- Deploy EventBasedPredictionMarket -----------------------------------
 
-    const marketHash = await walletClient.deployContract({
-      abi: marketArtifact.abi,
-      bytecode: marketArtifact.bytecode,
-      args: [
-        pairName,
-        arctAddress,
-        customAncillaryData,
-        finderAddress,
-        timerAddress,
-        PROPOSER_REWARD,
-        MARKET_LIVENESS,
-        PROPOSER_BOND,
-      ],
-    });
+    const marketHash = await sendWithManagedNonce("Deploy prediction market", (nonce) =>
+      walletClient.deployContract({
+        abi: marketArtifact.abi,
+        bytecode: marketArtifact.bytecode,
+        args: [
+          pairName,
+          arctAddress,
+          customAncillaryData,
+          finderAddress,
+          timerAddress,
+          PROPOSER_REWARD,
+          MARKET_LIVENESS,
+          PROPOSER_BOND,
+        ],
+        nonce,
+      }),
+    );
 
     const marketReceipt = await waitForTx(publicClient, marketHash);
     const marketAddress = marketReceipt.contractAddress;
@@ -346,29 +571,46 @@ export async function POST(request: Request) {
     // --- Initialize market --------------------------------------------
 
     // Approve proposer reward to market
-    const approveMarketHash = await walletClient.writeContract({
-      address: arctAddress,
-      abi: ERC20_ABI,
-      functionName: "approve",
-      args: [marketAddress, PROPOSER_REWARD],
-    });
+    const approveMarketHash = await sendWithManagedNonce("Approve proposer reward", (nonce) =>
+      walletClient.writeContract({
+        address: arctAddress,
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [marketAddress, PROPOSER_REWARD],
+        nonce,
+      }),
+    );
     await waitForTx(publicClient, approveMarketHash);
 
     // Initialize market (requests price from OO)
-    const initMarketHash = await walletClient.writeContract({
-      address: marketAddress,
-      abi: MARKET_INIT_ABI,
-      functionName: "initializeMarket",
-    });
+    const initMarketHash = await sendWithManagedNonce("Initialize prediction market", (nonce) =>
+      walletClient.writeContract({
+        address: marketAddress,
+        abi: MARKET_INIT_ABI,
+        functionName: "initializeMarket",
+        nonce,
+      }),
+    );
     await waitForTx(publicClient, initMarketHash);
+
+    const priceRequested = await waitForPriceRequested(publicClient, marketAddress);
+
+    if (!priceRequested) {
+      throw new Error(
+        "Market initialized tx was mined, but priceRequested is still false. Retry this card after a few seconds.",
+      );
+    }
 
     // --- Deploy PredictionMarketAMM ------------------------------------------
 
-    const ammHash = await walletClient.deployContract({
-      abi: ammArtifact.abi,
-      bytecode: ammArtifact.bytecode,
-      args: [marketAddress, AMM_FEE_BPS],
-    });
+    const ammHash = await sendWithManagedNonce("Deploy AMM", (nonce) =>
+      walletClient.deployContract({
+        abi: ammArtifact.abi,
+        bytecode: ammArtifact.bytecode,
+        args: [marketAddress, AMM_FEE_BPS],
+        nonce,
+      }),
+    );
 
     const ammReceipt = await waitForTx(publicClient, ammHash);
     const ammAddress = ammReceipt.contractAddress;
@@ -379,22 +621,54 @@ export async function POST(request: Request) {
 
     // --- Seed AMM with liquidity ---------------------------------------------
 
+    // A previous request or partially completed deployment may have consumed ARCT
+    // after the initial balance check. Top up again immediately before seeding
+    // the AMM so initialize() does not revert with "transfer amount exceeds balance".
+    const balanceBeforeAmmSeed = await withRpcRetry("Read ARCT balance before AMM seed", () =>
+      publicClient.readContract({
+        address: arctAddress,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [account.address],
+      }),
+    );
+
+    if (balanceBeforeAmmSeed < SEED_LIQUIDITY) {
+      const topUpAmount = SEED_LIQUIDITY - balanceBeforeAmmSeed + parseEther("25");
+      const topUpHash = await sendWithManagedNonce("Top up ARCT before AMM seed", (nonce) =>
+        walletClient.writeContract({
+          address: arctAddress,
+          abi: ERC20_ABI,
+          functionName: "allocateTo",
+          args: [account.address, topUpAmount],
+          nonce,
+        }),
+      );
+      await waitForTx(publicClient, topUpHash);
+    }
+
     // Approve ARCT to AMM
-    const approveAmmHash = await walletClient.writeContract({
-      address: arctAddress,
-      abi: ERC20_ABI,
-      functionName: "approve",
-      args: [ammAddress, SEED_LIQUIDITY],
-    });
+    const approveAmmHash = await sendWithManagedNonce("Approve AMM liquidity", (nonce) =>
+      walletClient.writeContract({
+        address: arctAddress,
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [ammAddress, SEED_LIQUIDITY],
+        nonce,
+      }),
+    );
     await waitForTx(publicClient, approveAmmHash);
 
     // Initialize AMM
-    const initAmmHash = await walletClient.writeContract({
-      address: ammAddress,
-      abi: AMM_INIT_ABI,
-      functionName: "initialize",
-      args: [SEED_LIQUIDITY],
-    });
+    const initAmmHash = await sendWithManagedNonce("Initialize AMM liquidity", (nonce) =>
+      walletClient.writeContract({
+        address: ammAddress,
+        abi: AMM_INIT_ABI,
+        functionName: "initialize",
+        args: [SEED_LIQUIDITY],
+        nonce,
+      }),
+    );
     await waitForTx(publicClient, initAmmHash);
 
     // --- Save to markets.json ------------------------------------------------
@@ -430,8 +704,21 @@ export async function POST(request: Request) {
       success: true,
       market: newMarket,
     });
-  } catch {
-    console.error("Market creation failed.");
-    return NextResponse.json({ error: "Market creation failed. Check server configuration and try again." }, { status: 500 });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Market creation failed. Check server configuration and try again.";
+
+    console.error("Market creation failed:", error);
+
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      { status: 500 },
+    );
   }
 }

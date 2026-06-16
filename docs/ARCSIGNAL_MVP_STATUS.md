@@ -1,6 +1,6 @@
-# ArcSignal MVP Status
+﻿# ARCM MVP Status
 
-ArcSignal is now scoped as an onchain-first Arc Testnet MVP around the official `circlefin/arc-prediction-markets` sample flow.
+ARCM is now scoped as an onchain-first Arc Testnet MVP around the official `circlefin/arc-prediction-markets` sample flow.
 
 ## Real Onchain Today
 
@@ -105,3 +105,4 @@ Arc Testnet reference:
 - Do not use frontend-only data for settlement.
 - Do not claim production privacy is live.
 - Do not present preview examples as onchain markets.
+

@@ -1,17 +1,7 @@
-/**
+﻿/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -44,20 +34,125 @@ export interface DynamicMarket {
   createdAt: string;
 }
 
+type VisualAsset = {
+  icon: string;
+  imageSrc: string;
+  imageAlt: string;
+};
+
+function normalize(value?: string) {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+export function getMarketVisualAsset(title: string, category: string): VisualAsset {
+  const text = normalize(`${title} ${category}`);
+
+  if (/\beth\b|ethereum/.test(text)) {
+    return {
+      icon: "ETH",
+      imageSrc: "/market-images/eth.svg",
+      imageAlt: "Ethereum price market",
+    };
+  }
+
+  if (/\bbtc\b|bitcoin/.test(text)) {
+    return {
+      icon: "BTC",
+      imageSrc: "/market-images/btc.svg",
+      imageAlt: "Bitcoin price market",
+    };
+  }
+
+  if (/\bsol\b|solana/.test(text)) {
+    return {
+      icon: "SOL",
+      imageSrc: "/market-images/sol.svg",
+      imageAlt: "Solana price market",
+    };
+  }
+
+  if (/\busdc\b|stablecoin|depeg|peg/.test(text)) {
+    return {
+      icon: "USDC",
+      imageSrc: "/market-images/usdc.svg",
+      imageAlt: "Stablecoin market",
+    };
+  }
+
+  if (/\bai\b|openai|agent|model|llm|gpu|nvidia/.test(text) || normalize(category) === "ai") {
+    return {
+      icon: "AI",
+      imageSrc: "/market-images/ai.svg",
+      imageAlt: "AI market",
+    };
+  }
+
+  if (/fed|rate|cpi|inflation|macro|unemployment|gdp/.test(text) || normalize(category) === "macro") {
+    return {
+      icon: "MAC",
+      imageSrc: "/market-images/macro.svg",
+      imageAlt: "Macro market",
+    };
+  }
+
+  if (/treasury|rwa|bond|yield|real world asset|tokenized/.test(text) || normalize(category) === "rwa") {
+    return {
+      icon: "RWA",
+      imageSrc: "/market-images/rwa.svg",
+      imageAlt: "RWA market",
+    };
+  }
+
+  if (/privacy|zk|zero knowledge|shield|private/.test(text) || normalize(category) === "privacy") {
+    return {
+      icon: "ZK",
+      imageSrc: "/market-images/privacy.svg",
+      imageAlt: "Privacy market",
+    };
+  }
+
+  if (/world cup|beat|draw|football|soccer/.test(text) || normalize(category) === "world cup") {
+    return {
+      icon: "WC",
+      imageSrc: "/market-images/world-cup.svg",
+      imageAlt: "World Cup market",
+    };
+  }
+
+  if (/arc|arc testnet|ARCM/.test(text) || normalize(category).includes("arc")) {
+    return {
+      icon: "ARC",
+      imageSrc: "/branding/ARCM-logo.png",
+      imageAlt: "ARCM market",
+    };
+  }
+
+  return {
+    icon: "AS",
+    imageSrc: "/branding/ARCM-logo.png",
+    imageAlt: "ARCM market",
+  };
+}
+
 export function dynamicToCardData(market: DynamicMarket): MarketCardData {
+  const visual = getMarketVisualAsset(market.title, market.category);
+
   return {
     id: market.id,
     address: market.address,
     ammAddress: market.ammAddress,
     title: market.title,
-    icon: "AS",
+    icon: visual.icon,
     yesPrice: 0.5,
     noPrice: 0.5,
     volume: "Onchain",
     category: market.category,
     isReal: true,
-    imageSrc: market.category === "World Cup" ? "/market-images/world-cup.svg" : "/market-images/arc.svg",
-    imageAlt: `${market.category} market`,
+    imageSrc: visual.imageSrc,
+    imageAlt: visual.imageAlt,
   };
 }
 
@@ -69,14 +164,14 @@ export const MARKETS: MarketCardData[] = [
     address: MARKET_ADDRESS,
     ammAddress: AMM_ADDRESS,
     title: "Configured Arc prediction market",
-    icon: "AS",
+    icon: "ARC",
     yesPrice: 0.5,
     noPrice: 0.5,
     volume: "Onchain",
     category: "Arc Testnet",
     isReal: true,
-    imageSrc: "/market-images/arc.svg",
-    imageAlt: "ArcSignal market",
+    imageSrc: "/branding/ARCM-logo.png",
+    imageAlt: "ARCM market",
   },
 ];
 
@@ -96,7 +191,7 @@ export const PREVIEW_MARKETS: MarketCardData[] = [
   {
     id: "preview-stables",
     address: "0x0000000000000000000000000000000000000002",
-    title: "Example: Will stablecoin volume rise this week?",
+    title: "Example: Will USDC keep its $1 peg this week?",
     icon: "USDC",
     yesPrice: 0.64,
     noPrice: 0.36,
@@ -114,7 +209,8 @@ export const PREVIEW_MARKETS: MarketCardData[] = [
     noPrice: 0.53,
     volume: "Preview",
     category: "Preview",
-    imageSrc: "/market-images/arc.svg",
+    imageSrc: "/branding/ARCM-logo.png",
     imageAlt: "Arc ecosystem market preview",
   },
 ];
+

@@ -1,8 +1,8 @@
-# ArcSignal Cleanup Audit Report
+﻿# ARCM Cleanup Audit Report
 
 Date: 2026-06-14
 
-Scope: documentation-only audit for unused, old, duplicate, or obsolete files/code. No files were deleted. This pass avoided contracts, deployed address configuration, `scripts/deploy.ts`, wallet/trading/claim/resolve hooks, World Cup deploy logic, market routing, `.env.local`, and `C:\project\arcsignal-v2`.
+Scope: documentation-only audit for unused, old, duplicate, or obsolete files/code. No files were deleted. This pass avoided contracts, deployed address configuration, `scripts/deploy.ts`, wallet/trading/claim/resolve hooks, World Cup deploy logic, market routing, `.env.local`, and `C:\project\ARCM-v2`.
 
 ## Verification Method
 
@@ -212,9 +212,9 @@ Required test after removal:
 
 Files:
 
-- `docs/ARCSIGNAL_DESIGN_SYSTEM.md`
-- `docs/ARCSIGNAL_RETRO_UI_DIRECTION.md`
-- `docs/MYRIAD_STYLE_ARCSIGNAL_UI_PLAN.md`
+- `docs/ARCM_DESIGN_SYSTEM.md`
+- `docs/ARCM_RETRO_UI_DIRECTION.md`
+- `docs/MYRIAD_STYLE_ARCM_UI_PLAN.md`
 - `docs/WORLD_CUP_LIVE_SCORE_AND_SETTLEMENT_PLAN.md`
 - `docs/WORLD_CUP_EXTERNAL_MARKETS.md`
 
@@ -426,7 +426,7 @@ Required test after change:
 - Old design docs remain from Myriad, retro, and earlier design-system passes. These are not build dependencies and can be archived or removed if project history is no longer needed.
 - Default Next.js public SVG assets are the cleanest low-risk removal opportunity.
 - `PREVIEW_MARKETS` is the cleanest low-risk code cleanup opportunity.
-- The disabled live-score API route is a product decision: technically unused, but useful as a safety boundary documenting that ArcSignal does not live-poll scores.
+- The disabled live-score API route is a product decision: technically unused, but useful as a safety boundary documenting that ARCM does not live-poll scores.
 
 ## Candidate Counts
 
@@ -442,3 +442,4 @@ Required test after change:
 4. Remove `PREVIEW_MARKETS` from `lib/markets.ts` if no preview section will return.
 5. In a separate PR, remove legacy sample components only after manually verifying create, buy/sell, resolve/settle, and claim reward on Arc Testnet.
 6. Archive obsolete docs only after README links and team expectations are checked.
+

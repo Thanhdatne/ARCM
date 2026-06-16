@@ -1,6 +1,6 @@
-# ArcSignal Retro UI Direction
+﻿# ARCM Retro UI Direction
 
-ArcSignal now uses a clean retro onchain prediction market terminal style inspired by Windows 95-era financial software and dense exchange terminals.
+ARCM now uses a clean retro onchain prediction market terminal style inspired by Windows 95-era financial software and dense exchange terminals.
 
 ## Retro Style Used
 
@@ -48,3 +48,4 @@ ArcSignal now uses a clean retro onchain prediction market terminal style inspir
 - Keep ARCT labeled as test collateral.
 - Keep Arc Testnet gas labeled as USDC.
 - Keep UMA OO V2 / sample flow labels visible wherever settlement is discussed.
+

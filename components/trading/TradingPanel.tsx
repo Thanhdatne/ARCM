@@ -229,43 +229,79 @@ export function TradingPanel() {
     );
   }
 
+  const showResolveTab = adminSettlementEnabled || receivedSettlementPrice;
+  const visibleTabs = (showResolveTab ? ["buy", "sell", "resolve"] : ["buy", "sell"]) as Tab[];
+  const marketSettled = Boolean(receivedSettlementPrice);
+
   return (
-    <aside className="sticky top-20 overflow-hidden rounded-xl border border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
-      <div className="flex items-center justify-between gap-3 border-b border-[#2B3139] px-4 py-3">
-        <div>
-          <span className="text-base font-bold">Trade</span>
-          <p className="mt-0.5 text-xs text-[#707A8A]">ARCT collateral</p>
+    <aside className="sticky top-20 overflow-hidden rounded-xl border border-[#2B3139] bg-[#1E2329] text-[#EAECEF] shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+      <div className="border-b border-[#2B3139] px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <span className="text-base font-black">{marketSettled ? "Market actions" : "Trade"}</span>
+            <p className="mt-0.5 text-xs text-[#707A8A]">
+              {marketSettled ? "Claim rewards from settled positions." : "Buy or sell YES / NO with ARCT."}
+            </p>
+          </div>
+          <span className="rounded-full border border-[#FCD535]/70 bg-[#FCD535]/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#FFF3AF]">
+            Arc Testnet
+          </span>
         </div>
-        <span className="rounded-full border border-[#FCD535]/70 bg-[#FCD535]/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#FFF3AF]">
-          Arc Testnet
-        </span>
       </div>
+
       <div className="border-b border-[#2B3139] px-4 py-3">
         <div className="flex items-center justify-between gap-3 text-xs">
           <div>
             <p className="font-semibold text-[#707A8A]">Wallet balance</p>
-            <p className="mt-1 font-mono text-sm font-bold text-[#EAECEF]">{formatCollateral(arctBalance)} ARCT</p>
+            <p className="mt-1 font-mono text-sm font-black text-[#EAECEF]">
+              {formatCollateral(arctBalance)} ARCT
+            </p>
           </div>
           <ArctFaucetButton />
         </div>
       </div>
-      {/* Tab header */}
-      <div className={`grid gap-1 border-b border-[#2B3139] bg-[#0B0E11] p-1.5 ${adminSettlementEnabled || receivedSettlementPrice ? "grid-cols-3" : "grid-cols-2"}`}>
-        {((adminSettlementEnabled || receivedSettlementPrice ? ["buy", "sell", "resolve"] : ["buy", "sell"]) as Tab[]).map((t) => {
-          const disabled = receivedSettlementPrice && (t === "buy" || t === "sell");
+
+      {marketSettled ? (
+        <div className="border-b border-[#2B3139] bg-[#0ECB81]/10 px-4 py-3">
+          <p className="text-xs font-bold text-[#BFFFE7]">Market settled</p>
+          <p className="mt-1 text-xs leading-5 text-[#707A8A]">
+            Trading is closed. Winning YES/NO shares can be redeemed from the Claim tab or Claims page.
+          </p>
+        </div>
+      ) : null}
+
+      <div className={`grid gap-1 border-b border-[#2B3139] bg-[#0B0E11] p-1.5 ${showResolveTab ? "grid-cols-3" : "grid-cols-2"}`}>
+        {visibleTabs.map((t) => {
+          const disabled = marketSettled && (t === "buy" || t === "sell");
+          const label =
+            t === "resolve"
+              ? adminSettlementEnabled && !marketSettled
+                ? "Admin"
+                : "Claim"
+              : t === "buy"
+                ? "Buy"
+                : "Sell";
+
           return (
             <button
               key={t}
-              onClick={() => { if (!disabled) { setTab(t); setAmount(""); } }}
-              disabled={!!disabled}
-              className={`focus-ring rounded-xl px-3 py-2 text-sm font-bold capitalize transition active:translate-y-px ${disabled
-                ? "cursor-not-allowed text-[#707A8A]"
-                : tab === t
-                  ? "bg-[#FCD535] text-[#181A20]"
-                  : "text-[#707A8A] hover:bg-[#1E2329] hover:text-[#EAECEF]"
-                }`}
+              onClick={() => {
+                if (!disabled) {
+                  setTab(t);
+                  setAmount("");
+                }
+              }}
+              disabled={disabled}
+              className={`focus-ring rounded-xl px-3 py-2 text-sm font-black transition active:translate-y-px ${
+                disabled
+                  ? "cursor-not-allowed text-[#4A525E]"
+                  : tab === t
+                    ? "bg-[#FCD535] text-[#181A20]"
+                    : "text-[#707A8A] hover:bg-[#1E2329] hover:text-[#EAECEF]"
+              }`}
+              type="button"
             >
-              {t === "resolve" && !adminSettlementEnabled ? "claim" : t}
+              {label}
             </button>
           );
         })}
@@ -274,7 +310,9 @@ export function TradingPanel() {
       <div className="space-y-4 p-4">
         {!mounted || !isConnected ? (
           <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-center">
-            <p className="mb-3 text-sm font-semibold text-[#EAECEF]">Connect wallet to trade on Arc Testnet.</p>
+            <p className="mb-3 text-sm font-semibold text-[#EAECEF]">
+              Connect wallet to trade on Arc Testnet.
+            </p>
             <div className="flex justify-center">
               <ConnectButton showBalance={false} chainStatus="name" />
             </div>
@@ -282,7 +320,7 @@ export function TradingPanel() {
         ) : !ammInitialized && tab !== "resolve" ? (
           <div className="space-y-3">
             <p className="rounded-xl border border-[#2B3139] bg-[#0B0E11] px-4 py-8 text-center text-sm text-[#707A8A]">
-              AMM is not yet initialized. Deploy and seed the AMM contract first.
+              AMM is not initialized for this market yet.
             </p>
           </div>
         ) : tab === "buy" ? (
@@ -340,6 +378,12 @@ export function TradingPanel() {
             adminSettlementEnabled={adminSettlementEnabled}
           />
         )}
+
+        {!marketSettled && !adminSettlementEnabled ? (
+          <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3 text-xs leading-5 text-[#707A8A]">
+            Resolution tools are hidden for public users. After settlement, rewards will appear in Claims.
+          </div>
+        ) : null}
       </div>
     </aside>
   );

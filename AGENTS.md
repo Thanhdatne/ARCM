@@ -1,11 +1,11 @@
-# ArcSignal Codex Rules
+﻿# ARCM Codex Rules
 
 Project:
-C:\project\arcsignal-onchain
+C:\project\ARCM-onchain
 
 ## Never modify
 
-- C:\project\arcsignal-v2
+- C:\project\ARCM-v2
 - deployed contracts unless explicitly requested
 - scripts/deploy.ts unless explicitly requested
 - .env.local
@@ -32,7 +32,7 @@ C:\project\arcsignal-onchain
 
 ## World Cup rules
 
-ArcSignal markets are binary YES/NO.
+ARCM markets are binary YES/NO.
 
 Every football fixture must be split into 3 binary markets:
 

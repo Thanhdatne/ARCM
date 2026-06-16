@@ -1,7 +1,7 @@
-# World Cup Market Deployment
+﻿# World Cup Market Deployment
 
 World Cup cards start as display-only market templates. They become tradable
-ArcSignal markets only after an admin deploys them through the existing
+ARCM markets only after an admin deploys them through the existing
 `/api/create-market` flow.
 
 ## Infrastructure Reuse
@@ -117,5 +117,6 @@ only when both market and AMM addresses are present.
 World Cup live scores and final results are display data only. They must not
 trigger payout automatically.
 
-Resolution remains the ArcSignal onchain resolver / UMA Optimistic Oracle V2
+Resolution remains the ARCM onchain resolver / UMA Optimistic Oracle V2
 sample flow.
+

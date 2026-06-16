@@ -1,8 +1,8 @@
-# Resolve, Settle, And Claim Flow
+﻿# Resolve, Settle, And Claim Flow
 
 Last updated: 2026-06-12
 
-ArcSignal uses the official `circlefin/arc-prediction-markets` sample settlement flow. Do not replace it with frontend-only resolution, fake payouts, or mocked claim state.
+ARCM uses the official `circlefin/arc-prediction-markets` sample settlement flow. Do not replace it with frontend-only resolution, fake payouts, or mocked claim state.
 
 ## User Steps To Resolve
 
@@ -117,3 +117,4 @@ UI text, layout, and state labels can be improved, but transaction hooks and con
 - Collateral: ARCT test collateral.
 - Gas: Arc Testnet USDC.
 - Privacy: positions and trades are public on Arc Testnet today.
+

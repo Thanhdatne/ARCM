@@ -1,8 +1,8 @@
-# ArcSignal Onchain Plan
+﻿# ARCM Onchain Plan
 
 ## Setup Status
 
-The official Circle Arc prediction markets sample was cloned into `C:\project\arcsignal-onchain` from:
+The official Circle Arc prediction markets sample was cloned into `C:\project\ARCM-onchain` from:
 
 `https://github.com/circlefin/arc-prediction-markets`
 
@@ -27,7 +27,7 @@ Notes:
 - `npm install` completed successfully.
 - The sample currently reports npm audit warnings from its dependency tree. These were not changed during setup.
 - No rebrand has been applied yet.
-- No ArcSignal-specific contracts have been added yet.
+- No ARCM-specific contracts have been added yet.
 
 ## How the Sample App Works
 
@@ -156,7 +156,7 @@ In the current sample:
 - The README instructs users to obtain Arc Testnet USDC from the Circle faucet.
 - The app also exposes an ARCT faucet for the sample collateral token.
 
-For ArcSignal Onchain, this is a major product decision point:
+For ARCM Onchain, this is a major product decision point:
 
 - Short term: keep ARCT collateral while rebranding and validating UX.
 - Later: replace ARCT collateral with the Arc Testnet USDC ERC20 collateral path if desired.
@@ -261,18 +261,18 @@ Important frontend files:
 - `lib/wagmi.ts` - wagmi config
 - `lib/contracts/*` - contract addresses, ABIs, and types
 
-## What Needs to Change for ArcSignal
+## What Needs to Change for ARCM
 
 Recommended sequence:
 
 1. Preserve the official sample as the working baseline.
-2. Rebrand UI copy from UMA Prediction Market / Bitcoin market to ArcSignal.
-3. Replace the category model with ArcSignal markets:
+2. Rebrand UI copy from UMA Prediction Market / Bitcoin market to ARCM.
+3. Replace the category model with ARCM markets:
    - Arc ecosystem signals
    - 5-minute signals
    - sector markets
    - privacy-aware finance narratives
-4. Add ArcSignal design system:
+4. Add ARCM design system:
    - dark premium trading shell
    - Arc cyan accents
    - YES emerald / NO rose
@@ -280,11 +280,11 @@ Recommended sequence:
 5. Add explicit network/collateral messaging:
    - Arc Testnet gas uses USDC
    - current sample collateral is ARCT
-   - future ArcSignal collateral migration path can be USDC
+   - future ARCM collateral migration path can be USDC
 6. Decide collateral migration:
    - keep ARCT temporarily for sample compatibility, or
    - replace collateral with Arc Testnet USDC ERC20 and update decimals/approval/formatting
-7. Replace default BTC market with ArcSignal seed markets.
+7. Replace default BTC market with ARCM seed markets.
 8. Update create-market flow:
    - safer server-side deployment controls
    - market validation
@@ -301,7 +301,7 @@ Recommended sequence:
 
 ## Privacy Positioning
 
-ArcSignal privacy features must remain Privacy Preview only for now.
+ARCM privacy features must remain Privacy Preview only for now.
 
 Do not claim:
 
@@ -346,4 +346,5 @@ Runtime smoke result:
 - Dev server started on `http://127.0.0.1:3001`.
 - Homepage returned HTTP `200`.
 - Markets page content was present.
+
 

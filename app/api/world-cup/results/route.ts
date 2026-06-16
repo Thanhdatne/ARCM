@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import * as fs from "fs";
 import * as path from "path";
+import { getAdminRequestError } from "@/lib/adminGuard";
 import { WORLD_CUP_FIXTURES } from "@/src/lib/worldCupMarkets";
 import {
   calculateFixtureResult,
@@ -76,9 +77,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE !== "true") {
-    return NextResponse.json({ error: "Admin World Cup result updates are disabled." }, { status: 403 });
-  }
+  const adminError = getAdminRequestError(
+    request,
+    "Admin World Cup result updates are disabled.",
+  );
+  if (adminError) return adminError;
 
   let body: unknown;
   try {

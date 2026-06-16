@@ -1,7 +1,7 @@
-# World Cup External Markets
+﻿# World Cup External Markets
 
-ArcSignal World Cup cards are external display cards by default. They are not
-ArcSignal onchain markets, they are not tradable, and their odds or fixture data
+ARCM World Cup cards are external display cards by default. They are not
+ARCM onchain markets, they are not tradable, and their odds or fixture data
 must not determine payouts.
 
 ## Public Default
@@ -39,13 +39,13 @@ Admin deployment flow:
 5. The market question is prefilled from the World Cup card title.
 6. The dialog displays `World Cup` category context and the settlement rule.
 7. Submit the existing `/api/create-market` flow.
-8. After deployment, ArcSignal refreshes the market list.
+8. After deployment, ARCM refreshes the market list.
 9. If the new market address is returned, that card shows `Trade on Arc`.
 
 ## Settlement Safety
 
 External World Cup information is display-only until a market is deployed on
-Arc. Even after deployment, payouts must settle through the ArcSignal onchain
+Arc. Even after deployment, payouts must settle through the ARCM onchain
 resolver / UMA Optimistic Oracle V2 sample flow.
 
 Do not use frontend odds, live scores, or external fixture data to directly
@@ -72,3 +72,4 @@ Deployed card after admin creation:
 The World Cup category is stored as market metadata when the admin deploy flow
 passes `category: "World Cup"` to `/api/create-market`. The market contract
 question remains the title used as UMA ancillary data.
+

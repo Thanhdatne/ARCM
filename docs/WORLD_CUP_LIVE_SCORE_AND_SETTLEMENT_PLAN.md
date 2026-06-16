@@ -1,8 +1,8 @@
-# World Cup Live Score And Settlement Plan
+﻿# World Cup Live Score And Settlement Plan
 
 ## Product Goal
 
-ArcSignal should support real-time World Cup market display while keeping onchain payout tied to oracle / resolver settlement.
+ARCM should support real-time World Cup market display while keeping onchain payout tied to oracle / resolver settlement.
 
 The World Cup UI can show live fixture status, scores, match clocks, and final results as a display layer. That display layer must not directly settle markets or trigger payouts. Settlement should remain a separate onchain lifecycle using the existing Arc prediction market sample flow, UMA Optimistic Oracle V2, or a future resolver/oracle flow.
 
@@ -95,7 +95,7 @@ SPORTS_API_CACHE_SECONDS=
 
 Notes:
 - `SPORTS_API_KEY` must stay server-side only.
-- Public client components should call ArcSignal API routes, not the sports provider directly.
+- Public client components should call ARCM API routes, not the sports provider directly.
 - Provider-specific variables can be added later if the selected provider requires league ids, season ids, or host headers.
 
 ## API Route Design
@@ -137,7 +137,7 @@ Useful for:
 - Oracle proposal preparation
 - Settlement rule checks
 
-These API routes should hide provider API keys server-side and return normalized ArcSignal response shapes.
+These API routes should hide provider API keys server-side and return normalized ARCM response shapes.
 
 ## Caching Strategy
 
@@ -185,7 +185,7 @@ The frontend live score must not directly trigger payout.
 Settlement should work like this:
 
 1. Live score provider displays match status in the UI.
-2. When a fixture is final, ArcSignal normalizes the final result.
+2. When a fixture is final, ARCM normalizes the final result.
 3. A resolver or proposer uses the final result and the market rule to propose an outcome.
 4. UMA dispute flow or the existing sample oracle flow handles challenge/liveness.
 5. The market settles onchain.
@@ -263,7 +263,7 @@ Recommended wording:
 - oracle settlement
 - market signals
 
-Avoid wording that presents ArcSignal as real-money sports betting.
+Avoid wording that presents ARCM as real-money sports betting.
 
 Avoid:
 - sportsbook
@@ -273,7 +273,7 @@ Avoid:
 - guaranteed payout language
 
 Current safe framing:
-ArcSignal is an Arc Testnet prediction market / signal market interface. World Cup live scores are a display preview until a sports data provider is integrated, and settlement should use oracle / resolver flow rather than frontend-only data.
+ARCM is an Arc Testnet prediction market / signal market interface. World Cup live scores are a display preview until a sports data provider is integrated, and settlement should use oracle / resolver flow rather than frontend-only data.
 
 ## Recommended Next Implementation Step
 
@@ -286,3 +286,4 @@ Add static frontend-safe API route scaffolds that return the existing typed mock
 ```
 
 These routes should initially read from `lib/worldCupMarkets.ts`, return normalized response shapes, and include comments showing where a future sports provider fetch will be added. No real API key or provider call should be added until the provider is selected.
+

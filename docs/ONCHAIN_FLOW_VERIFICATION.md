@@ -1,8 +1,8 @@
-# ArcSignal Onchain Flow Verification
+﻿# ARCM Onchain Flow Verification
 
 Last verified: 2026-06-12
 
-ArcSignal is currently an onchain-first Arc Testnet app built on the official
+ARCM is currently an onchain-first Arc Testnet app built on the official
 `circlefin/arc-prediction-markets` sample flow. UI preview content must stay
 secondary and clearly labeled. The real path is wallet connect, ARCT collateral,
 market creation, AMM trading, UMA / resolver settlement, and payout redemption.
@@ -167,3 +167,4 @@ routes, deployment scripts, or contract calls with mock behavior is not.
   settlement are public.
 - Settlement must follow the official UMA Optimistic Oracle V2 / resolver sample
   flow. Frontend data must not directly determine payout.
+

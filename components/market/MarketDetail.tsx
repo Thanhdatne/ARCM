@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -91,25 +91,27 @@ export function MarketDetail() {
         expirationTime={expirationTime}
       />
 
-      <ProbabilityBar
-        yesPrice={yesPrice}
-        noPrice={noPrice}
-        ammInitialized={ammInitialized}
-        receivedSettlementPrice={receivedSettlementPrice}
-      />
+      <section className="grid gap-4 lg:grid-cols-[1fr_0.92fr]">
+        <ProbabilityBar
+          yesPrice={yesPrice}
+          noPrice={noPrice}
+          ammInitialized={ammInitialized}
+          receivedSettlementPrice={receivedSettlementPrice}
+        />
+
+        <MarketStatsPanel
+          reserveYes={reserveYes}
+          reserveNo={reserveNo}
+          requestTimestamp={requestTimestamp}
+          feeBps={feeBps}
+        />
+      </section>
 
       <AmmPriceChart
         yesPrice={yesPrice}
         noPrice={noPrice}
         ammInitialized={ammInitialized}
         dataUpdatedAt={dataUpdatedAt}
-      />
-
-      <MarketStatsPanel
-        reserveYes={reserveYes}
-        reserveNo={reserveNo}
-        requestTimestamp={requestTimestamp}
-        feeBps={feeBps}
       />
 
       {address && (
@@ -122,15 +124,24 @@ export function MarketDetail() {
         />
       )}
 
-      <SettlementRulesPanel />
+      <details className="exchange-panel group">
+        <summary className="terminal-titlebar flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
+          <span>Market mechanics</span>
+          <span className="text-xs font-semibold text-[#707A8A]">Rules + lifecycle</span>
+        </summary>
 
-      <LifecyclePanel
-        ammInitialized={ammInitialized}
-        priceRequested={priceRequested}
-        receivedSettlementPrice={receivedSettlementPrice}
-        oracleState={oracleState}
-        livenessTime={livenessTime}
-      />
+        <div className="space-y-3 p-3">
+          <SettlementRulesPanel />
+
+          <LifecyclePanel
+            ammInitialized={ammInitialized}
+            priceRequested={priceRequested}
+            receivedSettlementPrice={receivedSettlementPrice}
+            oracleState={oracleState}
+            livenessTime={livenessTime}
+          />
+        </div>
+      </details>
     </div>
   );
 }
@@ -185,14 +196,14 @@ function AmmPriceChart({
       <div className="terminal-titlebar flex flex-col gap-1 px-3 py-1.5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-bold">
-            AMM Price Chart
+            Price movement
           </h2>
           <p className="text-xs text-[#E0F7FF]">
-            Session movement from live AMM reads.
+            Live YES / NO quotes from the AMM.
           </p>
         </div>
         <span className="rounded border border-[#2B3139] bg-[#1E2329] px-2 py-1 text-xs font-bold text-[#EAECEF]">
-          Session chart only - no historical indexer yet.
+          Session chart
         </span>
       </div>
 
@@ -237,7 +248,7 @@ function AmmPriceChart({
                 </svg>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-xs font-bold text-[#707A8A]">
-                  Chart will update as AMM prices change during this session.
+                  Chart updates as prices change during this session.
                 </div>
               )}
             </div>
@@ -294,18 +305,18 @@ function MarketStatsPanel({
   const feeLabel = feeBps !== undefined ? `${Number(feeBps) / 100}% fee` : "AMM fee";
 
   const stats = [
-    { label: "Volume", value: liquidity, icon: Activity },
-    { label: "Liquidity", value: liquidity, icon: Landmark },
-    { label: "Participants", value: "Public wallets", icon: Users },
-    { label: "Close date", value: closeDate, icon: CalendarClock },
+    { label: "Pool liquidity", value: liquidity, icon: Landmark },
+    { label: "AMM fee", value: feeLabel, icon: Gauge },
+    { label: "Market close", value: closeDate, icon: CalendarClock },
     { label: "Collateral", value: "ARCT test collateral", icon: Database },
-    { label: "Oracle", value: `UMA OO V2 / ${feeLabel}`, icon: Gauge },
+    { label: "Participants", value: "Public wallets", icon: Users },
+    { label: "Settlement", value: "UMA OO V2", icon: Activity },
   ];
 
   return (
     <div className="exchange-panel">
       <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">
-        Market stats
+        Market overview
       </div>
       <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">
         {stats.map((stat) => {
@@ -334,10 +345,10 @@ function SettlementRulesPanel() {
   ];
 
   return (
-    <div className="exchange-panel">
-      <div className="terminal-titlebar flex items-center gap-2 px-3 py-1.5">
-        <ShieldCheck className="h-4 w-4 text-[#E0F7FF]" />
-        <h2 className="text-sm font-bold">
+    <section className="rounded-xl border border-[#2B3139] bg-[#1E2329]">
+      <div className="flex items-center gap-2 border-b border-[#2B3139] px-3 py-2">
+        <ShieldCheck className="h-4 w-4 text-[#FCD535]" />
+        <h2 className="text-sm font-bold text-[#EAECEF]">
           Settlement rules
         </h2>
       </div>
@@ -350,9 +361,9 @@ function SettlementRulesPanel() {
         ))}
       </div>
       <div className="terminal-card mx-3 mb-3 p-3 text-xs leading-5 text-[#707A8A]">
-        Privacy Preview is a UI narrative only in this phase. ArcSignal trades and positions remain public on Arc Testnet.
+        Privacy Preview is a UI narrative only in this phase. ARCM trades and positions remain public on Arc Testnet.
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -384,9 +395,9 @@ function LifecyclePanel({
   ];
 
   return (
-    <div className="exchange-panel">
-      <div className="terminal-titlebar flex flex-col gap-1 px-3 py-1.5 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-sm font-bold">
+    <section className="rounded-xl border border-[#2B3139] bg-[#1E2329]">
+      <div className="flex flex-col gap-1 border-b border-[#2B3139] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-sm font-bold text-[#EAECEF]">
           Activity lifecycle
         </h2>
         <span className="text-xs text-[#E0F7FF]">
@@ -408,6 +419,7 @@ function LifecyclePanel({
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
+

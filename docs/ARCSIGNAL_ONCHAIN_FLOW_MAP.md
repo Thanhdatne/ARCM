@@ -1,8 +1,8 @@
-# ArcSignal Onchain Flow Map
+﻿# ARCM Onchain Flow Map
 
-This document maps the official `circlefin/arc-prediction-markets` sample app flow that ArcSignal should preserve while evolving the UI into a production-ready Arc Testnet application.
+This document maps the official `circlefin/arc-prediction-markets` sample app flow that ARCM should preserve while evolving the UI into a production-ready Arc Testnet application.
 
-ArcSignal integration decision: keep the official sample contracts, deployed-address configuration, wallet providers, and trading hooks intact. ArcSignal should polish the UI around this flow first; it should not introduce a custom prediction market contract, mock trade bypass, or alternate settlement path yet.
+ARCM integration decision: keep the official sample contracts, deployed-address configuration, wallet providers, and trading hooks intact. ARCM should polish the UI around this flow first; it should not introduce a custom prediction market contract, mock trade bypass, or alternate settlement path yet.
 
 ## A. Current Official Sample Architecture
 
@@ -276,18 +276,18 @@ Production note:
 - The current app should clearly call it `ARCT test collateral`.
 - Any future production collateral decision should be explicit and should not be inferred from AMM variable names.
 
-## E. ArcSignal Integration Decision
+## E. ARCM Integration Decision
 
-ArcSignal should:
+ARCM should:
 
 - Keep `EventBasedPredictionMarket` and `PredictionMarketAMM` for the current onchain milestone.
 - Keep UMA OO V2 integration and resolver flow unchanged.
 - Keep the existing hooks and write paths for approve, buy, sell, propose, dispute, settle oracle, and settle position.
 - Polish the UI around the real flow instead of replacing it with mock trading.
 - Keep Privacy Preview clearly labeled as UI-only. Current Arc Testnet trades and positions are public.
-- Defer any new ArcSignal-specific contracts until the sample flow is verified end-to-end.
+- Defer any new ARCM-specific contracts until the sample flow is verified end-to-end.
 
-ArcSignal should not yet:
+ARCM should not yet:
 
 - Add a new custom market factory contract.
 - Replace AMM trades with mock buttons.
@@ -393,5 +393,6 @@ Recommended next step before deeper UI or product integrations:
    - dispute if needed
    - settle oracle request
    - settle winning position tokens
-8. Only after the flow is verified, continue ArcSignal UI/product work around the preserved hooks and contracts.
+8. Only after the flow is verified, continue ARCM UI/product work around the preserved hooks and contracts.
+
 

@@ -1,13 +1,178 @@
 {
-  "group-a-brazil-vs-morocco": {
-    "fixtureId": "group-a-brazil-vs-morocco",
-    "homeTeam": "Brazil",
-    "awayTeam": "Morocco",
+  "group-a-korea-republic-vs-czechia": {
+    "fixtureId": "group-a-korea-republic-vs-czechia",
+    "homeTeam": "South Korea",
+    "awayTeam": "Czechia",
     "homeScore": 2,
     "awayScore": 1,
     "status": "final",
     "result": "home_win",
-    "updatedAt": "2026-06-13T11:11:18.945Z",
+    "updatedAt": "2026-06-16T09:54:08.006Z",
+    "source": "manual_admin"
+  },
+  "group-a-mexico-vs-south-africa": {
+    "fixtureId": "group-a-mexico-vs-south-africa",
+    "homeTeam": "Mexico",
+    "awayTeam": "South Africa",
+    "homeScore": 2,
+    "awayScore": 0,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-16T09:53:00.177Z",
+    "source": "manual_admin"
+  },
+  "group-b-canada-vs-bosnia-and-herzegovina": {
+    "fixtureId": "group-b-canada-vs-bosnia-and-herzegovina",
+    "homeTeam": "Canada",
+    "awayTeam": "Bosnia and Herzegovina",
+    "homeScore": 1,
+    "awayScore": 1,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-16T09:53:49.027Z",
+    "source": "manual_admin"
+  },
+  "group-b-qatar-vs-switzerland": {
+    "fixtureId": "group-b-qatar-vs-switzerland",
+    "homeTeam": "Qatar",
+    "awayTeam": "Switzerland",
+    "homeScore": 1,
+    "awayScore": 1,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-16T09:57:07.788Z",
+    "source": "manual_admin"
+  },
+  "group-c-brazil-vs-morocco": {
+    "fixtureId": "group-c-brazil-vs-morocco",
+    "homeTeam": "Brazil",
+    "awayTeam": "Morocco",
+    "homeScore": 1,
+    "awayScore": 1,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-16T09:57:17.068Z",
+    "source": "manual_admin"
+  },
+  "group-c-haiti-vs-scotland": {
+    "fixtureId": "group-c-haiti-vs-scotland",
+    "homeTeam": "Haiti",
+    "awayTeam": "Scotland",
+    "homeScore": 0,
+    "awayScore": 1,
+    "status": "final",
+    "result": "away_win",
+    "updatedAt": "2026-06-16T09:57:35.358Z",
+    "source": "manual_admin"
+  },
+  "group-d-australia-vs-turkey": {
+    "fixtureId": "group-d-australia-vs-turkey",
+    "homeTeam": "Australia",
+    "awayTeam": "Turkey",
+    "homeScore": 2,
+    "awayScore": 0,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-16T09:57:43.884Z",
+    "source": "manual_admin"
+  },
+  "group-d-united-states-vs-paraguay": {
+    "fixtureId": "group-d-united-states-vs-paraguay",
+    "homeTeam": "United States",
+    "awayTeam": "Paraguay",
+    "homeScore": 4,
+    "awayScore": 1,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-16T09:54:21.115Z",
+    "source": "manual_admin"
+  },
+  "group-e-cote-divoire-vs-ecuador": {
+    "fixtureId": "group-e-cote-divoire-vs-ecuador",
+    "homeTeam": "Ivory Coast",
+    "awayTeam": "Ecuador",
+    "homeScore": 1,
+    "awayScore": 0,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-16T09:58:43.892Z",
+    "source": "manual_admin"
+  },
+  "group-e-germany-vs-curacao": {
+    "fixtureId": "group-e-germany-vs-curacao",
+    "homeTeam": "Germany",
+    "awayTeam": "Curacao",
+    "homeScore": 7,
+    "awayScore": 1,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-16T09:57:55.948Z",
+    "source": "manual_admin"
+  },
+  "group-f-netherlands-vs-japan": {
+    "fixtureId": "group-f-netherlands-vs-japan",
+    "homeTeam": "Netherlands",
+    "awayTeam": "Japan",
+    "homeScore": 2,
+    "awayScore": 2,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-16T09:58:16.098Z",
+    "source": "manual_admin"
+  },
+  "group-f-sweden-vs-tunisia": {
+    "fixtureId": "group-f-sweden-vs-tunisia",
+    "homeTeam": "Sweden",
+    "awayTeam": "Tunisia",
+    "homeScore": 5,
+    "awayScore": 1,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-16T09:59:15.993Z",
+    "source": "manual_admin"
+  },
+  "group-g-belgium-vs-egypt": {
+    "fixtureId": "group-g-belgium-vs-egypt",
+    "homeTeam": "Belgium",
+    "awayTeam": "Egypt",
+    "homeScore": 1,
+    "awayScore": 1,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-16T10:00:09.086Z",
+    "source": "manual_admin"
+  },
+  "group-g-iran-vs-new-zealand": {
+    "fixtureId": "group-g-iran-vs-new-zealand",
+    "homeTeam": "Iran",
+    "awayTeam": "New Zealand",
+    "homeScore": 2,
+    "awayScore": 2,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-16T10:00:30.305Z",
+    "source": "manual_admin"
+  },
+  "group-h-saudi-arabia-vs-uruguay": {
+    "fixtureId": "group-h-saudi-arabia-vs-uruguay",
+    "homeTeam": "Saudi Arabia",
+    "awayTeam": "Uruguay",
+    "homeScore": 1,
+    "awayScore": 1,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-16T10:00:19.426Z",
+    "source": "manual_admin"
+  },
+  "group-h-spain-vs-cape-verde": {
+    "fixtureId": "group-h-spain-vs-cape-verde",
+    "homeTeam": "Spain",
+    "awayTeam": "Cape Verde",
+    "homeScore": 0,
+    "awayScore": 0,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-16T09:59:47.640Z",
     "source": "manual_admin"
   }
 }

@@ -24,7 +24,7 @@ import {
   type DynamicMarket,
   type MarketCardData,
 } from "@/lib/markets";
-import { ShieldCheck } from "lucide-react";
+import { BadgeDollarSign, ShieldCheck } from "lucide-react";
 
 const ONE = 1000000000000000000n;
 
@@ -37,14 +37,19 @@ interface ClaimMarket {
 
 interface ClaimSnapshot {
   isClaimable: boolean;
-  isHistoryVisible: boolean;
-  isLoaded: boolean;
+  isClaimed: boolean;
 }
 
 export default function ClaimsPage() {
   const { address, isConnected } = useWallet();
   const [dynamicMarkets, setDynamicMarkets] = useState<MarketCardData[]>([]);
   const [claimSnapshots, setClaimSnapshots] = useState<Record<string, ClaimSnapshot>>({});
+  const [isHydrated, setIsHydrated] = useState(false);
+  const walletReady = isHydrated && isConnected;
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   const fetchDynamicMarkets = useCallback(async () => {
     try {
@@ -101,13 +106,14 @@ export default function ClaimsPage() {
     () => claimMarkets.map((market) => market.address.toLowerCase()),
     [claimMarkets],
   );
+
   const reportClaimSnapshot = useCallback((marketKey: string, snapshot: ClaimSnapshot) => {
     setClaimSnapshots((current) => {
       const previous = current[marketKey];
+
       if (
-        previous?.isLoaded === snapshot.isLoaded &&
-        previous.isClaimable === snapshot.isClaimable &&
-        previous.isHistoryVisible === snapshot.isHistoryVisible
+        previous?.isClaimable === snapshot.isClaimable &&
+        previous.isClaimed === snapshot.isClaimed
       ) {
         return current;
       }
@@ -115,18 +121,21 @@ export default function ClaimsPage() {
       return { ...current, [marketKey]: snapshot };
     });
   }, []);
-  const claimableCount = claimMarketKeys.filter((key) => claimSnapshots[key]?.isClaimable).length;
-  const historyCount = claimMarketKeys.filter((key) => claimSnapshots[key]?.isHistoryVisible).length;
 
   useEffect(() => {
     const activeKeys = new Set(claimMarketKeys);
+
     setClaimSnapshots((current) => {
       const next = Object.fromEntries(
         Object.entries(current).filter(([key]) => activeKeys.has(key)),
       );
+
       return Object.keys(next).length === Object.keys(current).length ? current : next;
     });
   }, [claimMarketKeys]);
+
+  const claimableCount = claimMarketKeys.filter((key) => claimSnapshots[key]?.isClaimable).length;
+  const claimedCount = claimMarketKeys.filter((key) => claimSnapshots[key]?.isClaimed).length;
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
@@ -135,33 +144,36 @@ export default function ClaimsPage() {
         <div className="flex flex-col gap-5 p-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              {["Claims", "Arc Testnet", "UMA OO V2", "ARCT test collateral"].map((badge) => (
-                <Badge key={badge} variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+              {["Claims", "Claim Reward", "Arc Testnet", "ARCT payout"].map((badge) => (
+                <Badge
+                  key={badge}
+                  variant="outline"
+                  className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]"
+                >
                   {badge}
                 </Badge>
               ))}
             </div>
             <h1 className="text-xl font-bold tracking-tight text-[#EAECEF] sm:text-2xl">
-              Claims
+              Claim Rewards
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#707A8A]">
-              Claim settled market payouts through Arc Testnet market contracts.
-              Payout buttons only appear when real wallet balances are claimable.
+              Only settled winning positions with real claimable ARCT rewards appear here. Portfolio information is kept separate.
             </p>
           </div>
-          <WalletPill address={address} isConnected={isConnected} />
+          <WalletPill address={address} isConnected={walletReady} />
         </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_320px]">
         <section className="exchange-panel">
-          <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Claimable Payouts</div>
+          <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Claimable Rewards</div>
           <div className="space-y-3 p-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-base font-bold text-[#EAECEF]">Ready to claim</h2>
                 <p className="text-xs text-[#707A8A]">
-                  Only settled winning positions with real claimable ARCT rewards appear here.
+                  Claim buttons only appear when your wallet has winning settled YES/NO shares.
                 </p>
               </div>
               <Badge variant="outline" className="w-fit border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
@@ -169,10 +181,10 @@ export default function ClaimsPage() {
               </Badge>
             </div>
 
-            {!isConnected ? (
-              <EmptyState title="Connect wallet to view claimable payouts." />
+            {!walletReady ? (
+              <EmptyState title="Connect wallet to view claimable rewards." />
             ) : claimMarkets.length === 0 ? (
-              <EmptyState title="No configured onchain market address found. Deploy contracts or create a market first." />
+              <EmptyState title="No deployed onchain markets found yet." />
             ) : (
               <>
                 <div className="space-y-2">
@@ -191,8 +203,9 @@ export default function ClaimsPage() {
                     </MarketAddressProvider>
                   ))}
                 </div>
+
                 {claimableCount === 0 && (
-                  <EmptyState title="No claimable rewards yet. Settled winning markets will appear here after settlement." />
+                  <EmptyState title="No rewards to claim yet. Winning settled positions will appear here automatically." />
                 )}
               </>
             )}
@@ -200,33 +213,33 @@ export default function ClaimsPage() {
         </section>
 
         <section className="exchange-panel">
-          <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Settlement Status</div>
+          <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Claim Rules</div>
           <div className="grid gap-2 p-3">
             <StatusTile label="Network" value="Arc Testnet" />
-            <StatusTile label="Collateral" value="ARCT test collateral" />
+            <StatusTile label="Reward token" value="ARCT test collateral" />
             <StatusTile label="Settlement" value="UMA Optimistic Oracle V2" />
             <p className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
-              Claim Reward redeems real winning YES/NO tokens for ARCT payout. Frontend data does not trigger payouts.
+              Claims redeem real winning YES/NO tokens for ARCT payout. Open positions and exposure live in Portfolio.
             </p>
           </div>
         </section>
       </section>
 
-      <details className="exchange-panel">
-        <summary className="terminal-titlebar flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
+      <section className="exchange-panel">
+        <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
           <span className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4" />
-            Other settled markets / History
+            Claim History
           </span>
           <span className="rounded-full border border-[#2B3139] px-2 py-0.5 text-[11px] text-[#707A8A]">
-            {historyCount} rows
+            {claimedCount} claimed
           </span>
-        </summary>
+        </div>
         <div className="space-y-1.5 p-3">
-          {!isConnected ? (
-            <EmptyState title="Connect wallet to view market history." />
+          {!walletReady ? (
+            <EmptyState title="Connect wallet to view claim history." />
           ) : claimMarkets.length === 0 ? (
-            <EmptyState title="No tracked onchain markets found." />
+            <EmptyState title="No deployed onchain markets found yet." />
           ) : (
             <>
               {claimMarkets.map((market) => (
@@ -243,13 +256,14 @@ export default function ClaimsPage() {
                   />
                 </MarketAddressProvider>
               ))}
-              {historyCount === 0 && (
-                <EmptyState title="No pending, settled, or claimed markets to show." />
+
+              {claimedCount === 0 && (
+                <EmptyState title="No claimed rewards in this session." />
               )}
             </>
           )}
         </div>
-      </details>
+      </section>
     </div>
   );
 }
@@ -269,7 +283,6 @@ function ClaimMarketRow({
   const {
     question,
     pairName,
-    priceRequested,
     receivedSettlementPrice,
     settlementPrice,
     longTokenAddress,
@@ -306,7 +319,7 @@ function ClaimMarketRow({
   const isClaimable = Boolean(receivedSettlementPrice && payoutAmount > 0n);
   const isClaimed = settlePos.isSuccess;
   const showAsClaimable = isClaimable && !isClaimed;
-  const showInHistory = !showAsClaimable;
+  const showInHistory = isClaimed;
   const marketTitle = question ?? pairName ?? fallbackTitle;
   const outcome = receivedSettlementPrice
     ? settlementPrice === ONE
@@ -315,21 +328,11 @@ function ClaimMarketRow({
         ? "NO"
         : "Undetermined"
     : "Pending";
-  const status = !receivedSettlementPrice
-    ? priceRequested
-      ? "Pending settlement"
-      : "Pending"
-    : isClaimed
-      ? "Claimed"
-      : isClaimable
-        ? "Claimable"
-        : "No payout";
 
   useEffect(() => {
     onSnapshot(marketAddress.toLowerCase(), {
       isClaimable: showAsClaimable,
-      isHistoryVisible: showInHistory,
-      isLoaded: true,
+      isClaimed: showInHistory,
     });
   }, [marketAddress, onSnapshot, showAsClaimable, showInHistory]);
 
@@ -350,13 +353,19 @@ function ClaimMarketRow({
       <article className="terminal-card p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap gap-2">
+              <BadgeDollarSign className="h-4 w-4 text-[#FCD535]" />
+              <Badge variant="outline" className="border-[#0ECB81] bg-[#0ECB81]/15 text-[#BFFFE7]">
+                Claimable
+              </Badge>
+            </div>
             <h3 className="line-clamp-2 text-sm font-bold text-[#EAECEF]">{marketTitle}</h3>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#707A8A]">
               <span>
                 Winning side: <span className="font-bold text-[#EAECEF]">{outcome}</span>
               </span>
               <span>
-                Claimable:{" "}
+                Reward:{" "}
                 <span className="font-mono font-bold text-[#FCD535]">
                   {formatCollateral(payoutAmount)} ARCT
                 </span>
@@ -381,12 +390,10 @@ function ClaimMarketRow({
   return (
     <article className="grid gap-2 rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 py-2 text-xs text-[#707A8A] md:grid-cols-[1fr_auto_auto_auto] md:items-center">
       <h3 className="line-clamp-1 text-sm font-semibold text-[#EAECEF]">{marketTitle}</h3>
-      <span className="rounded-full border border-[#2B3139] px-2 py-1 font-bold text-[#EAECEF]">
-        {status}
+      <span className="rounded-full border border-[#0ECB81] bg-[#0ECB81]/15 px-2 py-1 font-bold text-[#BFFFE7]">
+        Claimed
       </span>
-      <span className="font-mono">
-        {isClaimed ? "claimed" : `${formatCollateral(payoutAmount)} ARCT`}
-      </span>
+      <span className="font-mono">{formatCollateral(payoutAmount)} ARCT</span>
       <Link className="interactive-link w-fit text-xs" href={`/market/${marketAddress}`}>
         Open market detail
       </Link>
