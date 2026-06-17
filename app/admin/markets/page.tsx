@@ -1,13 +1,13 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CreateMarketDialog } from "@/components/CreateMarketDialog";
 import { Input } from "@/components/ui/input";
 import {
   MARKET_TEMPLATES,
   type MarketTemplateCategory,
 } from "@/lib/marketTemplates";
-import { KeyRound, Layers3, Search, ShieldCheck } from "lucide-react";
+import { KeyRound, Layers3, RefreshCw, Search, ShieldCheck } from "lucide-react";
 
 const adminMarketCreateEnabled =
   process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
@@ -59,6 +59,29 @@ const categoryCopy: Record<MarketTemplateCategory, { label: string; icon: string
     icon: "ZK",
     description: "ZK, shielded positions, and privacy demos.",
   },
+};
+
+type AutoResolveItem = {
+  fixtureId?: string;
+  outcomeType?: string;
+  question?: string;
+  action?: string;
+  reason?: string;
+  txHash?: string;
+};
+
+type AutoResolveSummary = {
+  checked?: number;
+  processed?: number;
+  proposed?: number;
+  settled?: number;
+  skipped?: number;
+  failed?: number;
+  actions?: number;
+  maxActions?: number;
+  hasMore?: boolean;
+  error?: string;
+  items?: AutoResolveItem[];
 };
 
 export default function AdminMarketsPage() {
@@ -320,12 +343,38 @@ export default function AdminMarketsPage() {
   );
 }
 
+function ResolveMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "green" | "yellow" | "red" | "neutral";
+}) {
+  const valueClass =
+    tone === "green"
+      ? "text-[#0ECB81]"
+      : tone === "red"
+        ? "text-[#F6465D]"
+        : tone === "yellow"
+          ? "text-[#FCD535]"
+          : "text-[#EAECEF]";
+
+  return (
+    <div className="rounded-lg border border-[#2B3139] bg-[#1E2329] px-2 py-2">
+      <p className="text-[#707A8A]">{label}</p>
+      <p className={`mt-1 font-mono text-lg font-black ${valueClass}`}>{value}</p>
+    </div>
+  );
+}
+
 function AdminMetric({
   icon,
   label,
   value,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
 }) {
