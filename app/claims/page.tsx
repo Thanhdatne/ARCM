@@ -38,6 +38,8 @@ interface ClaimMarket {
 interface ClaimSnapshot {
   isClaimable: boolean;
   isClaimed: boolean;
+  hasPosition: boolean;
+  isSettled: boolean;
 }
 
 export default function ClaimsPage() {
@@ -113,7 +115,9 @@ export default function ClaimsPage() {
 
       if (
         previous?.isClaimable === snapshot.isClaimable &&
-        previous.isClaimed === snapshot.isClaimed
+        previous.isClaimed === snapshot.isClaimed &&
+        previous.hasPosition === snapshot.hasPosition &&
+        previous.isSettled === snapshot.isSettled
       ) {
         return current;
       }
@@ -136,6 +140,10 @@ export default function ClaimsPage() {
 
   const claimableCount = claimMarketKeys.filter((key) => claimSnapshots[key]?.isClaimable).length;
   const claimedCount = claimMarketKeys.filter((key) => claimSnapshots[key]?.isClaimed).length;
+  const positionedCount = claimMarketKeys.filter((key) => claimSnapshots[key]?.hasPosition).length;
+  const settledPositionCount = claimMarketKeys.filter((key) => (
+    claimSnapshots[key]?.hasPosition && claimSnapshots[key]?.isSettled
+  )).length;
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
@@ -225,6 +233,47 @@ export default function ClaimsPage() {
         </section>
       </section>
 
+
+      <section className="exchange-panel">
+        <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
+          <span className="flex items-center gap-2">
+            <BadgeDollarSign className="h-4 w-4" />
+            Claim Status
+          </span>
+          <span className="rounded-full border border-[#2B3139] px-2 py-0.5 text-[11px] text-[#707A8A]">
+            {settledPositionCount}/{positionedCount} settled positions
+          </span>
+        </div>
+        <div className="space-y-1.5 p-3">
+          {!walletReady ? (
+            <EmptyState title="Connect wallet to check claim status." />
+          ) : claimMarkets.length === 0 ? (
+            <EmptyState title="No deployed onchain markets found yet." />
+          ) : (
+            <>
+              {claimMarkets.map((market) => (
+                <MarketAddressProvider
+                  key={`status-${market.id}-${market.address}`}
+                  marketAddress={market.address}
+                  ammAddress={market.ammAddress}
+                >
+                  <ClaimMarketRow
+                    fallbackTitle={market.title}
+                    marketAddress={market.address}
+                    mode="status"
+                    onSnapshot={reportClaimSnapshot}
+                  />
+                </MarketAddressProvider>
+              ))}
+
+              {positionedCount === 0 && (
+                <EmptyState title="No YES/NO token positions detected for this wallet yet." />
+              )}
+            </>
+          )}
+        </div>
+      </section>
+
       <section className="exchange-panel">
         <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
           <span className="flex items-center gap-2">
@@ -276,7 +325,7 @@ function ClaimMarketRow({
 }: {
   fallbackTitle: string;
   marketAddress: Address;
-  mode: "claimable" | "history";
+  mode: "claimable" | "history" | "status";
   onSnapshot: (marketKey: string, snapshot: ClaimSnapshot) => void;
 }) {
   const queryClient = useQueryClient();
@@ -304,13 +353,18 @@ function ClaimMarketRow({
   );
   const settlePos = useSettlePosition();
 
+  const yesBalance = longBalance ?? 0n;
+  const noBalance = shortBalance ?? 0n;
+  const hasPosition = yesBalance > 0n || noBalance > 0n;
+  const isSettled = Boolean(receivedSettlementPrice);
+
   const claimableLong =
     receivedSettlementPrice && settlementPrice !== undefined && settlementPrice > 0n
-      ? longBalance ?? 0n
+      ? yesBalance
       : 0n;
   const claimableShort =
     receivedSettlementPrice && settlementPrice !== undefined && settlementPrice < ONE
-      ? shortBalance ?? 0n
+      ? noBalance
       : 0n;
   const payoutAmount =
     settlementPrice !== undefined
@@ -333,8 +387,10 @@ function ClaimMarketRow({
     onSnapshot(marketAddress.toLowerCase(), {
       isClaimable: showAsClaimable,
       isClaimed: showInHistory,
+      hasPosition,
+      isSettled,
     });
-  }, [marketAddress, onSnapshot, showAsClaimable, showInHistory]);
+  }, [hasPosition, isSettled, marketAddress, onSnapshot, showAsClaimable, showInHistory]);
 
   useEffect(() => {
     if (!settlePos.isSuccess) return;
@@ -381,6 +437,41 @@ function ClaimMarketRow({
           </Button>
         </div>
         <TxStatus {...settlePos} />
+      </article>
+    );
+  }
+
+  if (mode === "status") {
+    if (!hasPosition) return null;
+
+    const statusLabel = showAsClaimable
+      ? "Ready to claim"
+      : isSettled
+        ? "No claimable reward"
+        : "Waiting settlement";
+    const statusClass = showAsClaimable
+      ? "border-[#0ECB81] bg-[#0ECB81]/15 text-[#BFFFE7]"
+      : isSettled
+        ? "border-[#FCD535] bg-[#FCD535]/15 text-[#FFF3AF]"
+        : "border-[#2B3139] bg-[#1E2329] text-[#707A8A]";
+
+    return (
+      <article className="grid gap-2 rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 py-2 text-xs text-[#707A8A] md:grid-cols-[1fr_auto_auto_auto] md:items-center">
+        <div className="min-w-0">
+          <h3 className="line-clamp-1 text-sm font-semibold text-[#EAECEF]">{marketTitle}</h3>
+          <p className="mt-1 font-mono text-[11px] text-[#707A8A]">
+            YES {formatCollateral(yesBalance)} / NO {formatCollateral(noBalance)}
+          </p>
+        </div>
+        <span className={`w-fit rounded-full border px-2 py-1 font-bold ${statusClass}`}>
+          {statusLabel}
+        </span>
+        <span className="font-mono">
+          {isSettled ? `Outcome ${outcome}` : "Open"}
+        </span>
+        <Link className="interactive-link w-fit text-xs" href={`/market/${marketAddress}`}>
+          Open detail
+        </Link>
       </article>
     );
   }

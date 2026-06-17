@@ -189,7 +189,7 @@ export default function PortfolioPage() {
             marketAddress={firstTrackedMarket.address}
             ammAddress={firstTrackedMarket.ammAddress}
           >
-            <PortfolioBalanceCard isConnected={isConnected} />
+            <PortfolioBalanceCard isConnected={walletReady} />
           </MarketAddressProvider>
         ) : (
           <OverviewCard icon={Wallet} label="ARCT balance" value={walletReady ? "--" : "Connect wallet"} />
