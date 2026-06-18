@@ -159,6 +159,10 @@ export function getDefaultCollateral(): CollateralConfig {
   return COLLATERALS[0];
 }
 
+export function getDefaultV2Collateral(): CollateralConfig {
+  return COLLATERALS.find((collateral) => collateral.symbol === "USDC")!;
+}
+
 export function formatTokenAmount(raw: bigint, decimals: number): string {
   assertDecimals(decimals);
   return formatUnits(raw, decimals);

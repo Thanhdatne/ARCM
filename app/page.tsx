@@ -60,6 +60,7 @@ type CategoryFilter = (typeof categories)[number];
 type MarketViewFilter = (typeof filters)[number];
 const adminMarketCreateEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
 const adminResultOverrideEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_RESULT_OVERRIDE === "true";
+const hideLegacyV1 = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
 const ONE = 1000000000000000000n;
 const arcScanBaseUrl = "https://testnet.arcscan.app";
 
@@ -777,7 +778,10 @@ function HomeContent() {
     setAdminKey(window.localStorage.getItem("ARCM-admin-key") ?? "");
   }, []);
 
-  const onchainMarkets = [...dynamicMarkets, ...MARKETS].filter(isConfiguredOnchainMarket);
+  const onchainMarkets = [
+    ...dynamicMarkets,
+    ...(hideLegacyV1 ? [] : MARKETS),
+  ].filter(isConfiguredOnchainMarket);
 
   const handleWorldCupCreated = useCallback(
     (worldCupMarketId: string) => async (market?: DynamicMarket) => {
@@ -827,15 +831,15 @@ function HomeContent() {
     .map((market) => ({
       ...market,
       marketAddress:
-        deployedWorldCupMarkets[market.id]?.marketAddress ??
+        (hideLegacyV1 ? undefined : deployedWorldCupMarkets[market.id]?.marketAddress) ??
         savedWorldCupDeployments[market.id]?.marketAddress ??
         persistedWorldCupDeployments[market.id]?.marketAddress ??
-        market.marketAddress,
+        (hideLegacyV1 ? undefined : market.marketAddress),
       ammAddress:
-        deployedWorldCupMarkets[market.id]?.ammAddress ??
+        (hideLegacyV1 ? undefined : deployedWorldCupMarkets[market.id]?.ammAddress) ??
         savedWorldCupDeployments[market.id]?.ammAddress ??
         persistedWorldCupDeployments[market.id]?.ammAddress ??
-        market.ammAddress,
+        (hideLegacyV1 ? undefined : market.ammAddress),
     }))
     .sort((a, b) => Number(Boolean(b.marketAddress && b.ammAddress)) - Number(Boolean(a.marketAddress && a.ammAddress)));
 
@@ -2146,7 +2150,7 @@ function EmptyMarketState({
       </div>
       <h2 className="text-2xl font-bold text-[#EAECEF]">No onchain markets found yet.</h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#707A8A]">
-        Create your first ARCM market on Arc Testnet, then open it to trade YES or NO with ARCT test collateral.
+        V2 markets will appear here after the factory, allowlist, and verified USDC collateral flow pass end-to-end checks.
       </p>
       {!isConnected && (
         <p className="mx-auto mt-4 max-w-lg rounded-lg border border-[#FCD535] bg-[#FCD535]/15 px-4 py-3 text-sm font-bold text-[#FFF3AF]">

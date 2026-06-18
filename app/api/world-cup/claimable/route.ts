@@ -75,6 +75,11 @@ interface WorldCupDeployment {
   createdAt?: string;
   txHash?: string;
   transactionHash?: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  outcomeDecimals?: number;
 }
 
 interface WorldCupResultRecord {
@@ -108,6 +113,12 @@ interface ClaimableMarket {
   collateralName: string;
   collateralDecimals: number;
   collateralWarning: boolean;
+  contractVersion: number;
+  outcomeDecimals: number;
+}
+
+function contractVersionOf(item: WorldCupDeployment) {
+  return item.contractVersion ?? 1;
 }
 
 function dataPath(fileName: string) {
@@ -162,6 +173,11 @@ async function readDeployments() {
         createdAt: item.created_at ?? undefined,
         txHash: item.tx_hash ?? undefined,
         transactionHash: item.transaction_hash ?? undefined,
+        contractVersion: item.contract_version ?? 1,
+        collateralAddress: item.collateral_address ?? undefined,
+        collateralSymbol: item.collateral_symbol ?? undefined,
+        collateralDecimals: item.collateral_decimals ?? undefined,
+        outcomeDecimals: item.outcome_decimals ?? undefined,
       })) satisfies WorldCupDeployment[];
     }
   }
@@ -251,6 +267,8 @@ function cacheRowToMarket(row: any): ClaimableMarket {
     collateralName: collateral.name,
     collateralDecimals: collateral.decimals,
     collateralWarning: collateral.address === null,
+    contractVersion: 1,
+    outcomeDecimals: collateral.decimals,
   };
 }
 
@@ -335,7 +353,9 @@ export async function GET(request: Request) {
     );
   }
 
-  if (!refresh) {
+  const hideLegacy = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
+
+  if (!refresh && !hideLegacy) {
     const cachedMarkets = await readFreshCache(wallet);
     if (cachedMarkets) {
       return NextResponse.json(
@@ -374,6 +394,7 @@ export async function GET(request: Request) {
     .filter((deployment) => (
       validAddress(deployment.marketAddress) &&
       validAddress(deployment.ammAddress) &&
+      (!hideLegacy || contractVersionOf(deployment) === 2) &&
       (finalFixtureIds.size === 0 || finalFixtureIds.has(deployment.fixtureId))
     ))
     .sort((a, b) =>
@@ -534,6 +555,8 @@ export async function GET(request: Request) {
         collateralName,
         collateralDecimals,
         collateralWarning: configuredCollateral.warning,
+        contractVersion: contractVersionOf(deployment),
+        outcomeDecimals: deployment.outcomeDecimals ?? collateralDecimals,
       } satisfies ClaimableMarket;
     } catch {
       failed += 1;

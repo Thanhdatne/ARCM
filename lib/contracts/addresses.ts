@@ -54,6 +54,30 @@ export const AMM_ADDRESS: Address =
   (process.env.NEXT_PUBLIC_AMM_ADDRESS as Address) ??
   ZERO_ADDRESS;
 
+export const COLLATERAL_ALLOWLIST_ADDRESS: Address =
+  (process.env.NEXT_PUBLIC_COLLATERAL_ALLOWLIST_ADDRESS as Address) ??
+  ZERO_ADDRESS;
+
+export const MARKET_V2_FACTORY_ADDRESS: Address =
+  (process.env.NEXT_PUBLIC_MARKET_V2_FACTORY_ADDRESS as Address) ??
+  ZERO_ADDRESS;
+
+const configuredPublicMarketVersion = Number(
+  process.env.NEXT_PUBLIC_PUBLIC_MARKET_VERSION ?? "2",
+);
+
+export const PUBLIC_MARKET_VERSION = Number.isSafeInteger(
+  configuredPublicMarketVersion,
+)
+  ? configuredPublicMarketVersion
+  : 2;
+
+export const HIDE_LEGACY_V1 =
+  process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 !== "false";
+
+export const MARKET_V2_CREATE_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_MARKET_V2_CREATE === "true";
+
 export const OO_V2_ADDRESS: Address =
   (process.env.NEXT_PUBLIC_OO_V2_ADDRESS as Address) ??
   ZERO_ADDRESS;

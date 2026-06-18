@@ -9,8 +9,10 @@ import { TxStatus } from "@/components/trading/TxStatus";
 import { MarketAddressProvider } from "@/contexts/MarketAddressContext";
 import { useWallet } from "@/contexts/WalletContext";
 import { useSettlePosition } from "@/hooks/useMarket";
-import { formatCollateral } from "@/hooks/market/helpers";
+import { formatTokenDisplayAmount } from "@/hooks/market/helpers";
 import { BadgeDollarSign, RefreshCw, ShieldCheck } from "lucide-react";
+
+const hideLegacyV1 = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
 
 interface ApiClaimMarket {
   id: string;
@@ -231,6 +233,8 @@ function ApiClaimRow({
   const claimLongAmount = BigInt(market.claimLongAmount);
   const claimShortAmount = BigInt(market.claimShortAmount);
   const payoutAmount = BigInt(market.payoutAmount);
+  const decimals = market.collateralDecimals ?? (hideLegacyV1 ? 6 : 18);
+  const collateralSymbol = market.collateralSymbol ?? (hideLegacyV1 ? "USDC" : "ARCT");
 
   useEffect(() => {
     if (settlePos.isSuccess) onClaimed();
@@ -249,7 +253,7 @@ function ApiClaimRow({
               {market.winningSide} won
             </Badge>
             <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
-              {market.collateralSymbol ?? "ARCT"} collateral
+              {collateralSymbol} collateral
             </Badge>
           </div>
           <h3 className="line-clamp-2 text-sm font-bold text-[#EAECEF]">{market.title}</h3>
@@ -257,13 +261,13 @@ function ApiClaimRow({
             <span>
               Reward:{" "}
               <span className="font-mono font-bold text-[#FCD535]">
-                {market.payoutAmountFormatted ?? formatCollateral(payoutAmount)}{" "}
-                {market.collateralSymbol ?? "ARCT"}
+                {market.payoutAmountFormatted ?? formatTokenDisplayAmount(payoutAmount, decimals)}{" "}
+                {collateralSymbol}
               </span>
             </span>
             <span>
-              YES {formatCollateral(BigInt(market.yesBalance))} / NO{" "}
-              {formatCollateral(BigInt(market.noBalance))}
+              YES {formatTokenDisplayAmount(BigInt(market.yesBalance), decimals)} / NO{" "}
+              {formatTokenDisplayAmount(BigInt(market.noBalance), decimals)}
             </span>
           </div>
         </div>

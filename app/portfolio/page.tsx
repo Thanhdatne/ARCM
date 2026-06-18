@@ -12,6 +12,8 @@ import {
   formatTokenDisplayAmount,
 } from "@/hooks/market/helpers";
 
+const hideLegacyV1 = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
+
 interface PortfolioPosition {
   id: string;
   fixtureId?: string;
@@ -101,7 +103,6 @@ export default function PortfolioPage() {
     () => positions.filter((position) => position.isSettled),
     [positions],
   );
-  const arctBalance = BigInt(portfolio?.arctBalance ?? "0");
   const marketsWithPositions = portfolio?.totals?.marketsWithPositions ?? positions.length;
 
   return (
@@ -111,7 +112,7 @@ export default function PortfolioPage() {
         <div className="flex flex-col gap-5 p-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              {["Portfolio", "Arc Testnet", "ARCT"].map((badge) => (
+              {["Portfolio", "Arc Testnet", hideLegacyV1 ? "V2" : "ARCT"].map((badge) => (
                 <Badge
                   key={badge}
                   variant="outline"
@@ -146,8 +147,14 @@ export default function PortfolioPage() {
 
       <section className="grid gap-3 md:grid-cols-3">
         <OverviewCard
-          label="ARCT balance"
-          value={walletReady ? `${formatCollateral(arctBalance)} ARCT` : "Connect wallet"}
+          label={hideLegacyV1 ? "Default collateral" : "ARCT balance"}
+          value={
+            hideLegacyV1
+              ? "USDC · gated"
+              : walletReady
+                ? `${formatCollateral(BigInt(portfolio?.arctBalance ?? "0"))} ARCT`
+                : "Connect wallet"
+          }
         />
         <OverviewCard
           label="Markets with positions"
@@ -220,6 +227,8 @@ function PositionRow({
   const yesBalance = BigInt(position.yesBalance);
   const noBalance = BigInt(position.noBalance);
   const claimablePayout = BigInt(position.claimablePayout);
+  const decimals = position.collateralDecimals ?? (hideLegacyV1 ? 6 : 18);
+  const collateralSymbol = position.collateralSymbol ?? (hideLegacyV1 ? "USDC" : "ARCT");
 
   return (
     <article className="terminal-card p-3">
@@ -242,7 +251,7 @@ function PositionRow({
               </Badge>
             )}
             <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
-              {position.collateralSymbol ?? "ARCT"} collateral
+              {collateralSymbol} collateral
             </Badge>
           </div>
 
@@ -255,7 +264,7 @@ function PositionRow({
               <span>
                 YES{" "}
                 <span className="font-mono font-bold text-[#0ECB81]">
-                  {formatCollateral(yesBalance)}
+                  {formatTokenDisplayAmount(yesBalance, decimals)}
                 </span>
               </span>
             )}
@@ -263,7 +272,7 @@ function PositionRow({
               <span>
                 NO{" "}
                 <span className="font-mono font-bold text-[#F6465D]">
-                  {formatCollateral(noBalance)}
+                  {formatTokenDisplayAmount(noBalance, decimals)}
                 </span>
               </span>
             )}
@@ -274,9 +283,9 @@ function PositionRow({
                   {position.claimablePayoutFormatted ??
                     formatTokenDisplayAmount(
                       claimablePayout,
-                      position.collateralDecimals ?? 18,
+                      decimals,
                     )}{" "}
-                  {position.collateralSymbol ?? "ARCT"}
+                  {collateralSymbol}
                 </span>
               </span>
             )}

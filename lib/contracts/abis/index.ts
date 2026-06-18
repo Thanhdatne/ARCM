@@ -21,3 +21,13 @@ export { MARKET_ABI } from "./market";
 export { OO_V2_ABI } from "./oracle";
 export { AMM_ABI } from "./amm";
 export { TIMER_ABI } from "./timer";
+export { COLLATERAL_ALLOWLIST_ABI } from "./collateralAllowlist";
+export {
+  EVENT_BASED_PREDICTION_MARKET_V2_ABI,
+  MARKET_V2_ABI,
+} from "./marketV2";
+export {
+  AMM_V2_ABI,
+  PREDICTION_MARKET_AMM_V2_ABI,
+} from "./ammV2";
+export { MARKET_V2_FACTORY_ABI } from "./marketV2Factory";

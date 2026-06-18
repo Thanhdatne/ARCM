@@ -72,6 +72,11 @@ interface WorldCupDeployment {
   marketAddress: string;
   ammAddress: string;
   createdAt?: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  outcomeDecimals?: number;
 }
 
 interface DynamicMarket {
@@ -82,6 +87,12 @@ interface DynamicMarket {
   marketAddress?: string;
   ammAddress?: string;
   isReal?: boolean;
+  contractVersion?: number;
+  contract_version?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  outcomeDecimals?: number;
 }
 
 interface PortfolioPosition {
@@ -104,6 +115,12 @@ interface PortfolioPosition {
   collateralBalance: string;
   collateralBalanceFormatted: string;
   collateralWarning: boolean;
+  contractVersion: number;
+  outcomeDecimals: number;
+}
+
+function contractVersionOf(item: WorldCupDeployment) {
+  return item.contractVersion ?? 1;
 }
 
 function dataPath(fileName: string) {
@@ -137,6 +154,11 @@ function normalizeDynamicMarket(item: DynamicMarket): WorldCupDeployment | null 
     outcomeType: "dynamic",
     marketAddress,
     ammAddress,
+    contractVersion: item.contractVersion ?? item.contract_version ?? 1,
+    collateralAddress: item.collateralAddress,
+    collateralSymbol: item.collateralSymbol,
+    collateralDecimals: item.collateralDecimals,
+    outcomeDecimals: item.outcomeDecimals,
   };
 }
 
@@ -159,6 +181,11 @@ async function readDeployments() {
         marketAddress: item.market_address,
         ammAddress: item.amm_address,
         createdAt: item.created_at ?? undefined,
+        contractVersion: item.contract_version ?? 1,
+        collateralAddress: item.collateral_address ?? undefined,
+        collateralSymbol: item.collateral_symbol ?? undefined,
+        collateralDecimals: item.collateral_decimals ?? undefined,
+        outcomeDecimals: item.outcome_decimals ?? undefined,
       })) satisfies WorldCupDeployment[];
     }
   }
@@ -252,14 +279,18 @@ export async function GET(request: Request) {
     transport: http(rpcUrl),
   });
 
-  const deployments = uniqueDeployments([
+  const allDeployments = uniqueDeployments([
     ...(await readDeployments()),
     ...readDynamicMarkets(),
   ]);
+  const hideLegacy = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
+  const deployments = hideLegacy
+    ? allDeployments.filter((deployment) => contractVersionOf(deployment) === 2)
+    : allDeployments;
 
   let failed = 0;
 
-  const arctBalance = validAddress(ARCT_ADDRESS)
+  const arctBalance = !hideLegacy && validAddress(ARCT_ADDRESS)
     ? await publicClient
         .readContract({
           address: ARCT_ADDRESS,
@@ -438,6 +469,8 @@ export async function GET(request: Request) {
           collateralDecimals,
         ),
         collateralWarning: configuredCollateral.warning,
+        contractVersion: contractVersionOf(deployment),
+        outcomeDecimals: deployment.outcomeDecimals ?? collateralDecimals,
       } satisfies PortfolioPosition;
     } catch {
       failed += 1;

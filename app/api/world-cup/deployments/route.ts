@@ -24,6 +24,15 @@ interface WorldCupDeployment {
   createdAt?: string;
   txHash?: string;
   transactionHash?: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  outcomeDecimals?: number;
+}
+
+function getContractVersion(deployment: WorldCupDeployment) {
+  return deployment.contractVersion ?? 1;
 }
 
 function getWorldCupDeploymentsFilePath() {
@@ -45,9 +54,17 @@ function readWorldCupDeployments(): WorldCupDeployment[] {
 }
 
 export async function GET() {
-  return NextResponse.json(readWorldCupDeployments(), {
-    headers: {
-      "Cache-Control": "no-store",
+  const hideLegacy = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
+  const deployments = readWorldCupDeployments();
+
+  return NextResponse.json(
+    hideLegacy
+      ? deployments.filter((deployment) => getContractVersion(deployment) === 2)
+      : deployments,
+    {
+      headers: {
+        "Cache-Control": "no-store",
+      },
     },
-  });
+  );
 }
