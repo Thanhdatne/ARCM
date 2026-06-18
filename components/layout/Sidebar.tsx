@@ -16,6 +16,7 @@ import {
   BarChart3,
   CircleHelp,
   Compass,
+  Download,
   EyeOff,
   Flame,
   Layers3,
@@ -28,6 +29,7 @@ import { CreateMarketDialog } from "@/components/CreateMarketDialog";
 
 const navItems = [
   { label: "Markets", href: "/", icon: Compass },
+  { label: "Deposit", href: null, icon: Download },
   { label: "Portfolio", href: "/portfolio", icon: BarChart3 },
   { label: "Claims", href: "/claims", icon: BadgeDollarSign },
   { label: "How it works", href: "/how-it-works", icon: CircleHelp },
@@ -74,6 +76,25 @@ export function Sidebar() {
         <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:#2B3139_transparent]">
           <nav className="space-y-1">
             {navItems.map((item) => {
+              if (!item.href) {
+                return (
+                  <div
+                    aria-disabled="true"
+                    className="flex cursor-not-allowed items-center justify-between gap-3 rounded-md border border-transparent px-3 py-2.5 text-sm font-semibold text-[#707A8A]"
+                    key={item.label}
+                    title="CCTP and Gateway deposits are not enabled yet"
+                  >
+                    <span className="flex items-center gap-3">
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.1em]">
+                      Soon
+                    </span>
+                  </div>
+                );
+              }
+
               const active =
                 item.href === "/"
                   ? pathname === "/" || pathname.startsWith("/market/")
