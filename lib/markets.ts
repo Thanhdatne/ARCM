@@ -125,14 +125,14 @@ export function getMarketVisualAsset(title: string, category: string): VisualAss
   if (/arc|arc testnet|ARCM/.test(text) || normalize(category).includes("arc")) {
     return {
       icon: "ARC",
-      imageSrc: "/branding/ARCM-logo.png",
+      imageSrc: "/brand/arc-logo.png",
       imageAlt: "ARCM market",
     };
   }
 
   return {
     icon: "AS",
-    imageSrc: "/branding/ARCM-logo.png",
+    imageSrc: "/brand/arc-logo.png",
     imageAlt: "ARCM market",
   };
 }
@@ -170,7 +170,7 @@ export const MARKETS: MarketCardData[] = [
     volume: "Onchain",
     category: "Arc Testnet",
     isReal: true,
-    imageSrc: "/branding/ARCM-logo.png",
+    imageSrc: "/brand/arc-logo.png",
     imageAlt: "ARCM market",
   },
 ];
@@ -209,7 +209,7 @@ export const PREVIEW_MARKETS: MarketCardData[] = [
     noPrice: 0.53,
     volume: "Preview",
     category: "Preview",
-    imageSrc: "/branding/ARCM-logo.png",
+    imageSrc: "/brand/arc-logo.png",
     imageAlt: "Arc ecosystem market preview",
   },
 ];

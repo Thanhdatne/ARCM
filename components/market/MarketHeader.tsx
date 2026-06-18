@@ -243,13 +243,13 @@ function getAssetVisual(question?: string, pairName?: string): AssetVisual | nul
     };
   }
 
-  if (/arc|ARCM|arc testnet|builder demos|mainnet/.test(text)) {
+  if (/arc|arcm|arc testnet|builder demos|mainnet/.test(text)) {
     return {
       type: "asset",
-      label: "ARCM",
+      label: "Arc",
       subtitle: "Arc ecosystem market",
-      imageSrc: "/branding/ARCM-logo.png",
-      accent: "yellow",
+      imageSrc: "/brand/arc-logo.png",
+      accent: "blue",
     };
   }
 
@@ -405,6 +405,8 @@ function FlagAvatar({
 }
 
 function AssetMarketVisual({ visual }: { visual: AssetVisual }) {
+  const isArcLogo = visual.imageSrc.toLowerCase().includes("/brand/arc-logo.png");
+
   const lineClass =
     visual.accent === "green"
       ? "stroke-[#0ECB81]"
@@ -413,6 +415,23 @@ function AssetMarketVisual({ visual }: { visual: AssetVisual }) {
         : visual.accent === "red"
           ? "stroke-[#F6465D]"
           : "stroke-[#FCD535]";
+
+  if (isArcLogo) {
+    return (
+      <div className="relative h-24 w-full shrink-0 overflow-hidden rounded-2xl border border-[#3A424D] bg-[#071426] shadow-[inset_0_0_24px_rgba(255,255,255,0.04)] sm:w-36">
+        <img
+          alt={`${visual.label} market`}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+          src={visual.imageSrc}
+        />
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#020617]/90 via-[#020617]/55 to-transparent px-3 pb-2 pt-8">
+          <p className="font-mono text-sm font-black text-[#EAECEF]">{visual.label}</p>
+          <p className="text-[10px] font-bold text-[#CBD5E1]">{visual.subtitle}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-24 w-full shrink-0 overflow-hidden rounded-2xl border border-[#3A424D] bg-[#0B0E11] p-3 shadow-[inset_0_0_24px_rgba(255,255,255,0.04)] sm:w-36">
@@ -436,16 +455,12 @@ function AssetMarketVisual({ visual }: { visual: AssetVisual }) {
 
       <div className="relative z-10 flex h-full w-full flex-col justify-between">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#2B3139] bg-[#1E2329] p-2 shadow-[0_10px_28px_rgba(0,0,0,0.25)]">
-          {visual.label === "ARCM" ? (
-            <ARCMLogoMark className="h-full w-full" />
-          ) : (
-            <img
-              alt={`${visual.label} market`}
-              className="h-full w-full object-contain"
-              loading="lazy"
-              src={visual.imageSrc}
-            />
-          )}
+          <img
+            alt={`${visual.label} market`}
+            className="h-full w-full object-contain"
+            loading="lazy"
+            src={visual.imageSrc}
+          />
         </div>
         <div>
           <p className="font-mono text-sm font-black text-[#EAECEF]">{visual.label}</p>
@@ -455,7 +470,6 @@ function AssetMarketVisual({ visual }: { visual: AssetVisual }) {
     </div>
   );
 }
-
 
 function ARCMLogoMark({ className = "h-12 w-12" }: { className?: string }) {
   return (

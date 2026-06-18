@@ -17,7 +17,7 @@ import {
   useState,
 } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Search, X } from "lucide-react";
+import { Search, Wallet, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 function shortAddress(address?: string) {
@@ -73,6 +73,9 @@ function MarketSearch() {
   const applySearch = useCallback(
     (nextValue: string, mode: "push" | "replace" = "push") => {
       const targetUrl = buildSearchUrl(nextValue);
+      const currentUrl = searchParamsString ? `${pathname}?${searchParamsString}` : pathname;
+
+      if (targetUrl === currentUrl) return;
 
       if (mode === "replace" && pathname === "/") {
         router.replace(targetUrl, { scroll: false });
@@ -81,7 +84,7 @@ function MarketSearch() {
 
       router.push(targetUrl, { scroll: false });
     },
-    [buildSearchUrl, pathname, router],
+    [buildSearchUrl, pathname, router, searchParamsString],
   );
 
   useEffect(() => {
@@ -89,7 +92,7 @@ function MarketSearch() {
 
     const timeout = window.setTimeout(() => {
       applySearch(value, "replace");
-    }, 250);
+    }, 350);
 
     return () => window.clearTimeout(timeout);
   }, [applySearch, pathname, value]);
@@ -133,6 +136,17 @@ function MarketSearch() {
         </button>
       ) : null}
     </form>
+  );
+}
+
+function WalletAvatar() {
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#FCD535]/40 bg-[#FCD535] text-[#181A20] shadow-[0_0_0_2px_rgba(252,213,53,0.12)]"
+    >
+      <Wallet className="h-3.5 w-3.5" strokeWidth={2.6} />
+    </span>
   );
 }
 
@@ -196,14 +210,12 @@ export function Topbar() {
 
             return (
               <button
-                className="focus-ring flex h-10 items-center gap-2 rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 text-sm font-bold text-[#EAECEF] transition hover:border-[#FCD535]"
+                className="focus-ring flex h-10 items-center gap-2 rounded-xl border border-[#2B3139] bg-[#1E2329] px-3 text-sm font-bold text-[#EAECEF] transition hover:border-[#FCD535] hover:bg-[#252B33]"
                 onClick={openAccountModal}
                 type="button"
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#FCD535] text-[10px] text-[#181A20]">
-                  â—
-                </span>
-                <span>
+                <WalletAvatar />
+                <span className="max-w-[130px] truncate">
                   {account.displayName ?? shortAddress(account.address)}
                 </span>
               </button>

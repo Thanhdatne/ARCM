@@ -185,10 +185,14 @@ function Thumbnail({
   label: string;
   tone: "onchain" | "preview";
 }) {
+  const normalizedLabel = label.toLowerCase();
+  const isArcLogo = imageSrc?.toLowerCase().includes("/brand/arc-logo.png");
+
   const shouldUseARCMLogo =
-    label.toLowerCase().includes("arc") ||
-    label.toLowerCase().includes("as") ||
-    imageSrc?.toLowerCase().includes("ARCM");
+    !imageSrc &&
+    (normalizedLabel === "as" ||
+      normalizedLabel === "arcm" ||
+      normalizedLabel.includes("arcm"));
 
   return (
     <div
@@ -198,15 +202,20 @@ function Thumbnail({
           : "border-[#2B3139] bg-[#0B0E11] text-[#707A8A]"
       }`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(252,213,53,0.16),transparent_46%)]" />
-      {shouldUseARCMLogo ? (
-        <ARCMLogoMark />
-      ) : imageSrc ? (
+      {!isArcLogo && (
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(252,213,53,0.16),transparent_46%)]" />
+      )}
+
+      {imageSrc ? (
         <img
           alt={alt ?? `${label} market`}
-          className="relative z-10 h-11 w-11 object-contain"
+          className={`relative z-10 ${
+            isArcLogo ? "h-full w-full object-cover" : "h-11 w-11 object-contain"
+          }`}
           src={imageSrc}
         />
+      ) : shouldUseARCMLogo ? (
+        <ARCMLogoMark />
       ) : (
         <span className="relative z-10">{label.slice(0, 3)}</span>
       )}
@@ -247,4 +256,3 @@ function ARCMLogoMark() {
     </svg>
   );
 }
-

@@ -18,7 +18,7 @@
     "awayScore": 0,
     "status": "final",
     "result": "home_win",
-    "updatedAt": "2026-06-16T09:53:00.177Z",
+    "updatedAt": "2026-06-17T10:41:20.035Z",
     "source": "manual_admin"
   },
   "group-b-canada-vs-bosnia-and-herzegovina": {
@@ -173,6 +173,94 @@
     "status": "final",
     "result": "draw",
     "updatedAt": "2026-06-16T09:59:47.640Z",
+    "source": "manual_admin"
+  },
+  "group-i-france-vs-senegal": {
+    "fixtureId": "group-i-france-vs-senegal",
+    "homeTeam": "France",
+    "awayTeam": "Senegal",
+    "homeScore": 3,
+    "awayScore": 1,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-17T10:22:50.825Z",
+    "source": "manual_admin"
+  },
+  "group-i-iraq-vs-norway": {
+    "fixtureId": "group-i-iraq-vs-norway",
+    "homeTeam": "Iraq",
+    "awayTeam": "Norway",
+    "homeScore": 1,
+    "awayScore": 4,
+    "status": "final",
+    "result": "away_win",
+    "updatedAt": "2026-06-17T10:23:16.168Z",
+    "source": "manual_admin"
+  },
+  "group-j-argentina-vs-algeria": {
+    "fixtureId": "group-j-argentina-vs-algeria",
+    "homeTeam": "Argentina",
+    "awayTeam": "Algeria",
+    "homeScore": 3,
+    "awayScore": 0,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-17T11:20:31.057Z",
+    "source": "manual_admin"
+  },
+  "group-j-austria-vs-jordan": {
+    "fixtureId": "group-j-austria-vs-jordan",
+    "homeTeam": "Austria",
+    "awayTeam": "Jordan",
+    "homeScore": 3,
+    "awayScore": 1,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-18T05:22:22.393Z",
+    "source": "manual_admin"
+  },
+  "group-k-portugal-vs-dr-congo": {
+    "fixtureId": "group-k-portugal-vs-dr-congo",
+    "homeTeam": "Portugal",
+    "awayTeam": "DR Congo",
+    "homeScore": 1,
+    "awayScore": 1,
+    "status": "final",
+    "result": "draw",
+    "updatedAt": "2026-06-18T05:22:30.745Z",
+    "source": "manual_admin"
+  },
+  "group-k-uzbekistan-vs-colombia": {
+    "fixtureId": "group-k-uzbekistan-vs-colombia",
+    "homeTeam": "Uzbekistan",
+    "awayTeam": "Colombia",
+    "homeScore": 1,
+    "awayScore": 3,
+    "status": "final",
+    "result": "away_win",
+    "updatedAt": "2026-06-18T05:23:32.143Z",
+    "source": "manual_admin"
+  },
+  "group-l-england-vs-croatia": {
+    "fixtureId": "group-l-england-vs-croatia",
+    "homeTeam": "England",
+    "awayTeam": "Croatia",
+    "homeScore": 4,
+    "awayScore": 2,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-18T05:22:41.556Z",
+    "source": "manual_admin"
+  },
+  "group-l-ghana-vs-panama": {
+    "fixtureId": "group-l-ghana-vs-panama",
+    "homeTeam": "Ghana",
+    "awayTeam": "Panama",
+    "homeScore": 1,
+    "awayScore": 0,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-18T05:23:09.492Z",
     "source": "manual_admin"
   }
 }

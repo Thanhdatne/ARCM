@@ -18,7 +18,6 @@ export const maxDuration = 300;
 
 const YES_PRICE = 1000000000000000000n;
 const NO_PRICE = 0n;
-const MAX_ACTIONS_PER_RUN = 9;
 
 const MARKET_ABI = [
   {
@@ -179,8 +178,20 @@ const ERC20_ABI = [
   },
 ] as const;
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+const TIMER_ABI = [
+  {
+    inputs: [{ name: "time", type: "uint256" }],
+    name: "setCurrentTime",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
 type OutcomeType = "home_win" | "draw" | "away_win";
-type ResultValue = OutcomeType;
+type ResolverAction = "resolveFixture" | "settleFixture" | "settleReady";
 
 interface WorldCupDeployment {
   worldCupMarketId: string;
@@ -190,7 +201,7 @@ interface WorldCupDeployment {
   outcomeType: string;
   marketAddress: string;
   ammAddress: string;
-  createdAt: string;
+  createdAt?: string;
   txHash?: string;
   transactionHash?: string;
 }
@@ -202,20 +213,18 @@ interface WorldCupResultRecord {
   homeScore: number | null;
   awayScore: number | null;
   status: "pending" | "final" | "postponed" | "cancelled";
-  result?: ResultValue | null;
+  result?: OutcomeType | null;
   updatedAt: string;
   source?: string;
 }
 
-interface AutoResolveItem {
+interface ResolverItem {
   fixtureId: string;
-  worldCupMarketId: string;
-  question: string;
   outcomeType: string;
-  expectedResult: string;
-  proposedSide: "YES" | "NO";
-  action: "proposed" | "settled" | "skipped" | "failed";
-  reason?: string;
+  question: string;
+  proposedSide?: "YES" | "NO";
+  action: "prepared" | "proposed" | "settled" | "skipped" | "failed";
+  reason: string;
   state?: number;
   txHash?: Hex;
 }
@@ -227,15 +236,19 @@ function dataPath(fileName: string) {
 function readJsonFile<T>(fileName: string, fallback: T): T {
   try {
     const raw = fs.readFileSync(dataPath(fileName), "utf-8").replace(/^\uFEFF/, "");
-    const parsed = JSON.parse(raw) as T;
-    return parsed;
+    return JSON.parse(raw) as T;
   } catch {
     return fallback;
   }
 }
 
 function readDeployments() {
-  return readJsonFile<WorldCupDeployment[]>("world-cup-deployments.json", []);
+  const parsed = readJsonFile<WorldCupDeployment[] | Record<string, WorldCupDeployment>>(
+    "world-cup-deployments.json",
+    [],
+  );
+
+  return Array.isArray(parsed) ? parsed : Object.values(parsed);
 }
 
 function readResults() {
@@ -244,26 +257,7 @@ function readResults() {
     {},
   );
 
-  if (Array.isArray(parsed)) return parsed;
-
-  if (parsed && typeof parsed === "object") {
-    return Object.values(parsed);
-  }
-
-  return [];
-}
-
-function isOutcomeType(value: string): value is OutcomeType {
-  return value === "home_win" || value === "draw" || value === "away_win";
-}
-
-function outcomePrice(outcomeType: string, result: ResultValue | null | undefined) {
-  if (!result || !isOutcomeType(outcomeType)) return null;
-  return outcomeType === result ? YES_PRICE : NO_PRICE;
-}
-
-function outcomeLabel(price: bigint): "YES" | "NO" {
-  return price === YES_PRICE ? "YES" : "NO";
+  return Array.isArray(parsed) ? parsed : Object.values(parsed);
 }
 
 function envAddress(name: string) {
@@ -275,15 +269,21 @@ function envAddress(name: string) {
   return value as Address;
 }
 
+function optionalAddress(name: string) {
+  const value = process.env[name]?.trim();
+
+  if (!value || !value.startsWith("0x") || value === ZERO_ADDRESS) {
+    return null;
+  }
+
+  return value as Address;
+}
+
 function getPrivateKey() {
   const value = process.env.PRIVATE_KEY?.trim();
   if (!value) throw new Error("PRIVATE_KEY is not configured.");
 
   return (value.startsWith("0x") ? value : `0x${value}`) as Hex;
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function errorMessage(error: unknown) {
@@ -297,54 +297,31 @@ function errorMessage(error: unknown) {
   }
 }
 
-function shouldRetry(error: unknown) {
-  const message = errorMessage(error).toLowerCase();
-
-  return (
-    message.includes("429") ||
-    message.includes("rate limit") ||
-    message.includes("timeout") ||
-    message.includes("fetch failed") ||
-    message.includes("http request failed") ||
-    message.includes("temporarily unavailable")
-  );
+function isOutcomeType(value: string): value is OutcomeType {
+  return value === "home_win" || value === "draw" || value === "away_win";
 }
 
-async function withRetry<T>(label: string, operation: () => Promise<T>, maxAttempts = 4) {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-
-      if (!shouldRetry(error) || attempt === maxAttempts) break;
-
-      const delayMs = Math.min(5_000 * attempt, 20_000);
-      console.warn(`[auto-resolve] ${label} retry ${attempt}/${maxAttempts - 1}`, errorMessage(error));
-      await sleep(delayMs);
-    }
-  }
-
-  throw new Error(`${label} failed: ${errorMessage(lastError)}`);
+function outcomePrice(outcomeType: string, result: OutcomeType | null | undefined) {
+  if (!result || !isOutcomeType(outcomeType)) return null;
+  return outcomeType === result ? YES_PRICE : NO_PRICE;
 }
 
-async function waitForTx(
-  publicClient: ReturnType<typeof createPublicClient>,
-  hash: Hex,
-) {
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash,
-    pollingInterval: 2_000,
-    timeout: 180_000,
-  });
+function outcomeLabel(price: bigint): "YES" | "NO" {
+  return price === YES_PRICE ? "YES" : "NO";
+}
 
-  if (receipt.status === "reverted") {
-    throw new Error(`Transaction reverted after mining: ${hash}`);
-  }
+function getExpirationTime(requestData: unknown) {
+  const tuple = requestData as { expirationTime?: unknown; [key: number]: unknown };
+  const value = tuple?.expirationTime ?? tuple?.[7];
 
-  return receipt;
+  return typeof value === "bigint" ? value : 0n;
+}
+
+function isSettleableState(state: number) {
+  // UMA OO V2 active proposal becomes settleable after liveness expires.
+  // State 3 is the explicit expired state. State 5 is resolved, but calling
+  // settle there can revert with "_settle: not settleable" on this flow.
+  return state === 3;
 }
 
 async function getOracleRequestContext(
@@ -353,41 +330,31 @@ async function getOracleRequestContext(
 ) {
   const [priceRequested, receivedSettlementPrice, requestTimestamp, priceIdentifier, ancillaryData] =
     await Promise.all([
-      withRetry("Read priceRequested", () =>
-        publicClient.readContract({
-          address: marketAddress,
-          abi: MARKET_ABI,
-          functionName: "priceRequested",
-        }),
-      ),
-      withRetry("Read receivedSettlementPrice", () =>
-        publicClient.readContract({
-          address: marketAddress,
-          abi: MARKET_ABI,
-          functionName: "receivedSettlementPrice",
-        }),
-      ),
-      withRetry("Read requestTimestamp", () =>
-        publicClient.readContract({
-          address: marketAddress,
-          abi: MARKET_ABI,
-          functionName: "requestTimestamp",
-        }),
-      ),
-      withRetry("Read priceIdentifier", () =>
-        publicClient.readContract({
-          address: marketAddress,
-          abi: MARKET_ABI,
-          functionName: "priceIdentifier",
-        }),
-      ),
-      withRetry("Read customAncillaryData", () =>
-        publicClient.readContract({
-          address: marketAddress,
-          abi: MARKET_ABI,
-          functionName: "customAncillaryData",
-        }),
-      ),
+      publicClient.readContract({
+        address: marketAddress,
+        abi: MARKET_ABI,
+        functionName: "priceRequested",
+      }),
+      publicClient.readContract({
+        address: marketAddress,
+        abi: MARKET_ABI,
+        functionName: "receivedSettlementPrice",
+      }),
+      publicClient.readContract({
+        address: marketAddress,
+        abi: MARKET_ABI,
+        functionName: "requestTimestamp",
+      }),
+      publicClient.readContract({
+        address: marketAddress,
+        abi: MARKET_ABI,
+        functionName: "priceIdentifier",
+      }),
+      publicClient.readContract({
+        address: marketAddress,
+        abi: MARKET_ABI,
+        functionName: "customAncillaryData",
+      }),
     ]);
 
   return {
@@ -399,13 +366,22 @@ async function getOracleRequestContext(
   };
 }
 
-async function ensureOracleCollateralReady({
+function settleReadyState(state: number) {
+  return state === 3;
+}
+
+function proposalActiveState(state: number) {
+  return state === 2;
+}
+
+async function queueCollateralSetup({
   publicClient,
   walletClient,
   accountAddress,
   arctAddress,
   oracleAddress,
   getNonce,
+  items,
 }: {
   publicClient: ReturnType<typeof createPublicClient>;
   walletClient: any;
@@ -413,85 +389,131 @@ async function ensureOracleCollateralReady({
   arctAddress: Address;
   oracleAddress: Address;
   getNonce: () => number;
+  items: ResolverItem[];
 }) {
   const minimumBalance = parseEther("1000");
   const approvalAmount = parseEther("1000000");
 
-  const balance = await withRetry("Read ARCT balance", () =>
+  const [balance, allowance] = await Promise.all([
     publicClient.readContract({
       address: arctAddress,
       abi: ERC20_ABI,
       functionName: "balanceOf",
       args: [accountAddress],
     }),
-  );
-
-  if ((balance as bigint) < minimumBalance) {
-    const mintHash = await withRetry("Top up ARCT resolver balance", () =>
-      walletClient.writeContract({
-        address: arctAddress,
-        abi: ERC20_ABI,
-        functionName: "allocateTo",
-        args: [accountAddress, approvalAmount],
-        nonce: getNonce(),
-      }),
-      3,
-    );
-    await waitForTx(publicClient, mintHash as Hex);
-  }
-
-  const allowance = await withRetry("Read OO ARCT allowance", () =>
     publicClient.readContract({
       address: arctAddress,
       abi: ERC20_ABI,
       functionName: "allowance",
       args: [accountAddress, oracleAddress],
     }),
-  );
+  ]);
+
+  if ((balance as bigint) < minimumBalance) {
+    const hash = await walletClient.writeContract({
+      address: arctAddress,
+      abi: ERC20_ABI,
+      functionName: "allocateTo",
+      args: [accountAddress, approvalAmount],
+      nonce: getNonce(),
+    });
+
+    items.push({
+      fixtureId: "setup",
+      outcomeType: "collateral",
+      question: "Top up resolver ARCT",
+      action: "prepared",
+      reason: "Queued ARCT top up for resolver wallet.",
+      txHash: hash as Hex,
+    });
+  }
 
   if ((allowance as bigint) < minimumBalance) {
-    const approveHash = await withRetry("Approve ARCT for OO", () =>
-      walletClient.writeContract({
-        address: arctAddress,
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [oracleAddress, approvalAmount],
-        nonce: getNonce(),
-      }),
-      3,
-    );
-    await waitForTx(publicClient, approveHash as Hex);
+    const hash = await walletClient.writeContract({
+      address: arctAddress,
+      abi: ERC20_ABI,
+      functionName: "approve",
+      args: [oracleAddress, approvalAmount],
+      nonce: getNonce(),
+    });
+
+    items.push({
+      fixtureId: "setup",
+      outcomeType: "approval",
+      question: "Approve ARCT for UMA Oracle",
+      action: "prepared",
+      reason: "Queued ARCT approval for UMA Oracle.",
+      txHash: hash as Hex,
+    });
   }
+}
+
+async function queueTimerSync({
+  walletClient,
+  getNonce,
+  items,
+}: {
+  walletClient: any;
+  getNonce: () => number;
+  items: ResolverItem[];
+}) {
+  const timerAddress = optionalAddress("NEXT_PUBLIC_TIMER_ADDRESS");
+
+  if (!timerAddress) return;
+
+  const hash = await walletClient.writeContract({
+    address: timerAddress,
+    abi: TIMER_ABI,
+    functionName: "setCurrentTime",
+    args: [BigInt(Math.floor(Date.now() / 1000))],
+    nonce: getNonce(),
+  });
+
+  items.push({
+    fixtureId: "setup",
+    outcomeType: "timer",
+    question: "Fast-forward UMA timer",
+    action: "prepared",
+    reason: "Queued UMA Timer sync before oracle settlement.",
+    txHash: hash as Hex,
+  });
 }
 
 export async function POST(request: Request) {
   const adminError = getAdminRequestError(
     request,
-    "Admin auto resolve is disabled.",
+    "Admin fixture resolver is disabled.",
   );
   if (adminError) return adminError;
 
-  let maxActions = MAX_ACTIONS_PER_RUN;
+  let body: { action?: ResolverAction; fixtureId?: string; limit?: number };
 
   try {
-    const body = await request.json().catch(() => ({}));
-    const requestedMaxActions =
-      typeof body?.maxActions === "number" && Number.isFinite(body.maxActions)
-        ? Math.floor(body.maxActions)
-        : MAX_ACTIONS_PER_RUN;
-    maxActions = Math.min(Math.max(requestedMaxActions, 1), 18);
+    body = await request.json();
   } catch {
-    maxActions = MAX_ACTIONS_PER_RUN;
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const items: AutoResolveItem[] = [];
+  const action = body.action;
+  const fixtureId = typeof body.fixtureId === "string" ? body.fixtureId : "";
+  const limit =
+    typeof body.limit === "number" && Number.isFinite(body.limit)
+      ? Math.min(Math.max(Math.floor(body.limit), 1), 18)
+      : 9;
+
+  if (action !== "resolveFixture" && action !== "settleFixture" && action !== "settleReady") {
+    return NextResponse.json({ error: "Invalid resolver action." }, { status: 400 });
+  }
+
+  if ((action === "resolveFixture" || action === "settleFixture") && !fixtureId) {
+    return NextResponse.json({ error: "fixtureId is required." }, { status: 400 });
+  }
+
+  const items: ResolverItem[] = [];
   let proposed = 0;
   let settled = 0;
   let skipped = 0;
   let failed = 0;
-  let checked = 0;
-  let actions = 0;
-  let stoppedEarly = false;
 
   try {
     const privateKey = getPrivateKey();
@@ -508,19 +530,16 @@ export async function POST(request: Request) {
       transport: http(rpcUrl),
     });
 
-    const walletClient = createWalletClient({
+    const walletClient: any = createWalletClient({
       account,
       chain: arcTestnet,
       transport: http(rpcUrl),
     });
 
-    let nextNonce = await withRetry("Read resolver nonce", () =>
-      publicClient.getTransactionCount({
-        address: account.address,
-        blockTag: "pending",
-      }),
-      5,
-    );
+    let nextNonce = await publicClient.getTransactionCount({
+      address: account.address,
+      blockTag: "pending",
+    });
 
     const getNonce = () => {
       const nonce = nextNonce;
@@ -538,58 +557,79 @@ export async function POST(request: Request) {
 
     const deployments = readDeployments()
       .filter((deployment) => {
+        if (action === "resolveFixture" || action === "settleFixture") {
+          return deployment.fixtureId === fixtureId;
+        }
+
         const result = resultsByFixtureId[deployment.fixtureId];
         return result?.status === "final" && !!result.result;
       })
       .sort((a, b) =>
         `${a.fixtureId}-${a.outcomeType}`.localeCompare(`${b.fixtureId}-${b.outcomeType}`),
-      );
+      )
+      .slice(0, action === "settleReady" ? limit : 3);
 
-    if (deployments.length > 0) {
-      await ensureOracleCollateralReady({
+    if (deployments.length === 0) {
+      return NextResponse.json({
+        success: true,
+        action,
+        fixtureId,
+        proposed,
+        settled,
+        skipped,
+        failed,
+        items: [
+          {
+            fixtureId: fixtureId || "all",
+            outcomeType: "none",
+            question: "No deployed markets found",
+            action: "skipped",
+            reason: "No deployed World Cup markets matched this request.",
+          },
+        ],
+      });
+    }
+
+    if (action === "resolveFixture") {
+      const result = resultsByFixtureId[fixtureId];
+      if (!result || result.status !== "final" || !result.result) {
+        return NextResponse.json(
+          { error: "This fixture has no final result yet." },
+          { status: 422 },
+        );
+      }
+
+      await queueCollateralSetup({
         publicClient,
         walletClient,
         accountAddress: account.address,
         arctAddress,
         oracleAddress,
         getNonce,
+        items,
+      });
+    }
+
+    if (action === "settleFixture" || action === "settleReady") {
+      await queueTimerSync({
+        walletClient,
+        getNonce,
+        items,
       });
     }
 
     for (const deployment of deployments) {
-      if (actions >= maxActions) {
-        stoppedEarly = true;
-        break;
-      }
-
-      checked += 1;
       const result = resultsByFixtureId[deployment.fixtureId];
-      const price = outcomePrice(deployment.outcomeType, result?.result);
+      const marketAddress = deployment.marketAddress as Address;
+      const context = await getOracleRequestContext(publicClient, marketAddress);
 
       const baseItem = {
         fixtureId: deployment.fixtureId,
-        worldCupMarketId: deployment.worldCupMarketId,
-        question: deployment.question,
         outcomeType: deployment.outcomeType,
-        expectedResult: result?.result ?? "unknown",
-        proposedSide: price !== null ? outcomeLabel(price) : "NO",
-      } satisfies Omit<AutoResolveItem, "action">;
-
-      if (price === null) {
-        skipped += 1;
-        items.push({
-          ...baseItem,
-          action: "skipped",
-          reason: "Missing final result or unsupported outcome type.",
-        });
-        continue;
-      }
-
-      const marketAddress = deployment.marketAddress as Address;
+        question: deployment.question,
+      };
 
       try {
-        const context = await getOracleRequestContext(publicClient, marketAddress);
-
         if (!context.priceRequested) {
           skipped += 1;
           items.push({
@@ -611,155 +651,139 @@ export async function POST(request: Request) {
         }
 
         const state = Number(
-          await withRetry("Read OO state", () =>
-            publicClient.readContract({
-              address: oracleAddress,
-              abi: OO_V2_ABI,
-              functionName: "getState",
-              args: [
-                marketAddress,
-                context.priceIdentifier,
-                context.requestTimestamp,
-                context.ancillaryData,
-              ],
-            }),
-          ),
+          await publicClient.readContract({
+            address: oracleAddress,
+            abi: OO_V2_ABI,
+            functionName: "getState",
+            args: [
+              marketAddress,
+              context.priceIdentifier,
+              context.requestTimestamp,
+              context.ancillaryData,
+            ],
+          }),
         );
 
-        // 1 = Requested, 0 = Invalid. In practice initialized markets should be
-        // Requested. Treat Invalid as propose-able only when priceRequested is true.
-        if (state === 1 || state === 0) {
-          const hash = await withRetry("Propose World Cup outcome", () =>
-            walletClient.writeContract({
-              address: oracleAddress,
-              abi: OO_V2_ABI,
-              functionName: "proposePrice",
-              args: [
-                marketAddress,
-                context.priceIdentifier,
-                context.requestTimestamp,
-                context.ancillaryData,
-                price,
-              ],
-              nonce: getNonce(),
-            }),
-            3,
-          );
-          await waitForTx(publicClient, hash as Hex);
-          actions += 1;
-          proposed += 1;
-          items.push({
-            ...baseItem,
-            action: "proposed",
-            reason: `Proposed ${outcomeLabel(price)}.`,
-            state,
-            txHash: hash as Hex,
-          });
-          continue;
-        }
+        if (action === "resolveFixture") {
+          const price = outcomePrice(deployment.outcomeType, result?.result);
 
-        // 2 = Proposed. Settle only after liveness expiration.
-        if (state === 2) {
-          const requestData = await withRetry("Read OO request", () =>
-            publicClient.readContract({
-              address: oracleAddress,
-              abi: OO_V2_ABI,
-              functionName: "getRequest",
-              args: [
-                marketAddress,
-                context.priceIdentifier,
-                context.requestTimestamp,
-                context.ancillaryData,
-              ],
-            }),
-          );
-
-          const expirationTime =
-            typeof requestData === "object" && requestData && "expirationTime" in requestData
-              ? (requestData as { expirationTime: bigint }).expirationTime
-              : 0n;
-          const now = BigInt(Math.floor(Date.now() / 1000));
-
-          if (expirationTime > now) {
+          if (price === null) {
             skipped += 1;
             items.push({
               ...baseItem,
               action: "skipped",
-              reason: `Proposal active. Settle after ${new Date(Number(expirationTime) * 1000).toISOString()}.`,
+              reason: "Missing final result or unsupported outcome type.",
               state,
             });
             continue;
           }
 
-          const hash = await withRetry("Settle expired OO proposal", () =>
-            walletClient.writeContract({
-              address: oracleAddress,
-              abi: OO_V2_ABI,
-              functionName: "settle",
-              args: [
-                marketAddress,
-                context.priceIdentifier,
-                context.requestTimestamp,
-                context.ancillaryData,
-              ],
-              nonce: getNonce(),
-            }),
-            3,
-          );
-          await waitForTx(publicClient, hash as Hex);
-          actions += 1;
-          settled += 1;
+          if (state !== 0 && state !== 1) {
+            skipped += 1;
+            items.push({
+              ...baseItem,
+              proposedSide: outcomeLabel(price),
+              action: "skipped",
+              reason:
+                state === 2
+                  ? "Already proposed. Wait for liveness, then settle."
+                  : settleReadyState(state)
+                    ? "Already ready to settle. Use Settle Fixture."
+                    : `Oracle state ${state} cannot be proposed now.`,
+              state,
+            });
+            continue;
+          }
+
+          const hash = await walletClient.writeContract({
+            address: oracleAddress,
+            abi: OO_V2_ABI,
+            functionName: "proposePrice",
+            args: [
+              marketAddress,
+              context.priceIdentifier,
+              context.requestTimestamp,
+              context.ancillaryData,
+              price,
+            ],
+            nonce: getNonce(),
+          });
+
+          proposed += 1;
           items.push({
             ...baseItem,
-            action: "settled",
-            reason: "Settled expired oracle proposal.",
+            proposedSide: outcomeLabel(price),
+            action: "proposed",
+            reason: `Queued ${outcomeLabel(price)} proposal.`,
             state,
             txHash: hash as Hex,
           });
           continue;
         }
 
-        // 3 = Expired, 5 = Resolved. Both are settle-able.
-        if (state === 3 || state === 5) {
-          const hash = await withRetry("Settle ready OO request", () =>
-            walletClient.writeContract({
-              address: oracleAddress,
-              abi: OO_V2_ABI,
-              functionName: "settle",
-              args: [
-                marketAddress,
-                context.priceIdentifier,
-                context.requestTimestamp,
-                context.ancillaryData,
-              ],
-              nonce: getNonce(),
-            }),
-            3,
-          );
-          await waitForTx(publicClient, hash as Hex);
-          actions += 1;
-          settled += 1;
+        if (proposalActiveState(state)) {
+          const requestData = await publicClient.readContract({
+            address: oracleAddress,
+            abi: OO_V2_ABI,
+            functionName: "getRequest",
+            args: [
+              marketAddress,
+              context.priceIdentifier,
+              context.requestTimestamp,
+              context.ancillaryData,
+            ],
+          });
+
+          const expirationTime = getExpirationTime(requestData);
+          const now = BigInt(Math.floor(Date.now() / 1000));
+
+          if (expirationTime === 0n || expirationTime > now) {
+            skipped += 1;
+            items.push({
+              ...baseItem,
+              action: "skipped",
+              reason:
+                expirationTime === 0n
+                  ? "Proposal is active, but expiration time was not readable yet. Refresh status and wait."
+                  : `Wait until ${new Date(Number(expirationTime) * 1000).toLocaleString()} before settling.`,
+              state,
+            });
+            continue;
+          }
+        } else if (!isSettleableState(state)) {
+          skipped += 1;
           items.push({
             ...baseItem,
-            action: "settled",
-            reason: "Settled ready oracle request.",
+            action: "skipped",
+            reason:
+              state === 6
+                ? "Oracle request already settled."
+                : `Oracle state ${state} is not ready to settle.`,
             state,
-            txHash: hash as Hex,
           });
           continue;
         }
 
-        skipped += 1;
+        const hash = await walletClient.writeContract({
+          address: oracleAddress,
+          abi: OO_V2_ABI,
+          functionName: "settle",
+          args: [
+            marketAddress,
+            context.priceIdentifier,
+            context.requestTimestamp,
+            context.ancillaryData,
+          ],
+          nonce: getNonce(),
+        });
+
+        settled += 1;
         items.push({
           ...baseItem,
-          action: "skipped",
-          reason:
-            state === 4
-              ? "Oracle request is disputed."
-              : state === 6
-                ? "Oracle request already settled."
-                : `Oracle state ${state} is not actionable.`,
+          action: "settled",
+          reason: "Queued settle transaction.",
           state,
+          txHash: hash as Hex,
         });
       } catch (error) {
         failed += 1;
@@ -771,22 +795,14 @@ export async function POST(request: Request) {
       }
     }
 
-    const processed = proposed + settled + skipped + failed;
-
     return NextResponse.json({
       success: true,
-      checked,
-      processed,
+      action,
+      fixtureId,
       proposed,
       settled,
       skipped,
       failed,
-      actions,
-      maxActions,
-      stoppedEarly,
-      hasMore: stoppedEarly,
-      totalFinalMarkets: deployments.length,
-      remainingApprox: Math.max(deployments.length - checked, 0),
       items,
     });
   } catch (error) {
@@ -794,7 +810,8 @@ export async function POST(request: Request) {
       {
         success: false,
         error: errorMessage(error),
-        checked,
+        action,
+        fixtureId,
         proposed,
         settled,
         skipped,
