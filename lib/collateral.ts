@@ -1,5 +1,6 @@
 import {
   formatUnits,
+  getAddress,
   isAddress,
   parseUnits,
   zeroAddress,
@@ -25,6 +26,12 @@ export interface CollateralConfig {
   isNativeGasToken: boolean;
 }
 
+export interface CollateralMetadata
+  extends Omit<CollateralConfig, "symbol"> {
+  symbol: CollateralSymbol | "TOKEN";
+  warning: boolean;
+}
+
 export interface CircleRailsConfig {
   cctp: {
     requested: boolean;
@@ -40,10 +47,17 @@ export interface CircleRailsConfig {
   };
 }
 
+export function normalizeAddress(
+  address: string | null | undefined,
+): Address | null {
+  if (!address || !isAddress(address)) return null;
+
+  const normalized = getAddress(address);
+  return normalized.toLowerCase() === zeroAddress ? null : normalized;
+}
+
 function configuredAddress(address: Address): Address | null {
-  return isAddress(address) && address.toLowerCase() !== zeroAddress
-    ? address
-    : null;
+  return normalizeAddress(address);
 }
 
 function publicFlagEnabled(value: string | undefined): boolean {
@@ -97,6 +111,44 @@ export function getCollateralBySymbol(
   symbol: CollateralSymbol,
 ): CollateralConfig | undefined {
   return COLLATERALS.find((collateral) => collateral.symbol === symbol);
+}
+
+export function getCollateralByAddress(
+  address: string | null | undefined,
+): CollateralConfig | undefined {
+  const normalized = normalizeAddress(address);
+  if (!normalized) return undefined;
+
+  return COLLATERALS.find(
+    (collateral) =>
+      collateral.address?.toLowerCase() === normalized.toLowerCase(),
+  );
+}
+
+export function getCollateralMetadataByAddress(
+  address: string | null | undefined,
+): CollateralMetadata {
+  const normalized = normalizeAddress(address);
+  const configured = getCollateralByAddress(normalized);
+
+  if (configured) {
+    return {
+      ...configured,
+      address: normalized,
+      warning: false,
+    };
+  }
+
+  return {
+    symbol: "TOKEN",
+    name: "Unknown collateral",
+    address: normalized,
+    decimals: 18,
+    enabled: false,
+    isTestCollateral: false,
+    isNativeGasToken: false,
+    warning: true,
+  };
 }
 
 export function getEnabledCollaterals(): CollateralConfig[] {

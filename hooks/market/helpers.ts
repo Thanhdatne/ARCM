@@ -21,8 +21,16 @@ import { COLLATERAL_DECIMALS } from "@/lib/contracts/addresses";
 import { OracleState } from "@/lib/contracts/types";
 
 export function formatCollateral(amount: bigint | undefined, full?: boolean): string {
+  return formatTokenDisplayAmount(amount, COLLATERAL_DECIMALS, full);
+}
+
+export function formatTokenDisplayAmount(
+  amount: bigint | undefined,
+  decimals: number,
+  full?: boolean,
+): string {
   if (amount === undefined) return "0.00";
-  const raw = formatUnits(amount, COLLATERAL_DECIMALS);
+  const raw = formatUnits(amount, decimals);
   if (full) return raw;
   const n = parseFloat(raw);
   if (n === 0) return "0.00";

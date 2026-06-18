@@ -23,8 +23,14 @@ interface ApiClaimMarket {
   claimLongAmount: string;
   claimShortAmount: string;
   payoutAmount: string;
+  payoutAmountFormatted?: string;
   yesBalance: string;
   noBalance: string;
+  collateralAddress?: Address;
+  collateralSymbol?: string;
+  collateralName?: string;
+  collateralDecimals?: number;
+  collateralWarning?: boolean;
 }
 
 interface ClaimableResponse {
@@ -97,7 +103,7 @@ export default function ClaimsPage() {
         <div className="flex flex-col gap-5 p-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              {["Claims", "Claim Reward", "Arc Testnet", "ARCT payout"].map((badge) => (
+              {["Claims", "Claim Reward", "Arc Testnet", "Collateral payout"].map((badge) => (
                 <Badge
                   key={badge}
                   variant="outline"
@@ -183,10 +189,10 @@ export default function ClaimsPage() {
           <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Claim Rules</div>
           <div className="grid gap-2 p-3">
             <StatusTile label="Network" value="Arc Testnet" />
-            <StatusTile label="Reward token" value="ARCT test collateral" />
+            <StatusTile label="Reward token" value="Per-market collateral" />
             <StatusTile label="Settlement" value="UMA Optimistic Oracle V2" />
             <p className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
-              Claims redeem real winning YES/NO tokens for ARCT payout. If you traded the losing side, nothing appears here.
+              Claims redeem real winning YES/NO tokens for the collateral configured by each market. If you traded the losing side, nothing appears here.
             </p>
           </div>
         </section>
@@ -242,13 +248,17 @@ function ApiClaimRow({
             <Badge variant="outline" className="border-[#FCD535] bg-[#FCD535]/15 text-[#FFF3AF]">
               {market.winningSide} won
             </Badge>
+            <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+              {market.collateralSymbol ?? "ARCT"} collateral
+            </Badge>
           </div>
           <h3 className="line-clamp-2 text-sm font-bold text-[#EAECEF]">{market.title}</h3>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#707A8A]">
             <span>
               Reward:{" "}
               <span className="font-mono font-bold text-[#FCD535]">
-                {formatCollateral(payoutAmount)} ARCT
+                {market.payoutAmountFormatted ?? formatCollateral(payoutAmount)}{" "}
+                {market.collateralSymbol ?? "ARCT"}
               </span>
             </span>
             <span>

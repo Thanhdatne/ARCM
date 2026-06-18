@@ -7,7 +7,10 @@ import { type Address } from "viem";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/contexts/WalletContext";
-import { formatCollateral } from "@/hooks/market/helpers";
+import {
+  formatCollateral,
+  formatTokenDisplayAmount,
+} from "@/hooks/market/helpers";
 
 interface PortfolioPosition {
   id: string;
@@ -21,6 +24,14 @@ interface PortfolioPosition {
   isSettled: boolean;
   winningSide: "YES" | "NO" | "Mixed" | null;
   claimablePayout: string;
+  claimablePayoutFormatted?: string;
+  collateralAddress?: Address;
+  collateralSymbol?: string;
+  collateralName?: string;
+  collateralDecimals?: number;
+  collateralBalance?: string;
+  collateralBalanceFormatted?: string;
+  collateralWarning?: boolean;
 }
 
 interface PortfolioResponse {
@@ -230,6 +241,9 @@ function PositionRow({
                 Winner {position.winningSide}
               </Badge>
             )}
+            <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+              {position.collateralSymbol ?? "ARCT"} collateral
+            </Badge>
           </div>
 
           <h3 className="line-clamp-2 text-sm font-bold text-[#EAECEF]">
@@ -257,7 +271,12 @@ function PositionRow({
               <span>
                 Claimable{" "}
                 <span className="font-mono font-bold text-[#FCD535]">
-                  {formatCollateral(claimablePayout)} ARCT
+                  {position.claimablePayoutFormatted ??
+                    formatTokenDisplayAmount(
+                      claimablePayout,
+                      position.collateralDecimals ?? 18,
+                    )}{" "}
+                  {position.collateralSymbol ?? "ARCT"}
                 </span>
               </span>
             )}

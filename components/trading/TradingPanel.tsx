@@ -59,6 +59,9 @@ type Tab = "buy" | "sell" | "resolve";
 type Outcome = "yes" | "no";
 const adminSettlementEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
 
+// TODO(collateral): replace ARCT display labels after verified per-market
+// collateral metadata is exposed by the existing trading hooks.
+
 export function TradingPanel() {
   const { isConnected } = useWallet();
   const searchParams = useSearchParams();

@@ -9,6 +9,12 @@ import {
 } from "viem";
 import { arcTestnet } from "@/lib/chain";
 import { ARCT_ADDRESS, COLLATERAL_DECIMALS } from "@/lib/contracts";
+import { ERC20_ABI } from "@/lib/contracts/abis/erc20";
+import {
+  formatTokenAmount,
+  getCollateralMetadataByAddress,
+  normalizeAddress,
+} from "@/lib/collateral";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -20,6 +26,13 @@ const ONE = 1000000000000000000n;
 const CONCURRENCY = 10;
 
 const MARKET_ABI = [
+  {
+    inputs: [],
+    name: "collateralToken",
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
   {
     inputs: [],
     name: "receivedSettlementPrice",
@@ -45,16 +58,6 @@ const MARKET_ABI = [
     inputs: [],
     name: "shortToken",
     outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
-const ERC20_ABI = [
-  {
-    inputs: [{ name: "account", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
@@ -93,6 +96,14 @@ interface PortfolioPosition {
   isSettled: boolean;
   winningSide: "YES" | "NO" | "Mixed" | null;
   claimablePayout: string;
+  claimablePayoutFormatted: string;
+  collateralAddress: string;
+  collateralSymbol: string;
+  collateralName: string;
+  collateralDecimals: number;
+  collateralBalance: string;
+  collateralBalanceFormatted: string;
+  collateralWarning: boolean;
 }
 
 function dataPath(fileName: string) {
@@ -211,6 +222,12 @@ function formatBigInt(value: bigint) {
   return value.toString();
 }
 
+function tokenText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, maxLength)
+    : fallback;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const wallet = url.searchParams.get("address");
@@ -257,8 +274,21 @@ export async function GET(request: Request) {
     try {
       const marketAddress = deployment.marketAddress as Address;
 
-      const [receivedSettlementPrice, settlementPriceRaw, longToken, shortToken] =
+      const [
+        collateralToken,
+        receivedSettlementPrice,
+        settlementPriceRaw,
+        longToken,
+        shortToken,
+      ] =
         await Promise.all([
+          publicClient
+            .readContract({
+              address: marketAddress,
+              abi: MARKET_ABI,
+              functionName: "collateralToken",
+            })
+            .catch(() => ARCT_ADDRESS),
           publicClient.readContract({
             address: marketAddress,
             abi: MARKET_ABI,
@@ -283,6 +313,9 @@ export async function GET(request: Request) {
 
       const longTokenAddress = longToken as Address;
       const shortTokenAddress = shortToken as Address;
+      const collateralAddress =
+        normalizeAddress(collateralToken as Address) ?? ARCT_ADDRESS;
+      const configuredCollateral = getCollateralMetadataByAddress(collateralAddress);
 
       if (
         longTokenAddress === ZERO_ADDRESS ||
@@ -291,7 +324,14 @@ export async function GET(request: Request) {
         return null;
       }
 
-      const [yesBalanceRaw, noBalanceRaw] = await Promise.all([
+      const [
+        yesBalanceRaw,
+        noBalanceRaw,
+        collateralBalanceRaw,
+        collateralSymbolRaw,
+        collateralNameRaw,
+        collateralDecimalsRaw,
+      ] = await Promise.all([
         publicClient.readContract({
           address: longTokenAddress,
           abi: ERC20_ABI,
@@ -304,10 +344,57 @@ export async function GET(request: Request) {
           functionName: "balanceOf",
           args: [wallet],
         }),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [wallet],
+          })
+          .catch(() => 0n),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "symbol",
+          })
+          .catch(() => configuredCollateral.symbol),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "name",
+          })
+          .catch(() => configuredCollateral.name),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          })
+          .catch(() => configuredCollateral.decimals),
       ]);
 
       const yesBalance = yesBalanceRaw as bigint;
       const noBalance = noBalanceRaw as bigint;
+      const collateralBalance = collateralBalanceRaw as bigint;
+      const collateralDecimals =
+        typeof collateralDecimalsRaw === "number" &&
+        Number.isInteger(collateralDecimalsRaw) &&
+        collateralDecimalsRaw >= 0 &&
+        collateralDecimalsRaw <= 255
+          ? collateralDecimalsRaw
+          : configuredCollateral.decimals;
+      const collateralSymbol = tokenText(
+        collateralSymbolRaw,
+        configuredCollateral.symbol,
+        16,
+      );
+      const collateralName = tokenText(
+        collateralNameRaw,
+        configuredCollateral.name,
+        64,
+      );
 
       if (yesBalance <= 0n && noBalance <= 0n) return null;
 
@@ -337,6 +424,20 @@ export async function GET(request: Request) {
               : "Mixed"
           : null,
         claimablePayout: formatBigInt(claimablePayout),
+        claimablePayoutFormatted: formatTokenAmount(
+          claimablePayout,
+          collateralDecimals,
+        ),
+        collateralAddress,
+        collateralSymbol,
+        collateralName,
+        collateralDecimals,
+        collateralBalance: formatBigInt(collateralBalance),
+        collateralBalanceFormatted: formatTokenAmount(
+          collateralBalance,
+          collateralDecimals,
+        ),
+        collateralWarning: configuredCollateral.warning,
       } satisfies PortfolioPosition;
     } catch {
       failed += 1;

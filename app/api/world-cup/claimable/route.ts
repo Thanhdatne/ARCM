@@ -7,6 +7,14 @@ import {
   type Address,
 } from "viem";
 import { arcTestnet } from "@/lib/chain";
+import {
+  formatTokenAmount,
+  getCollateralMetadataByAddress,
+  getDefaultCollateral,
+  normalizeAddress,
+} from "@/lib/collateral";
+import { ARCT_ADDRESS } from "@/lib/contracts";
+import { ERC20_ABI } from "@/lib/contracts/abis/erc20";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -19,6 +27,13 @@ const CONCURRENCY = 10;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
 const MARKET_ABI = [
+  {
+    inputs: [],
+    name: "collateralToken",
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
   {
     inputs: [],
     name: "receivedSettlementPrice",
@@ -44,16 +59,6 @@ const MARKET_ABI = [
     inputs: [],
     name: "shortToken",
     outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
-const ERC20_ABI = [
-  {
-    inputs: [{ name: "account", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
@@ -95,8 +100,14 @@ interface ClaimableMarket {
   claimLongAmount: string;
   claimShortAmount: string;
   payoutAmount: string;
+  payoutAmountFormatted: string;
   yesBalance: string;
   noBalance: string;
+  collateralAddress: string;
+  collateralSymbol: string;
+  collateralName: string;
+  collateralDecimals: number;
+  collateralWarning: boolean;
 }
 
 function dataPath(fileName: string) {
@@ -213,6 +224,11 @@ async function mapLimit<T, R>(
 }
 
 function cacheRowToMarket(row: any): ClaimableMarket {
+  // The existing cache schema predates per-market collateral metadata. Current
+  // cached markets are ARCT-only; a forced refresh performs the onchain read.
+  const collateral = getDefaultCollateral();
+  const payoutAmount = String(row.payout_amount);
+
   return {
     id: row.world_cup_market_id || row.market_address,
     fixtureId: row.fixture_id,
@@ -223,9 +239,18 @@ function cacheRowToMarket(row: any): ClaimableMarket {
     winningSide: row.winning_side,
     claimLongAmount: String(row.claim_long_amount),
     claimShortAmount: String(row.claim_short_amount),
-    payoutAmount: String(row.payout_amount),
+    payoutAmount,
+    payoutAmountFormatted: formatTokenAmount(
+      BigInt(payoutAmount),
+      collateral.decimals,
+    ),
     yesBalance: String(row.yes_balance),
     noBalance: String(row.no_balance),
+    collateralAddress: collateral.address ?? ZERO_ADDRESS,
+    collateralSymbol: collateral.symbol,
+    collateralName: collateral.name,
+    collateralDecimals: collateral.decimals,
+    collateralWarning: collateral.address === null,
   };
 }
 
@@ -284,6 +309,12 @@ async function writeCache(wallet: Address, markets: ClaimableMarket[]) {
 
 function formatBigInt(value: bigint) {
   return value.toString();
+}
+
+function tokenText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, maxLength)
+    : fallback;
 }
 
 export async function GET(request: Request) {
@@ -356,8 +387,21 @@ export async function GET(request: Request) {
     try {
       const marketAddress = deployment.marketAddress as Address;
 
-      const [receivedSettlementPrice, settlementPriceRaw, longToken, shortToken] =
+      const [
+        collateralToken,
+        receivedSettlementPrice,
+        settlementPriceRaw,
+        longToken,
+        shortToken,
+      ] =
         await Promise.all([
+          publicClient
+            .readContract({
+              address: marketAddress,
+              abi: MARKET_ABI,
+              functionName: "collateralToken",
+            })
+            .catch(() => ARCT_ADDRESS),
           publicClient.readContract({
             address: marketAddress,
             abi: MARKET_ABI,
@@ -387,6 +431,9 @@ export async function GET(request: Request) {
       const settlementPrice = settlementPriceRaw as bigint;
       const longTokenAddress = longToken as Address;
       const shortTokenAddress = shortToken as Address;
+      const collateralAddress =
+        normalizeAddress(collateralToken as Address) ?? ARCT_ADDRESS;
+      const configuredCollateral = getCollateralMetadataByAddress(collateralAddress);
 
       if (
         longTokenAddress === ZERO_ADDRESS ||
@@ -395,7 +442,13 @@ export async function GET(request: Request) {
         return null;
       }
 
-      const [longBalanceRaw, shortBalanceRaw] = await Promise.all([
+      const [
+        longBalanceRaw,
+        shortBalanceRaw,
+        collateralSymbolRaw,
+        collateralNameRaw,
+        collateralDecimalsRaw,
+      ] = await Promise.all([
         publicClient.readContract({
           address: longTokenAddress,
           abi: ERC20_ABI,
@@ -408,10 +461,48 @@ export async function GET(request: Request) {
           functionName: "balanceOf",
           args: [wallet],
         }),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "symbol",
+          })
+          .catch(() => configuredCollateral.symbol),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "name",
+          })
+          .catch(() => configuredCollateral.name),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          })
+          .catch(() => configuredCollateral.decimals),
       ]);
 
       const longBalance = longBalanceRaw as bigint;
       const shortBalance = shortBalanceRaw as bigint;
+      const collateralDecimals =
+        typeof collateralDecimalsRaw === "number" &&
+        Number.isInteger(collateralDecimalsRaw) &&
+        collateralDecimalsRaw >= 0 &&
+        collateralDecimalsRaw <= 255
+          ? collateralDecimalsRaw
+          : configuredCollateral.decimals;
+      const collateralSymbol = tokenText(
+        collateralSymbolRaw,
+        configuredCollateral.symbol,
+        16,
+      );
+      const collateralName = tokenText(
+        collateralNameRaw,
+        configuredCollateral.name,
+        64,
+      );
 
       const claimLongAmount = settlementPrice > 0n ? longBalance : 0n;
       const claimShortAmount = settlementPrice < ONE ? shortBalance : 0n;
@@ -432,8 +523,17 @@ export async function GET(request: Request) {
         claimLongAmount: formatBigInt(claimLongAmount),
         claimShortAmount: formatBigInt(claimShortAmount),
         payoutAmount: formatBigInt(payoutAmount),
+        payoutAmountFormatted: formatTokenAmount(
+          payoutAmount,
+          collateralDecimals,
+        ),
         yesBalance: formatBigInt(longBalance),
         noBalance: formatBigInt(shortBalance),
+        collateralAddress,
+        collateralSymbol,
+        collateralName,
+        collateralDecimals,
+        collateralWarning: configuredCollateral.warning,
       } satisfies ClaimableMarket;
     } catch {
       failed += 1;
