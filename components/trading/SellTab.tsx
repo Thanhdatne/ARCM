@@ -43,6 +43,7 @@ interface SellTabProps {
   isAllowancesLoading: boolean;
   approveHook: TxStatusProps & { approve: (amount: bigint) => void };
   sellHook: TxStatusProps & { sell: (amount: string) => void };
+  collateralSymbol?: string;
 }
 
 export function SellTab({
@@ -59,6 +60,7 @@ export function SellTab({
   isAllowancesLoading,
   approveHook,
   sellHook,
+  collateralSymbol = "ARCT",
 }: SellTabProps) {
   const selectedBalance = outcome === "yes" ? longBalance : shortBalance;
   const hasTokens = selectedBalance && selectedBalance > 0n;
@@ -163,13 +165,13 @@ export function SellTab({
               <span className="font-mono font-bold text-[#EAECEF]">
                 {sellPreview !== undefined
                   ? `${parseFloat(formatUnits(sellPreview, COLLATERAL_DECIMALS)).toFixed(2)}`
-                  : "0.00"} ARCT
+                  : "0.00"} {collateralSymbol}
               </span>
             </div>
             {avgPrice !== undefined && (
               <div className="flex justify-between">
                 <span className="text-[#707A8A]">Avg price</span>
-                <span className="font-mono text-[#EAECEF]">{avgPrice.toFixed(4)} ARCT</span>
+                <span className="font-mono text-[#EAECEF]">{avgPrice.toFixed(4)} {collateralSymbol}</span>
               </div>
             )}
             {priceImpact !== undefined && priceImpact > 0.1 && (

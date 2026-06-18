@@ -81,6 +81,8 @@ export function TradingPanel() {
     requestTimestamp,
     ancillaryDataHex,
     proposerBond,
+    collateralSymbol,
+    collateralEnabled,
     isLoading: isMarketLoading,
     refetch: refetchMarket,
   } = useMarketState();
@@ -235,6 +237,7 @@ export function TradingPanel() {
   const showResolveTab = adminSettlementEnabled || receivedSettlementPrice;
   const visibleTabs = (showResolveTab ? ["buy", "sell", "resolve"] : ["buy", "sell"]) as Tab[];
   const marketSettled = Boolean(receivedSettlementPrice);
+  const tradingEnabled = collateralEnabled && collateralSymbol === "ARCT";
 
   return (
     <aside className="sticky top-20 overflow-hidden rounded-xl border border-[#2B3139] bg-[#1E2329] text-[#EAECEF] shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
@@ -243,7 +246,7 @@ export function TradingPanel() {
           <div>
             <span className="text-base font-black">{marketSettled ? "Market actions" : "Trade"}</span>
             <p className="mt-0.5 text-xs text-[#707A8A]">
-              {marketSettled ? "Claim rewards from settled positions." : "Buy or sell YES / NO with ARCT."}
+              {marketSettled ? "Claim rewards from settled positions." : `Buy or sell YES / NO with ${collateralSymbol}.`}
             </p>
           </div>
           <span className="rounded-full border border-[#FCD535]/70 bg-[#FCD535]/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#FFF3AF]">
@@ -257,10 +260,10 @@ export function TradingPanel() {
           <div>
             <p className="font-semibold text-[#707A8A]">Wallet balance</p>
             <p className="mt-1 font-mono text-sm font-black text-[#EAECEF]">
-              {formatCollateral(arctBalance)} ARCT
+              {tradingEnabled ? formatCollateral(arctBalance) : "--"} {collateralSymbol}
             </p>
           </div>
-          <ArctFaucetButton />
+          {tradingEnabled ? <ArctFaucetButton /> : null}
         </div>
       </div>
 
@@ -275,7 +278,8 @@ export function TradingPanel() {
 
       <div className={`grid gap-1 border-b border-[#2B3139] bg-[#0B0E11] p-1.5 ${showResolveTab ? "grid-cols-3" : "grid-cols-2"}`}>
         {visibleTabs.map((t) => {
-          const disabled = marketSettled && (t === "buy" || t === "sell");
+          const isTradingTab = t === "buy" || t === "sell";
+          const disabled = isTradingTab && (marketSettled || !tradingEnabled);
           const label =
             t === "resolve"
               ? adminSettlementEnabled && !marketSettled
@@ -311,7 +315,11 @@ export function TradingPanel() {
       </div>
 
       <div className="space-y-4 p-4">
-        {!mounted || !isConnected ? (
+        {(tab === "buy" || tab === "sell") && !tradingEnabled ? (
+          <p className="rounded-xl border border-[#F59E0B]/35 bg-[#F59E0B]/10 p-4 text-sm leading-6 text-[#FFF3AF]">
+            Trading for this collateral is not enabled yet. ARCT markets remain fully tradable.
+          </p>
+        ) : !mounted || !isConnected ? (
           <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-center">
             <p className="mb-3 text-sm font-semibold text-[#EAECEF]">
               Connect wallet to trade on Arc Testnet.
@@ -340,6 +348,7 @@ export function TradingPanel() {
             isAllowancesLoading={isAllowancesLoading}
             approveArct={approveArct}
             buyHook={outcome === "yes" ? buyYes : buyNo}
+            collateralSymbol={collateralSymbol}
           />
         ) : tab === "sell" ? (
           <SellTab
@@ -356,6 +365,7 @@ export function TradingPanel() {
             isAllowancesLoading={isAllowancesLoading}
             approveHook={outcome === "yes" ? approveLong : approveShort}
             sellHook={outcome === "yes" ? sellYesHook : sellNoHook}
+            collateralSymbol={collateralSymbol}
           />
         ) : (
           <ResolveTab
@@ -379,6 +389,7 @@ export function TradingPanel() {
             isOracleSettlementRefreshing={isOracleSettlementRefreshing}
             settlePos={settlePos}
             adminSettlementEnabled={adminSettlementEnabled}
+            collateralSymbol={collateralSymbol}
           />
         )}
 

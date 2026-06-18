@@ -50,6 +50,7 @@ interface ResolveTabProps {
   isOracleSettlementRefreshing: boolean;
   settlePos: TxStatusProps & { settle: (longAmt: bigint, shortAmt: bigint) => void };
   adminSettlementEnabled: boolean;
+  collateralSymbol?: string;
 }
 
 export function ResolveTab({
@@ -73,6 +74,7 @@ export function ResolveTab({
   isOracleSettlementRefreshing,
   settlePos,
   adminSettlementEnabled,
+  collateralSymbol = "ARCT",
 }: ResolveTabProps) {
   const [longSettleAmt, setLongSettleAmt] = useState("");
   const [shortSettleAmt, setShortSettleAmt] = useState("");
@@ -369,8 +371,8 @@ export function ResolveTab({
                   <p className="text-xs font-bold text-[#707A8A]">Claimable reward</p>
                   <div className="mt-2 grid gap-2 text-sm font-bold">
                     <div className="flex items-center justify-between gap-3">
-                      <span>ARCT payout</span>
-                      <span className="font-mono">{formatCollateral(payoutAmount)} ARCT</span>
+                      <span>{collateralSymbol} payout</span>
+                      <span className="font-mono">{formatCollateral(payoutAmount)} {collateralSymbol}</span>
                     </div>
                     {redeemableLong > 0n && (
                       <div className="flex items-center justify-between gap-3">
@@ -386,7 +388,7 @@ export function ResolveTab({
                     )}
                   </div>
                   <p className="mt-2 text-xs leading-5 text-[#707A8A]">
-                    Claim Reward redeems your winning YES/NO tokens for ARCT payout.
+                    Claim Reward redeems your winning YES/NO tokens for {collateralSymbol} payout.
                   </p>
                 </div>
 

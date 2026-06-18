@@ -42,6 +42,7 @@ interface BuyTabProps {
   isAllowancesLoading: boolean;
   approveArct: TxStatusProps & { approve: (amount: bigint) => void };
   buyHook: TxStatusProps & { buy: (amount: string) => void };
+  collateralSymbol?: string;
 }
 
 export function BuyTab({
@@ -57,6 +58,7 @@ export function BuyTab({
   isAllowancesLoading,
   approveArct,
   buyHook,
+  collateralSymbol = "ARCT",
 }: BuyTabProps) {
   const amountBigInt = amount ? parseUnits(amount, COLLATERAL_DECIMALS) : 0n;
   const spotPrice = outcome === "yes" ? yesPrice : noPrice;
@@ -89,7 +91,7 @@ export function BuyTab({
         <div className="mb-2 flex items-center justify-between gap-3">
           <label className="text-xs font-bold text-[#707A8A]">Amount</label>
           <span className="text-xs text-[#707A8A]">
-            Balance <span className="font-mono font-bold text-[#EAECEF]">{formatCollateral(arctBalance)} ARCT</span>
+            Balance <span className="font-mono font-bold text-[#EAECEF]">{formatCollateral(arctBalance)} {collateralSymbol}</span>
           </span>
         </div>
         <div className="relative">
@@ -101,7 +103,7 @@ export function BuyTab({
             className="h-14 rounded-xl border-[#2B3139] bg-[#1E2329] pr-16 text-right font-mono text-2xl font-bold text-[#EAECEF]"
         />
           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#707A8A]">
-            ARCT
+            {collateralSymbol}
           </span>
         </div>
         <div className="mt-2 grid grid-cols-4 gap-2">
@@ -135,7 +137,7 @@ export function BuyTab({
         {avgPrice !== undefined && (
           <div className="flex justify-between">
             <span className="text-[#707A8A]">Avg price</span>
-            <span className="font-mono text-[#EAECEF]">{avgPrice.toFixed(4)} ARCT</span>
+            <span className="font-mono text-[#EAECEF]">{avgPrice.toFixed(4)} {collateralSymbol}</span>
           </div>
         )}
         {priceImpact !== undefined && priceImpact > 0.1 && (
@@ -164,7 +166,7 @@ export function BuyTab({
           >
             {approveArct.isPending || approveArct.isConfirming
               ? "Approving..."
-              : "Approve ARCT"}
+              : `Approve ${collateralSymbol}`}
           </Button>
           <TxStatus {...approveArct} />
         </>

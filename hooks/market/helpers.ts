@@ -43,8 +43,8 @@ export function oracleStateLabel(state: OracleState | undefined, opts?: { priceR
   switch (state) {
     case OracleState.Invalid:
       return opts?.priceRequested ? "Awaiting Arbitration" : "Invalid";
-    case OracleState.Requested: return "No Proposal Yet";
-    case OracleState.Proposed: return "Proposed";
+    case OracleState.Requested: return "Open";
+    case OracleState.Proposed: return "Waiting liveness";
     case OracleState.Expired: return "Ready to Settle";
     case OracleState.Disputed: return "Disputed";
     case OracleState.Resolved: return "Resolved";

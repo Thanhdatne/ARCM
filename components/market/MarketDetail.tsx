@@ -43,6 +43,12 @@ export function MarketDetail() {
     requestTimestamp,
     ancillaryDataHex,
     livenessTime,
+    collateralAddress,
+    collateralSymbol,
+    collateralName,
+    collateralDecimals,
+    collateralEnabled,
+    collateralWarning,
     isLoading,
   } = useMarketState();
   const { address } = useWallet();
@@ -82,6 +88,12 @@ export function MarketDetail() {
         priceRequested={priceRequested}
         receivedSettlementPrice={receivedSettlementPrice}
         settlementPrice={settlementPrice}
+        collateralAddress={collateralAddress}
+        collateralSymbol={collateralSymbol}
+        collateralName={collateralName}
+        collateralDecimals={collateralDecimals}
+        collateralEnabled={collateralEnabled}
+        collateralWarning={collateralWarning}
       />
 
       <MarketStatusSection

@@ -52,13 +52,13 @@ function getStatusCopy({
   switch (displayState) {
     case OracleState.Requested:
       return {
-        title: "Waiting for final result",
+        title: "Open",
         description: "Trading is open. A resolution can be proposed after the real-world event ends.",
         tone: "warning",
       };
     case OracleState.Proposed:
       return {
-        title: "Result proposed",
+        title: "Waiting liveness",
         description: "A result has been proposed. It can still be disputed until the liveness window ends.",
         tone: "warning",
       };
