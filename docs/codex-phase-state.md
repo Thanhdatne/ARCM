@@ -6,6 +6,8 @@ Completed:
 - Phase 3: collateral-aware Market Detail and Trading UI.
 - Phase 4A: USDC/EURC V2 architecture decision (Option B target, Option D guarded rollout).
 - Phase 4B: Market V2 and AMM V2 implementation specification and test plan.
+- Phase 5A-1: EventBasedPredictionMarketV2 core contract and direct tests.
+- Phase 5A-2: PredictionMarketAMMV2 core contract and direct tests.
 
 Current status:
 - Build passes.
@@ -17,4 +19,4 @@ Current status:
 - Existing ARCT markets remain on V1; no market migration is planned.
 
 Next phase:
-- Phase 5A: implement V2 contracts and contract tests only.
+- Phase 5A-3: design and implement the atomic MarketV2Factory path and its direct contract tests, after an explicit phase approval.
