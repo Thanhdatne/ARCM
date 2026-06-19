@@ -205,12 +205,12 @@ export function ResolveTab({
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => approveArctForOO.approve(parseUnits("1000000", COLLATERAL_DECIMALS))}
+                onClick={() => approveArctForOO.approve(parseUnits("1000000", collateralDecimals))}
                 disabled={approveArctForOO.isPending || approveArctForOO.isConfirming}
               >
                 {approveArctForOO.isPending || approveArctForOO.isConfirming
                   ? "Approving..."
-                  : "Approve ARCT for Oracle"}
+                  : `Approve ${collateralSymbol} for Oracle`}
               </Button>
               <TxStatus {...approveArctForOO} />
             </>
@@ -277,12 +277,12 @@ export function ResolveTab({
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => approveArctForOO.approve(parseUnits("1000000", COLLATERAL_DECIMALS))}
+                onClick={() => approveArctForOO.approve(parseUnits("1000000", collateralDecimals))}
                 disabled={approveArctForOO.isPending || approveArctForOO.isConfirming}
               >
                 {approveArctForOO.isPending || approveArctForOO.isConfirming
                   ? "Approving..."
-                  : "Approve ARCT for Oracle"}
+                  : `Approve ${collateralSymbol} for Oracle`}
               </Button>
               <TxStatus {...approveArctForOO} />
             </>

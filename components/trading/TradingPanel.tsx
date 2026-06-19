@@ -34,6 +34,7 @@ import {
   useDisputePrice,
   useSettleOracleRequest,
   useApproveArct,
+  useApproveToken,
   useOracleAllowance,
   useSettleOracleWithTimer,
 } from "@/hooks/useMarket";
@@ -109,7 +110,8 @@ export function TradingPanel() {
   const { collateralAllowance, longAllowance, shortAllowance, isLoading: isAllowancesLoading, refetch: refetchAllowances } =
     useAMMAllowances(collateralAddress ?? undefined, longTokenAddress, shortTokenAddress);
 
-  const { oracleAllowance, isLoading: isOracleAllowanceLoading, refetch: refetchOracleAllowance } = useOracleAllowance();
+  const { oracleAllowance, isLoading: isOracleAllowanceLoading, refetch: refetchOracleAllowance } =
+    useOracleAllowance(collateralAddress ?? undefined);
 
   const {
     oracleState,
@@ -131,7 +133,7 @@ export function TradingPanel() {
   const settlePos = useSettlePosition();
 
   // OO hooks
-  const approveArctForOO = useApproveArct(OO_V2_ADDRESS);
+  const approveArctForOO = useApproveToken(OO_V2_ADDRESS, collateralAddress ?? undefined);
   const proposePrice = useProposePriceWithTimer(priceIdentifier, requestTimestamp, ancillaryDataHex);
   const disputePrice = useDisputePrice(priceIdentifier, requestTimestamp, ancillaryDataHex);
   const settleOracle = useSettleOracleRequest(priceIdentifier, requestTimestamp, ancillaryDataHex);

@@ -90,16 +90,17 @@ export function useTokenBalances(
   };
 }
 
-export function useOracleAllowance() {
+export function useOracleAllowance(collateralAddress?: Address) {
   const { address } = useWallet();
+  const tokenAddress = collateralAddress ?? ARCT_ADDRESS;
 
   const { data, isLoading, refetch } = useReadContract({
-    address: ARCT_ADDRESS,
+    address: tokenAddress,
     abi: ERC20_ABI,
     functionName: "allowance",
     args: address ? [address, OO_V2_ADDRESS] : undefined,
     query: {
-      enabled: !!address,
+      enabled: !!address && !!tokenAddress,
       refetchInterval: LIVE_STATE_REFETCH_INTERVAL,
       refetchIntervalInBackground: false,
     },
