@@ -178,11 +178,11 @@ export function Sidebar() {
         <div className="mt-4 shrink-0 rounded-xl border border-[#2B3139] bg-[#1E2329] p-3 shadow-[0_-12px_30px_rgba(0,0,0,0.18)]">
           <div className="flex items-center gap-2 text-sm font-bold text-[#FCD535]">
             <ShieldCheck className="h-4 w-4" />
-            Arc Testnet MVP
+            Arc Testnet App
           </div>
 
-          <p className="mt-2 text-xs leading-5 text-[#707A8A]">
-            Real trades use Arc Testnet contracts. Completed markets stay out of Home and rewards live in Claims.
+          <p className="mt-2 text-xs leading-5 text-[#A7B1C2]">
+            Real markets run on Arc Testnet contracts. Open markets stay on Home, positions live in Portfolio, and settled rewards appear in Claims.
           </p>
         </div>
       </aside>
@@ -191,4 +191,3 @@ export function Sidebar() {
     </>
   );
 }
-
