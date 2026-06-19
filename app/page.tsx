@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,6 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { type Address } from "viem";
-import { CreateMarketDialog } from "@/components/CreateMarketDialog";
 import { MarketCard } from "@/components/MarketCard";
 import { MarketAddressProvider } from "@/contexts/MarketAddressContext";
 import { useWallet } from "@/contexts/WalletContext";
@@ -89,6 +88,11 @@ interface WorldCupDeployment {
   createdAt: string;
   txHash?: string;
   transactionHash?: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  outcomeDecimals?: number;
 }
 
 type SettlementFilter = "All" | "Open" | "Resolved" | "Settled" | "Claimable";
@@ -783,23 +787,6 @@ function HomeContent() {
     ...(hideLegacyV1 ? [] : MARKETS),
   ].filter(isConfiguredOnchainMarket);
 
-  const handleWorldCupCreated = useCallback(
-    (worldCupMarketId: string) => async (market?: DynamicMarket) => {
-      await fetchDynamicMarkets();
-      await fetchWorldCupDeployments();
-      if (market?.address && market.ammAddress) {
-        setDeployedWorldCupMarkets((current) => ({
-          ...current,
-          [worldCupMarketId]: {
-            marketAddress: market.address,
-            ammAddress: market.ammAddress,
-          },
-        }));
-      }
-    },
-    [fetchDynamicMarkets, fetchWorldCupDeployments],
-  );
-
   const savedWorldCupDeployments = worldCupDeployments.reduce<Record<string, { marketAddress: string; ammAddress: string }>>(
     (acc, deployment) => {
       if (deployment.marketAddress && deployment.ammAddress) {
@@ -955,17 +942,19 @@ function HomeContent() {
                 headers["x-admin-key"] = adminKey.trim();
               }
 
-              const response = await fetch("/api/create-market", {
+              const response = await fetch("/api/create-market-v2", {
                 method: "POST",
                 headers,
                 body: JSON.stringify({
                   title: market.question,
                   category: "World Cup",
-                  settlementRule: market.settlementRule,
                   worldCupMarketId: market.id,
                   fixtureId: market.fixtureId,
                   group: market.group,
                   outcomeType: market.outcomeType,
+                  proposerReward: "1",
+                  proposerBond: "1",
+                  initialLiquidity: "1",
                 }),
               });
               const data = (await response.json()) as {
@@ -1153,7 +1142,7 @@ function HomeContent() {
               Deploy World Cup Markets
             </h2>
             <p className="mt-1 text-xs text-[#707A8A]">
-              Admin-only catalog. Undeployed templates use the existing create-market flow before they become tradable.
+              Admin-only catalog. Undeployed templates use the V2 USDC create-market flow before they become tradable.
             </p>
             <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
               {WORLD_CUP_GROUP_FILTERS.map((group) => (
@@ -1219,11 +1208,10 @@ function HomeContent() {
           {visibleWorldCupMarkets.map((market) => (
             <WorldCupSignalCard
               adminCreateEnabled={adminMarketCreateEnabled}
-              adminKey={adminKey}
               bulkStatus={bulkDeployStatuses[market.id]}
               key={market.id}
               market={market}
-              onCreated={handleWorldCupCreated(market.id)}
+              onDeploy={deployWorldCupMarkets}
               onSelectedChange={toggleWorldCupSelection}
               selected={selectedWorldCupMarketIds.includes(market.id)}
             />
@@ -1481,18 +1469,16 @@ function HomeFallback() {
 
 function WorldCupSignalCard({
   adminCreateEnabled,
-  adminKey,
   bulkStatus,
   market,
-  onCreated,
+  onDeploy,
   onSelectedChange,
   selected,
 }: {
   adminCreateEnabled: boolean;
-  adminKey: string;
   bulkStatus?: BulkDeployStatus;
   market: WorldCupMarket;
-  onCreated: (market?: DynamicMarket) => void | Promise<void>;
+  onDeploy: (markets: WorldCupMarket[]) => void | Promise<void>;
   onSelectedChange: (marketId: string, selected: boolean) => void;
   selected: boolean;
 }) {
@@ -1550,11 +1536,10 @@ function WorldCupSignalCard({
         </span>
         <CardAction
           adminCreateEnabled={adminCreateEnabled}
-          adminKey={adminKey}
           bulkStatus={bulkStatus}
           isTradable={isTradable}
           market={market}
-          onCreated={onCreated}
+          onDeploy={onDeploy}
         />
       </div>
     </article>
@@ -1979,18 +1964,16 @@ function LifecycleLink({
 
 function CardAction({
   adminCreateEnabled,
-  adminKey,
   bulkStatus,
   isTradable,
   market,
-  onCreated,
+  onDeploy,
 }: {
   adminCreateEnabled: boolean;
-  adminKey: string;
   bulkStatus?: BulkDeployStatus;
   isTradable: boolean;
   market: WorldCupMarket;
-  onCreated: (market?: DynamicMarket) => void | Promise<void>;
+  onDeploy: (markets: WorldCupMarket[]) => void | Promise<void>;
 }) {
   if (isTradable) {
     return <span className="shrink-0 font-bold text-[#FCD535]">Open Market</span>;
@@ -2021,20 +2004,13 @@ function CardAction({
 
   if (adminCreateEnabled) {
     return (
-      <CreateMarketDialog
-        adminKey={adminKey.trim()}
-        initialCategory="World Cup"
-        initialSettlementRule={market.settlementRule}
-        initialTitle={market.question}
-        onCreated={onCreated}
-        redirectOnCreated={false}
-        triggerClassName="interactive-link border-0 bg-transparent p-0 text-[11px] font-bold shadow-none hover:bg-transparent"
-        triggerLabel="Deploy on Arc"
-        fixtureId={market.fixtureId}
-        group={market.group}
-        outcomeType={market.outcomeType}
-        worldCupMarketId={market.id}
-      />
+      <button
+        className="interactive-link shrink-0 border-0 bg-transparent p-0 text-[11px] font-bold shadow-none hover:bg-transparent"
+        onClick={() => onDeploy([market])}
+        type="button"
+      >
+        Deploy on Arc
+      </button>
     );
   }
 
@@ -2160,4 +2136,3 @@ function EmptyMarketState({
     </section>
   );
 }
-  
