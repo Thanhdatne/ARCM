@@ -69,7 +69,20 @@ export function BuyTab({
     amountBigInt = 0n;
   }
   const spotPrice = outcome === "yes" ? yesPrice : noPrice;
-  const quickAmounts = ["10", "25", "50"];
+  const isV2UsdcMarket = collateralSymbol.trim().toUpperCase() === "USDC";
+  const quickAmounts = isV2UsdcMarket ? ["0.01", "0.02", "0.05"] : ["10", "25", "50"];
+  const maxAmount = (() => {
+    if (collateralBalance === undefined) return "0";
+    if (!isV2UsdcMarket) return formatUnits(collateralBalance, collateralDecimals);
+
+    const walletSafeBalance = collateralBalance > 0n ? collateralBalance - 1n : 0n;
+    const usdcTestnetCap = parseUnits("0.05", collateralDecimals);
+
+    return formatUnits(
+      walletSafeBalance < usdcTestnetCap ? walletSafeBalance : usdcTestnetCap,
+      collateralDecimals,
+    );
+  })();
 
   let avgPrice: number | undefined;
   let priceImpact: number | undefined;
@@ -124,7 +137,7 @@ export function BuyTab({
             </button>
           ))}
           <button
-            onClick={() => onAmountChange(collateralBalance !== undefined ? formatUnits(collateralBalance, collateralDecimals) : "0")}
+            onClick={() => onAmountChange(maxAmount)}
             className="preset-button focus-ring rounded-lg px-2 py-2 text-xs font-bold"
           >
             Max
