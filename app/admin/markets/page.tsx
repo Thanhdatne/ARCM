@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CreateMarketDialog } from "@/components/CreateMarketDialog";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,19 @@ interface WorldCupResultRecord {
   result?: OutcomeType | null;
   updatedAt: string;
   source?: string;
+}
+
+interface WorldCupDeployment {
+  worldCupMarketId?: string;
+  fixtureId: string;
+  group?: string;
+  question: string;
+  outcomeType: OutcomeType | string;
+  marketAddress: string;
+  ammAddress?: string;
+  contractVersion?: number;
+  collateralSymbol?: string;
+  createdAt?: string;
 }
 
 interface ResolverItem {
@@ -127,7 +141,9 @@ export default function AdminMarketsPage() {
   const [adminKey, setAdminKey] = useState("");
   const [saved, setSaved] = useState(false);
   const [worldCupResults, setWorldCupResults] = useState<WorldCupResultRecord[]>([]);
+  const [worldCupDeployments, setWorldCupDeployments] = useState<WorldCupDeployment[]>([]);
   const [resultsLoading, setResultsLoading] = useState(true);
+  const [deploymentsLoading, setDeploymentsLoading] = useState(true);
   const [resolverBusy, setResolverBusy] = useState("");
   const [resolverError, setResolverError] = useState("");
   const [resolverResponse, setResolverResponse] =
@@ -160,6 +176,45 @@ export default function AdminMarketsPage() {
     }
   };
 
+  const loadWorldCupDeployments = async () => {
+    setDeploymentsLoading(true);
+
+    try {
+      const response = await fetch("/api/world-cup/deployments", {
+        cache: "no-store",
+      });
+      const data = (await response.json()) as
+        | WorldCupDeployment[]
+        | {
+            deployments?: WorldCupDeployment[];
+            markets?: WorldCupDeployment[];
+            data?: WorldCupDeployment[];
+          }
+        | Record<string, WorldCupDeployment>;
+
+      const deployments = Array.isArray(data)
+        ? data
+        : Array.isArray(data.deployments)
+          ? data.deployments
+          : Array.isArray(data.markets)
+            ? data.markets
+            : Array.isArray(data.data)
+              ? data.data
+              : Object.values(data ?? {});
+
+      setWorldCupDeployments(
+        deployments.filter((deployment) => (
+          Boolean(deployment.fixtureId) &&
+          Boolean(deployment.marketAddress)
+        )),
+      );
+    } catch {
+      setWorldCupDeployments([]);
+    } finally {
+      setDeploymentsLoading(false);
+    }
+  };
+
   const loadResolverStatuses = async () => {
     setStatusesLoading(true);
 
@@ -184,6 +239,7 @@ export default function AdminMarketsPage() {
 
   useEffect(() => {
     void loadWorldCupResults();
+    void loadWorldCupDeployments();
     void loadResolverStatuses();
   }, []);
 
@@ -239,13 +295,41 @@ export default function AdminMarketsPage() {
       .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
   }, [worldCupResults]);
 
-  const visibleFinalResults = useMemo(() => {
+  const deployedFinalResults = useMemo(() => {
     return finalResults.filter((result) => (
-      resolverStatuses[result.fixtureId]?.status !== "settled"
+      resolverStatuses[result.fixtureId]?.status !== "notDeployed"
     ));
   }, [finalResults, resolverStatuses]);
 
-  const settledFixtureCount = finalResults.length - visibleFinalResults.length;
+  const visibleFinalResults = useMemo(() => {
+    return deployedFinalResults.filter((result) => (
+      resolverStatuses[result.fixtureId]?.status !== "settled"
+    ));
+  }, [deployedFinalResults, resolverStatuses]);
+
+  const deploymentsByFixture = useMemo(() => {
+    const grouped: Record<string, WorldCupDeployment[]> = {};
+
+    for (const deployment of worldCupDeployments) {
+      if (!deployment.fixtureId) continue;
+
+      grouped[deployment.fixtureId] = [
+        ...(grouped[deployment.fixtureId] ?? []),
+        deployment,
+      ];
+    }
+
+    for (const fixtureDeployments of Object.values(grouped)) {
+      fixtureDeployments.sort((a, b) => (
+        outcomeRank(a.outcomeType) - outcomeRank(b.outcomeType)
+      ));
+    }
+
+    return grouped;
+  }, [worldCupDeployments]);
+
+  const hiddenNotDeployedCount = finalResults.length - deployedFinalResults.length;
+  const settledFixtureCount = deployedFinalResults.length - visibleFinalResults.length;
   const readyToSettleCount = visibleFinalResults.filter((result) => (
     resolverStatuses[result.fixtureId]?.status === "readyToSettle"
   )).length;
@@ -347,6 +431,7 @@ export default function AdminMarketsPage() {
                 className="focus-ring rounded-lg border border-[#2B3139] bg-[#0B0E11] px-4 py-2 text-sm font-black text-[#EAECEF] transition hover:border-[#FCD535]"
                 onClick={() => {
                   void loadWorldCupResults();
+                  void loadWorldCupDeployments();
                   void loadResolverStatuses();
                 }}
                 type="button"
@@ -378,6 +463,12 @@ export default function AdminMarketsPage() {
                   {settledFixtureCount} settled hidden
                 </span>
               ) : null}
+
+              {hiddenNotDeployedCount > 0 ? (
+                <span className="rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 py-2 text-xs font-bold text-[#707A8A]">
+                  {hiddenNotDeployedCount} not deployed hidden
+                </span>
+              ) : null}
             </div>
 
             {!adminKey.trim() ? (
@@ -401,7 +492,7 @@ export default function AdminMarketsPage() {
 
               {!resultsLoading && visibleFinalResults.length === 0 ? (
                 <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-sm font-bold text-[#707A8A]">
-                  No unresolved final fixtures. Settled fixtures are hidden.
+                  No unresolved deployed final fixtures. Settled and undeployed fixtures are hidden.
                 </div>
               ) : null}
 
@@ -410,6 +501,8 @@ export default function AdminMarketsPage() {
                 const busySettle = resolverBusy === `settleFixture:${result.fixtureId}`;
                 const status = resolverStatuses[result.fixtureId];
                 const statusKey = status?.status ?? "unknown";
+                const fixtureDeployments = deploymentsByFixture[result.fixtureId] ?? [];
+                const deployedCount = fixtureDeployments.length;
                 const canResolve =
                   statusKey === "needsResolve" ||
                   statusKey === "partial" ||
@@ -443,6 +536,59 @@ export default function AdminMarketsPage() {
                       <span className="ml-2">
                         {statusesLoading ? "Loading status..." : status?.reason ?? "Status not loaded yet."}
                       </span>
+                    </div>
+
+                    <div className="mt-3 rounded-lg border border-[#1E2329] bg-[#06080A] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#707A8A]">
+                          Deployed V2 markets
+                        </p>
+                        <span className="font-mono text-[11px] font-black text-[#FCD535]">
+                          {deploymentsLoading ? "..." : `${deployedCount}/3`}
+                        </span>
+                      </div>
+
+                      {deploymentsLoading ? (
+                        <p className="mt-2 text-xs font-bold text-[#707A8A]">
+                          Loading deployed markets...
+                        </p>
+                      ) : fixtureDeployments.length === 0 ? (
+                        <p className="mt-2 text-xs font-bold text-[#707A8A]">
+                          No deployed V2 markets indexed for this finished fixture.
+                        </p>
+                      ) : (
+                        <div className="mt-2 grid gap-2">
+                          {fixtureDeployments.map((deployment) => {
+                            const proposedSide = suggestedSideFor(result, deployment);
+
+                            return (
+                              <Link
+                                className="focus-ring flex items-center justify-between gap-3 rounded-lg border border-[#2B3139] bg-[#181A20] px-3 py-2 text-xs transition hover:border-[#FCD535]/70"
+                                href={`/market/${deployment.marketAddress}?tab=resolve`}
+                                key={`${deployment.fixtureId}-${deployment.outcomeType}-${deployment.marketAddress}`}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block font-black text-[#EAECEF]">
+                                    {outcomeLabel(deployment.outcomeType)}
+                                  </span>
+                                  <span className="mt-0.5 block truncate text-[#707A8A]">
+                                    {deployment.question}
+                                  </span>
+                                </span>
+
+                                <span className="flex shrink-0 items-center gap-2">
+                                  <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${proposedSideClass(proposedSide)}`}>
+                                    Propose {proposedSide}
+                                  </span>
+                                  <span className="interactive-link text-[11px]">
+                                    Resolve
+                                  </span>
+                                </span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -563,7 +709,7 @@ export default function AdminMarketsPage() {
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#707A8A]">
               Templates stay hidden from public Home until deployed. Each card creates a real market
-              contract, initializes UMA settlement, deploys an AMM, and seeds ARCT liquidity.
+              contract, initializes UMA settlement, deploys an AMM, and seeds configured collateral liquidity.
             </p>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -735,6 +881,35 @@ export default function AdminMarketsPage() {
   );
 }
 
+
+function outcomeRank(outcomeType: string) {
+  if (outcomeType === "home_win") return 0;
+  if (outcomeType === "draw") return 1;
+  if (outcomeType === "away_win") return 2;
+
+  return 99;
+}
+
+function outcomeLabel(outcomeType: string) {
+  if (outcomeType === "home_win") return "Home win";
+  if (outcomeType === "draw") return "Draw";
+  if (outcomeType === "away_win") return "Away win";
+
+  return outcomeType.replaceAll("_", " ");
+}
+
+function suggestedSideFor(
+  result: WorldCupResultRecord,
+  deployment: WorldCupDeployment,
+): "YES" | "NO" {
+  return deployment.outcomeType === result.result ? "YES" : "NO";
+}
+
+function proposedSideClass(side: "YES" | "NO") {
+  return side === "YES"
+    ? "border-[#0ECB81]/40 bg-[#0ECB81]/10 text-[#BFFFE7]"
+    : "border-[#F6465D]/40 bg-[#F6465D]/10 text-[#FFD7DD]";
+}
 
 function statusLabel(status: FixtureResolverStatus["status"] | "unknown") {
   switch (status) {

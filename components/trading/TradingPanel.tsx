@@ -22,6 +22,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { formatUnits, parseUnits } from "viem";
 import { useWallet } from "@/contexts/WalletContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -33,6 +34,7 @@ import {
   useDisputePrice,
   useSettleOracleRequest,
   useApproveArct,
+  useApproveToken,
   useOracleAllowance,
   useSettleOracleWithTimer,
 } from "@/hooks/useMarket";
@@ -48,8 +50,7 @@ import {
   useApproveTokenForAMM,
   useAMMAllowances,
 } from "@/hooks/useAMM";
-import { OO_V2_ADDRESS, OracleState } from "@/lib/contracts";
-import { formatCollateral } from "@/hooks/market/helpers";
+import { ARCT_ADDRESS, OO_V2_ADDRESS, OracleState } from "@/lib/contracts";
 import { ArctFaucetButton } from "@/components/wallet/ArctFaucetButton";
 import { BuyTab } from "./BuyTab";
 import { SellTab } from "./SellTab";
@@ -58,6 +59,16 @@ import { ResolveTab } from "./ResolveTab";
 type Tab = "buy" | "sell" | "resolve";
 type Outcome = "yes" | "no";
 const adminSettlementEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
+
+function safeParseAmount(amount: string, decimals: number | null): bigint {
+  if (!amount || decimals === null) return 0n;
+  try {
+    const parsed = parseUnits(amount, decimals);
+    return parsed > 0n ? parsed : 0n;
+  } catch {
+    return 0n;
+  }
+}
 
 export function TradingPanel() {
   const { isConnected } = useWallet();
@@ -78,21 +89,29 @@ export function TradingPanel() {
     requestTimestamp,
     ancillaryDataHex,
     proposerBond,
+    collateralAddress,
+    collateralSymbol,
+    collateralDecimals,
+    outcomeDecimals,
+    collateralEnabled,
+    collateralWarning,
     isLoading: isMarketLoading,
     refetch: refetchMarket,
   } = useMarketState();
 
-  const { arctBalance, longBalance, shortBalance, isLoading: isBalancesLoading, refetch: refetchBalances } = useTokenBalances(
+  const { collateralBalance, longBalance, shortBalance, isLoading: isBalancesLoading, refetch: refetchBalances } = useTokenBalances(
+    collateralAddress ?? undefined,
     longTokenAddress,
     shortTokenAddress
   );
 
   const { yesPrice, noPrice, initialized: ammInitialized, refetch: refetchAMM, isLoading: isAMMLoading } = useAMMState();
 
-  const { arctAllowance, longAllowance, shortAllowance, isLoading: isAllowancesLoading, refetch: refetchAllowances } =
-    useAMMAllowances(longTokenAddress, shortTokenAddress);
+  const { collateralAllowance, longAllowance, shortAllowance, isLoading: isAllowancesLoading, refetch: refetchAllowances } =
+    useAMMAllowances(collateralAddress ?? undefined, longTokenAddress, shortTokenAddress);
 
-  const { oracleAllowance, isLoading: isOracleAllowanceLoading, refetch: refetchOracleAllowance } = useOracleAllowance();
+  const { oracleAllowance, isLoading: isOracleAllowanceLoading, refetch: refetchOracleAllowance } =
+    useOracleAllowance(collateralAddress ?? undefined);
 
   const {
     oracleState,
@@ -104,25 +123,25 @@ export function TradingPanel() {
   } = useOracleState(priceIdentifier, requestTimestamp, ancillaryDataHex);
 
   // AMM hooks
-  const approveArct = useApproveArctForAMM();
+  const approveCollateral = useApproveArctForAMM(collateralAddress ?? undefined);
   const approveLong = useApproveTokenForAMM(longTokenAddress);
   const approveShort = useApproveTokenForAMM(shortTokenAddress);
-  const buyYes = useBuyYes();
-  const buyNo = useBuyNo();
-  const sellYesHook = useSellYes();
-  const sellNoHook = useSellNo();
+  const buyYes = useBuyYes(collateralDecimals);
+  const buyNo = useBuyNo(collateralDecimals);
+  const sellYesHook = useSellYes(outcomeDecimals);
+  const sellNoHook = useSellNo(outcomeDecimals);
   const settlePos = useSettlePosition();
 
   // OO hooks
-  const approveArctForOO = useApproveArct(OO_V2_ADDRESS);
+  const approveArctForOO = useApproveToken(OO_V2_ADDRESS, collateralAddress ?? undefined);
   const proposePrice = useProposePriceWithTimer(priceIdentifier, requestTimestamp, ancillaryDataHex);
   const disputePrice = useDisputePrice(priceIdentifier, requestTimestamp, ancillaryDataHex);
   const settleOracle = useSettleOracleRequest(priceIdentifier, requestTimestamp, ancillaryDataHex);
   const settleOracleWithTimer = useSettleOracleWithTimer(priceIdentifier, requestTimestamp, ancillaryDataHex);
 
   // Preview calculations
-  const { tokensOut: buyPreview } = useCalcBuy(outcome, tab === "buy" ? amount : "");
-  const { collateralOut: sellPreview } = useCalcSell(outcome, tab === "sell" ? amount : "");
+  const { tokensOut: buyPreview } = useCalcBuy(outcome, tab === "buy" ? amount : "", collateralDecimals);
+  const { collateralOut: sellPreview } = useCalcSell(outcome, tab === "sell" ? amount : "", outcomeDecimals);
 
   useEffect(() => setMounted(true), []);
 
@@ -139,13 +158,13 @@ export function TradingPanel() {
 
   // Refetch allowances after approvals
   useEffect(() => {
-    if (approveArct.isSuccess || approveLong.isSuccess || approveShort.isSuccess || approveArctForOO.isSuccess) {
+    if (approveCollateral.isSuccess || approveLong.isSuccess || approveShort.isSuccess || approveArctForOO.isSuccess) {
       queryClient.invalidateQueries({ queryKey: ['readContracts'] });
       queryClient.invalidateQueries({ queryKey: ['readContract'] });
       refetchAllowances();
       refetchOracleAllowance();
     }
-  }, [approveArct.isSuccess, approveLong.isSuccess, approveShort.isSuccess, approveArctForOO.isSuccess, queryClient, refetchAllowances, refetchOracleAllowance]);
+  }, [approveCollateral.isSuccess, approveLong.isSuccess, approveShort.isSuccess, approveArctForOO.isSuccess, queryClient, refetchAllowances, refetchOracleAllowance]);
 
   // Refetch everything after trades, settle, oracle actions
   useEffect(() => {
@@ -183,14 +202,17 @@ export function TradingPanel() {
     return () => clearInterval(interval);
   }, [isOracleSettlementRefreshing, queryClient, refetchMarket, refetchOracle]);
 
+  const requestedBuyAmount = safeParseAmount(tab === "buy" ? amount : "", collateralDecimals);
+  const requestedSellAmount = safeParseAmount(tab === "sell" ? amount : "", outcomeDecimals);
   const needsBuyApproval =
-    tab === "buy" && !approveArct.isSuccess && arctAllowance !== undefined &&
-    arctAllowance === 0n;
+    tab === "buy" && requestedBuyAmount > 0n && collateralAllowance !== undefined &&
+    collateralAllowance < requestedBuyAmount;
 
   const needsSellApproval =
     tab === "sell" &&
-    ((outcome === "yes" && !approveLong.isSuccess && longAllowance !== undefined && longAllowance === 0n) ||
-      (outcome === "no" && !approveShort.isSuccess && shortAllowance !== undefined && shortAllowance === 0n));
+    requestedSellAmount > 0n &&
+    ((outcome === "yes" && longAllowance !== undefined && longAllowance < requestedSellAmount) ||
+      (outcome === "no" && shortAllowance !== undefined && shortAllowance < requestedSellAmount));
 
   const needsOracleApproval =
     !approveArctForOO.isSuccess &&
@@ -232,6 +254,10 @@ export function TradingPanel() {
   const showResolveTab = adminSettlementEnabled || receivedSettlementPrice;
   const visibleTabs = (showResolveTab ? ["buy", "sell", "resolve"] : ["buy", "sell"]) as Tab[];
   const marketSettled = Boolean(receivedSettlementPrice);
+  const tradingEnabled =
+    collateralEnabled && !collateralWarning && collateralAddress !== null && outcomeDecimals !== null;
+  const isArctCollateral =
+    collateralAddress?.toLowerCase() === ARCT_ADDRESS.toLowerCase();
 
   return (
     <aside className="sticky top-20 overflow-hidden rounded-xl border border-[#2B3139] bg-[#1E2329] text-[#EAECEF] shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
@@ -240,7 +266,7 @@ export function TradingPanel() {
           <div>
             <span className="text-base font-black">{marketSettled ? "Market actions" : "Trade"}</span>
             <p className="mt-0.5 text-xs text-[#707A8A]">
-              {marketSettled ? "Claim rewards from settled positions." : "Buy or sell YES / NO with ARCT."}
+              {marketSettled ? "Claim rewards from settled positions." : `Buy or sell YES / NO with ${collateralSymbol}.`}
             </p>
           </div>
           <span className="rounded-full border border-[#FCD535]/70 bg-[#FCD535]/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#FFF3AF]">
@@ -254,10 +280,12 @@ export function TradingPanel() {
           <div>
             <p className="font-semibold text-[#707A8A]">Wallet balance</p>
             <p className="mt-1 font-mono text-sm font-black text-[#EAECEF]">
-              {formatCollateral(arctBalance)} ARCT
+              {tradingEnabled && collateralBalance !== undefined
+                ? formatUnits(collateralBalance, collateralDecimals)
+                : "--"} {collateralSymbol}
             </p>
           </div>
-          <ArctFaucetButton />
+          {tradingEnabled && isArctCollateral ? <ArctFaucetButton /> : null}
         </div>
       </div>
 
@@ -272,7 +300,8 @@ export function TradingPanel() {
 
       <div className={`grid gap-1 border-b border-[#2B3139] bg-[#0B0E11] p-1.5 ${showResolveTab ? "grid-cols-3" : "grid-cols-2"}`}>
         {visibleTabs.map((t) => {
-          const disabled = marketSettled && (t === "buy" || t === "sell");
+          const isTradingTab = t === "buy" || t === "sell";
+          const disabled = isTradingTab && (marketSettled || !tradingEnabled);
           const label =
             t === "resolve"
               ? adminSettlementEnabled && !marketSettled
@@ -308,7 +337,11 @@ export function TradingPanel() {
       </div>
 
       <div className="space-y-4 p-4">
-        {!mounted || !isConnected ? (
+        {(tab === "buy" || tab === "sell") && !tradingEnabled ? (
+          <p className="rounded-xl border border-[#F59E0B]/35 bg-[#F59E0B]/10 p-4 text-sm leading-6 text-[#FFF3AF]">
+            Trading is unavailable because this market&apos;s collateral or outcome-token metadata is not enabled and valid.
+          </p>
+        ) : !mounted || !isConnected ? (
           <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-center">
             <p className="mb-3 text-sm font-semibold text-[#EAECEF]">
               Connect wallet to trade on Arc Testnet.
@@ -331,12 +364,15 @@ export function TradingPanel() {
             onAmountChange={setAmount}
             yesPrice={yesPrice}
             noPrice={noPrice}
-            arctBalance={arctBalance}
+            collateralBalance={collateralBalance}
             buyPreview={buyPreview}
             needsApproval={needsBuyApproval}
             isAllowancesLoading={isAllowancesLoading}
-            approveArct={approveArct}
+            approveCollateral={approveCollateral}
             buyHook={outcome === "yes" ? buyYes : buyNo}
+            collateralSymbol={collateralSymbol}
+            collateralDecimals={collateralDecimals}
+            outcomeDecimals={outcomeDecimals!}
           />
         ) : tab === "sell" ? (
           <SellTab
@@ -353,6 +389,9 @@ export function TradingPanel() {
             isAllowancesLoading={isAllowancesLoading}
             approveHook={outcome === "yes" ? approveLong : approveShort}
             sellHook={outcome === "yes" ? sellYesHook : sellNoHook}
+            collateralSymbol={collateralSymbol}
+            collateralDecimals={collateralDecimals}
+            outcomeDecimals={outcomeDecimals!}
           />
         ) : (
           <ResolveTab
@@ -376,6 +415,9 @@ export function TradingPanel() {
             isOracleSettlementRefreshing={isOracleSettlementRefreshing}
             settlePos={settlePos}
             adminSettlementEnabled={adminSettlementEnabled}
+            collateralSymbol={collateralSymbol}
+            collateralDecimals={collateralDecimals}
+            outcomeDecimals={outcomeDecimals}
           />
         )}
 

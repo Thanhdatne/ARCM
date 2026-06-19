@@ -7,7 +7,7 @@ import { type Address } from "viem";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/contexts/WalletContext";
-import { formatCollateral } from "@/hooks/market/helpers";
+import { formatTokenDisplayAmount } from "@/hooks/market/helpers";
 
 interface PortfolioPosition {
   id: string;
@@ -21,6 +21,15 @@ interface PortfolioPosition {
   isSettled: boolean;
   winningSide: "YES" | "NO" | "Mixed" | null;
   claimablePayout: string;
+  claimablePayoutFormatted?: string;
+  collateralAddress?: Address;
+  collateralSymbol?: string;
+  collateralName?: string;
+  collateralDecimals?: number;
+  collateralBalance?: string;
+  collateralBalanceFormatted?: string;
+  collateralWarning?: boolean;
+  outcomeDecimals?: number;
 }
 
 interface PortfolioResponse {
@@ -90,7 +99,6 @@ export default function PortfolioPage() {
     () => positions.filter((position) => position.isSettled),
     [positions],
   );
-  const arctBalance = BigInt(portfolio?.arctBalance ?? "0");
   const marketsWithPositions = portfolio?.totals?.marketsWithPositions ?? positions.length;
 
   return (
@@ -100,7 +108,7 @@ export default function PortfolioPage() {
         <div className="flex flex-col gap-5 p-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              {["Portfolio", "Arc Testnet", "ARCT"].map((badge) => (
+              {["Portfolio", "Arc Testnet", "V2 USDC"].map((badge) => (
                 <Badge
                   key={badge}
                   variant="outline"
@@ -134,10 +142,7 @@ export default function PortfolioPage() {
       </section>
 
       <section className="grid gap-3 md:grid-cols-3">
-        <OverviewCard
-          label="ARCT balance"
-          value={walletReady ? `${formatCollateral(arctBalance)} ARCT` : "Connect wallet"}
-        />
+        <OverviewCard label="World Cup V2 collateral" value="USDC" />
         <OverviewCard
           label="Markets with positions"
           value={walletReady ? `${marketsWithPositions}` : "Connect wallet"}
@@ -209,6 +214,9 @@ function PositionRow({
   const yesBalance = BigInt(position.yesBalance);
   const noBalance = BigInt(position.noBalance);
   const claimablePayout = BigInt(position.claimablePayout);
+  const collateralDecimals = position.collateralDecimals ?? 6;
+  const outcomeDecimals = position.outcomeDecimals ?? collateralDecimals;
+  const collateralSymbol = position.collateralSymbol ?? "USDC";
 
   return (
     <article className="terminal-card p-3">
@@ -230,6 +238,9 @@ function PositionRow({
                 Winner {position.winningSide}
               </Badge>
             )}
+            <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+              {collateralSymbol} collateral
+            </Badge>
           </div>
 
           <h3 className="line-clamp-2 text-sm font-bold text-[#EAECEF]">
@@ -241,7 +252,7 @@ function PositionRow({
               <span>
                 YES{" "}
                 <span className="font-mono font-bold text-[#0ECB81]">
-                  {formatCollateral(yesBalance)}
+                  {formatTokenDisplayAmount(yesBalance, outcomeDecimals)}
                 </span>
               </span>
             )}
@@ -249,7 +260,7 @@ function PositionRow({
               <span>
                 NO{" "}
                 <span className="font-mono font-bold text-[#F6465D]">
-                  {formatCollateral(noBalance)}
+                  {formatTokenDisplayAmount(noBalance, outcomeDecimals)}
                 </span>
               </span>
             )}
@@ -257,7 +268,12 @@ function PositionRow({
               <span>
                 Claimable{" "}
                 <span className="font-mono font-bold text-[#FCD535]">
-                  {formatCollateral(claimablePayout)} ARCT
+                  {position.claimablePayoutFormatted ??
+                    formatTokenDisplayAmount(
+                      claimablePayout,
+                      collateralDecimals,
+                    )}{" "}
+                  {collateralSymbol}
                 </span>
               </span>
             )}
@@ -265,11 +281,11 @@ function PositionRow({
         </div>
 
         <div className="flex gap-2 lg:justify-end">
-          <Link className="interactive-link w-fit text-xs" href={`/market/${position.address}`}>
-            Open detail
+          <Link className="interactive-link w-fit text-xs" href={`/market/${position.address}?tab=resolve`}>
+            Open Resolve
           </Link>
           {settled && claimablePayout > 0n && (
-            <Link className="interactive-link w-fit text-xs" href="/claims">
+            <Link className="interactive-link w-fit text-xs" href={`/market/${position.address}?tab=resolve`}>
               Claim
             </Link>
           )}

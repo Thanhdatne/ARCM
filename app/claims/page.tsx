@@ -5,12 +5,9 @@ import Link from "next/link";
 import { type Address } from "viem";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TxStatus } from "@/components/trading/TxStatus";
-import { MarketAddressProvider } from "@/contexts/MarketAddressContext";
 import { useWallet } from "@/contexts/WalletContext";
-import { useSettlePosition } from "@/hooks/useMarket";
-import { formatCollateral } from "@/hooks/market/helpers";
-import { BadgeDollarSign, RefreshCw, ShieldCheck } from "lucide-react";
+import { formatTokenDisplayAmount } from "@/hooks/market/helpers";
+import { BadgeDollarSign, RefreshCw } from "lucide-react";
 
 interface ApiClaimMarket {
   id: string;
@@ -23,8 +20,15 @@ interface ApiClaimMarket {
   claimLongAmount: string;
   claimShortAmount: string;
   payoutAmount: string;
+  payoutAmountFormatted?: string;
   yesBalance: string;
   noBalance: string;
+  collateralAddress?: Address;
+  collateralSymbol?: string;
+  collateralName?: string;
+  collateralDecimals?: number;
+  collateralWarning?: boolean;
+  outcomeDecimals?: number;
 }
 
 interface ClaimableResponse {
@@ -43,7 +47,6 @@ export default function ClaimsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [scanError, setScanError] = useState("");
   const [response, setResponse] = useState<ClaimableResponse | null>(null);
-  const [claimedIds, setClaimedIds] = useState<Record<string, boolean>>({});
 
   const walletReady = isHydrated && isConnected && !!address;
 
@@ -51,11 +54,7 @@ export default function ClaimsPage() {
     setIsHydrated(true);
   }, []);
 
-  const claimableMarkets = useMemo(() => {
-    return (response?.markets ?? []).filter((market) => !claimedIds[market.id]);
-  }, [claimedIds, response?.markets]);
-
-  const claimedCount = Object.values(claimedIds).filter(Boolean).length;
+  const claimableMarkets = useMemo(() => response?.markets ?? [], [response?.markets]);
 
   const loadClaimable = useCallback(async (forceRefresh = false) => {
     if (!walletReady || !address) {
@@ -97,7 +96,7 @@ export default function ClaimsPage() {
         <div className="flex flex-col gap-5 p-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              {["Claims", "Claim Reward", "Arc Testnet", "ARCT payout"].map((badge) => (
+              {["Claims", "Claim Reward", "Arc Testnet", "Collateral payout"].map((badge) => (
                 <Badge
                   key={badge}
                   variant="outline"
@@ -160,19 +159,7 @@ export default function ClaimsPage() {
             ) : (
               <div className="space-y-2">
                 {claimableMarkets.map((market) => (
-                  <MarketAddressProvider
-                    key={`${market.id}-${market.address}`}
-                    marketAddress={market.address}
-                    ammAddress={market.ammAddress}
-                  >
-                    <ApiClaimRow
-                      market={market}
-                      onClaimed={() => {
-                        setClaimedIds((current) => ({ ...current, [market.id]: true }));
-                        window.setTimeout(() => void loadClaimable(true), 2_500);
-                      }}
-                    />
-                  </MarketAddressProvider>
+                  <ApiClaimRow key={`${market.id}-${market.address}`} market={market} />
                 ))}
               </div>
             )}
@@ -183,52 +170,24 @@ export default function ClaimsPage() {
           <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Claim Rules</div>
           <div className="grid gap-2 p-3">
             <StatusTile label="Network" value="Arc Testnet" />
-            <StatusTile label="Reward token" value="ARCT test collateral" />
+            <StatusTile label="Reward token" value="Per-market collateral" />
             <StatusTile label="Settlement" value="UMA Optimistic Oracle V2" />
             <p className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
-              Claims redeem real winning YES/NO tokens for ARCT payout. If you traded the losing side, nothing appears here.
+              Claims redeem real winning YES/NO tokens for the collateral configured by each market. If you traded the losing side, nothing appears here.
             </p>
           </div>
         </section>
       </section>
 
-      <section className="exchange-panel">
-        <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
-          <span className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" />
-            Claim History
-          </span>
-          <span className="rounded-full border border-[#2B3139] px-2 py-0.5 text-[11px] text-[#707A8A]">
-            {claimedCount} claimed this session
-          </span>
-        </div>
-        <div className="space-y-1.5 p-3">
-          {claimedCount === 0 ? (
-            <EmptyState title="No claimed rewards in this session." />
-          ) : (
-            <EmptyState title={`${claimedCount} reward claim transaction submitted in this session.`} />
-          )}
-        </div>
-      </section>
     </div>
   );
 }
 
-function ApiClaimRow({
-  market,
-  onClaimed,
-}: {
-  market: ApiClaimMarket;
-  onClaimed: () => void;
-}) {
-  const settlePos = useSettlePosition();
-  const claimLongAmount = BigInt(market.claimLongAmount);
-  const claimShortAmount = BigInt(market.claimShortAmount);
+function ApiClaimRow({ market }: { market: ApiClaimMarket }) {
   const payoutAmount = BigInt(market.payoutAmount);
-
-  useEffect(() => {
-    if (settlePos.isSuccess) onClaimed();
-  }, [onClaimed, settlePos.isSuccess]);
+  const collateralDecimals = market.collateralDecimals ?? 6;
+  const outcomeDecimals = market.outcomeDecimals ?? collateralDecimals;
+  const collateralSymbol = market.collateralSymbol ?? "USDC";
 
   return (
     <article className="terminal-card p-3">
@@ -242,39 +201,34 @@ function ApiClaimRow({
             <Badge variant="outline" className="border-[#FCD535] bg-[#FCD535]/15 text-[#FFF3AF]">
               {market.winningSide} won
             </Badge>
+            <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
+              {collateralSymbol} collateral
+            </Badge>
           </div>
           <h3 className="line-clamp-2 text-sm font-bold text-[#EAECEF]">{market.title}</h3>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#707A8A]">
             <span>
               Reward:{" "}
               <span className="font-mono font-bold text-[#FCD535]">
-                {formatCollateral(payoutAmount)} ARCT
+                {market.payoutAmountFormatted ?? formatTokenDisplayAmount(payoutAmount, collateralDecimals)}{" "}
+                {collateralSymbol}
               </span>
             </span>
             <span>
-              YES {formatCollateral(BigInt(market.yesBalance))} / NO{" "}
-              {formatCollateral(BigInt(market.noBalance))}
+              YES {formatTokenDisplayAmount(BigInt(market.yesBalance), outcomeDecimals)} / NO{" "}
+              {formatTokenDisplayAmount(BigInt(market.noBalance), outcomeDecimals)}
             </span>
           </div>
         </div>
         <div className="flex flex-col gap-2 lg:items-end">
-          <Button
-            className="h-9 w-full lg:w-auto"
-            onClick={() => settlePos.settle(claimLongAmount, claimShortAmount)}
-            disabled={settlePos.isPending || settlePos.isConfirming || settlePos.isSuccess}
+          <Link
+            className="terminal-button focus-ring px-3 py-2 text-sm font-bold"
+            href={`/market/${market.address}?tab=resolve`}
           >
-            {settlePos.isPending || settlePos.isConfirming
-              ? "Claiming..."
-              : settlePos.isSuccess
-                ? "Claimed"
-                : "Claim Reward"}
-          </Button>
-          <Link className="interactive-link w-fit text-xs" href={`/market/${market.address}`}>
-            Open detail
+            Open Claim Flow
           </Link>
         </div>
       </div>
-      <TxStatus {...settlePos} />
     </article>
   );
 }

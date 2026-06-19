@@ -10,7 +10,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { formatUnits } from "viem";
-import { Database, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Database, ShieldCheck } from "lucide-react";
 
 interface MarketHeaderProps {
   pairName: string | undefined;
@@ -18,6 +18,12 @@ interface MarketHeaderProps {
   priceRequested: boolean | undefined;
   receivedSettlementPrice: boolean | undefined;
   settlementPrice: bigint | undefined;
+  collateralAddress: string | null;
+  collateralSymbol: string;
+  collateralName: string;
+  collateralDecimals: number;
+  collateralEnabled: boolean;
+  collateralWarning: boolean;
 }
 
 type FixtureVisual = {
@@ -272,6 +278,12 @@ export function MarketHeader({
   priceRequested,
   receivedSettlementPrice,
   settlementPrice,
+  collateralAddress,
+  collateralSymbol,
+  collateralName,
+  collateralDecimals,
+  collateralEnabled,
+  collateralWarning,
 }: MarketHeaderProps) {
   const status = receivedSettlementPrice
     ? "Settled"
@@ -295,6 +307,9 @@ export function MarketHeader({
   }
 
   const visual = getMarketVisual(question, pairName);
+  const shortCollateralAddress = collateralAddress
+    ? `${collateralAddress.slice(0, 6)}...${collateralAddress.slice(-4)}`
+    : "Unavailable";
 
   return (
     <div className="exchange-panel overflow-hidden">
@@ -309,8 +324,12 @@ export function MarketHeader({
               <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
                 UMA OO V2
               </Badge>
-              <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
-                ARCT collateral
+              <Badge
+                variant="outline"
+                className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]"
+                title={collateralName}
+              >
+                {collateralSymbol} collateral
               </Badge>
             </div>
             <h1 className="max-w-4xl text-2xl font-bold leading-tight tracking-tight text-[#EAECEF] sm:text-3xl">
@@ -325,7 +344,21 @@ export function MarketHeader({
                 <ShieldCheck className="h-3.5 w-3.5 text-[#FCD535]" />
                 Positions public today
               </span>
+              <span className="market-chip inline-flex items-center gap-1.5 px-3 py-1.5 font-mono">
+                {shortCollateralAddress}
+              </span>
+              <span className="market-chip inline-flex items-center gap-1.5 px-3 py-1.5">
+                {collateralDecimals} decimals
+              </span>
             </div>
+            {collateralWarning ? (
+              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-[#F59E0B]">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {collateralAddress && !collateralEnabled
+                  ? "Trading is not enabled for this collateral."
+                  : "Collateral metadata could not be verified; showing the ARCT/18 fallback."}
+              </p>
+            ) : null}
           </div>
         </div>
         <Badge variant="outline" className={`h-8 border-[#2B3139] bg-[#1E2329] px-3 text-xs font-bold text-[#EAECEF] ${statusColor}`}>
@@ -501,4 +534,3 @@ function ARCMLogoMark({ className = "h-12 w-12" }: { className?: string }) {
     </svg>
   );
 }
-

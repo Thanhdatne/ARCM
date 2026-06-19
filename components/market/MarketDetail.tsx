@@ -19,10 +19,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { formatUnits } from "viem";
 import { useMarketState, useTokenBalances, useOracleState } from "@/hooks/useMarket";
 import { useAMMState } from "@/hooks/useAMM";
 import { useWallet } from "@/contexts/WalletContext";
-import { formatCollateral, oracleStateLabel } from "@/hooks/market/helpers";
+import { oracleStateLabel } from "@/hooks/market/helpers";
 import { OracleState } from "@/lib/contracts";
 import { MarketHeader } from "./MarketHeader";
 import { MarketStatusSection } from "./MarketStatusSection";
@@ -43,11 +44,17 @@ export function MarketDetail() {
     requestTimestamp,
     ancillaryDataHex,
     livenessTime,
+    collateralAddress,
+    collateralSymbol,
+    collateralName,
+    collateralDecimals,
+    collateralEnabled,
+    collateralWarning,
     isLoading,
   } = useMarketState();
   const { address } = useWallet();
-  const { arctBalance, longBalance, shortBalance } =
-    useTokenBalances(longTokenAddress, shortTokenAddress);
+  const { collateralBalance, longBalance, shortBalance } =
+    useTokenBalances(collateralAddress ?? undefined, longTokenAddress, shortTokenAddress);
 
   const {
     yesPrice,
@@ -82,6 +89,12 @@ export function MarketDetail() {
         priceRequested={priceRequested}
         receivedSettlementPrice={receivedSettlementPrice}
         settlementPrice={settlementPrice}
+        collateralAddress={collateralAddress}
+        collateralSymbol={collateralSymbol}
+        collateralName={collateralName}
+        collateralDecimals={collateralDecimals}
+        collateralEnabled={collateralEnabled}
+        collateralWarning={collateralWarning}
       />
 
       <MarketStatusSection
@@ -97,6 +110,7 @@ export function MarketDetail() {
           noPrice={noPrice}
           ammInitialized={ammInitialized}
           receivedSettlementPrice={receivedSettlementPrice}
+          collateralSymbol={collateralSymbol}
         />
 
         <MarketStatsPanel
@@ -104,6 +118,8 @@ export function MarketDetail() {
           reserveNo={reserveNo}
           requestTimestamp={requestTimestamp}
           feeBps={feeBps}
+          collateralSymbol={collateralSymbol}
+          collateralDecimals={collateralDecimals}
         />
       </section>
 
@@ -116,11 +132,13 @@ export function MarketDetail() {
 
       {address && (
         <PortfolioSection
-          arctBalance={arctBalance}
+          collateralBalance={collateralBalance}
           longBalance={longBalance}
           shortBalance={shortBalance}
           yesPrice={yesPrice}
           noPrice={noPrice}
+          collateralSymbol={collateralSymbol}
+          collateralDecimals={collateralDecimals}
         />
       )}
 
@@ -131,7 +149,7 @@ export function MarketDetail() {
         </summary>
 
         <div className="space-y-3 p-3">
-          <SettlementRulesPanel />
+          <SettlementRulesPanel collateralSymbol={collateralSymbol} />
 
           <LifecyclePanel
             ammInitialized={ammInitialized}
@@ -285,15 +303,19 @@ function MarketStatsPanel({
   reserveNo,
   requestTimestamp,
   feeBps,
+  collateralSymbol,
+  collateralDecimals,
 }: {
   reserveYes: bigint | undefined;
   reserveNo: bigint | undefined;
   requestTimestamp: bigint | undefined;
   feeBps: bigint | undefined;
+  collateralSymbol: string;
+  collateralDecimals: number;
 }) {
   const liquidity =
     reserveYes !== undefined && reserveNo !== undefined
-      ? `${formatCollateral(reserveYes + reserveNo)} ARCT`
+      ? `${formatUnits(reserveYes + reserveNo, collateralDecimals)} ${collateralSymbol}`
       : "Pending AMM";
   const closeDate = requestTimestamp
     ? new Date(Number(requestTimestamp) * 1000).toLocaleDateString(undefined, {
@@ -308,7 +330,7 @@ function MarketStatsPanel({
     { label: "Pool liquidity", value: liquidity, icon: Landmark },
     { label: "AMM fee", value: feeLabel, icon: Gauge },
     { label: "Market close", value: closeDate, icon: CalendarClock },
-    { label: "Collateral", value: "ARCT test collateral", icon: Database },
+    { label: "Collateral", value: `${collateralSymbol} collateral`, icon: Database },
     { label: "Participants", value: "Public wallets", icon: Users },
     { label: "Settlement", value: "UMA OO V2", icon: Activity },
   ];
@@ -336,10 +358,10 @@ function MarketStatsPanel({
   );
 }
 
-function SettlementRulesPanel() {
+function SettlementRulesPanel({ collateralSymbol }: { collateralSymbol: string }) {
   const rules = [
     ["Settlement source", "UMA Optimistic Oracle V2"],
-    ["Collateral", "ARCT test collateral"],
+    ["Collateral", `${collateralSymbol} collateral`],
     ["Gas", "Arc Testnet USDC"],
     ["Privacy", "Preview UX only. Positions are public today."],
   ];

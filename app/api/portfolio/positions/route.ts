@@ -8,7 +8,13 @@ import {
   type Address,
 } from "viem";
 import { arcTestnet } from "@/lib/chain";
-import { ARCT_ADDRESS, COLLATERAL_DECIMALS } from "@/lib/contracts";
+import { COLLATERAL_DECIMALS } from "@/lib/contracts";
+import { ERC20_ABI } from "@/lib/contracts/abis/erc20";
+import {
+  formatTokenAmount,
+  getCollateralMetadataByAddress,
+  normalizeAddress,
+} from "@/lib/collateral";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -20,6 +26,13 @@ const ONE = 1000000000000000000n;
 const CONCURRENCY = 10;
 
 const MARKET_ABI = [
+  {
+    inputs: [],
+    name: "collateralToken",
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
   {
     inputs: [],
     name: "receivedSettlementPrice",
@@ -50,16 +63,6 @@ const MARKET_ABI = [
   },
 ] as const;
 
-const ERC20_ABI = [
-  {
-    inputs: [{ name: "account", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
 interface WorldCupDeployment {
   worldCupMarketId: string;
   fixtureId: string;
@@ -69,16 +72,11 @@ interface WorldCupDeployment {
   marketAddress: string;
   ammAddress: string;
   createdAt?: string;
-}
-
-interface DynamicMarket {
-  id?: string;
-  title?: string;
-  question?: string;
-  address?: string;
-  marketAddress?: string;
-  ammAddress?: string;
-  isReal?: boolean;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  outcomeDecimals?: number;
 }
 
 interface PortfolioPosition {
@@ -93,6 +91,20 @@ interface PortfolioPosition {
   isSettled: boolean;
   winningSide: "YES" | "NO" | "Mixed" | null;
   claimablePayout: string;
+  claimablePayoutFormatted: string;
+  collateralAddress: string;
+  collateralSymbol: string;
+  collateralName: string;
+  collateralDecimals: number;
+  collateralBalance: string;
+  collateralBalanceFormatted: string;
+  collateralWarning: boolean;
+  contractVersion: number;
+  outcomeDecimals: number;
+}
+
+function contractVersionOf(item: WorldCupDeployment) {
+  return item.contractVersion ?? 1;
 }
 
 function dataPath(fileName: string) {
@@ -110,23 +122,6 @@ function readJsonFile<T>(fileName: string, fallback: T): T {
 
 function validAddress(value: string | null | undefined): value is Address {
   return Boolean(value && isAddress(value));
-}
-
-function normalizeDynamicMarket(item: DynamicMarket): WorldCupDeployment | null {
-  const marketAddress = item.marketAddress || item.address;
-  const ammAddress = item.ammAddress;
-
-  if (!validAddress(marketAddress) || !validAddress(ammAddress)) return null;
-
-  return {
-    worldCupMarketId: item.id || marketAddress,
-    fixtureId: "dynamic",
-    group: "Market",
-    question: item.question || item.title || "Prediction market",
-    outcomeType: "dynamic",
-    marketAddress,
-    ammAddress,
-  };
 }
 
 async function readDeployments() {
@@ -148,6 +143,11 @@ async function readDeployments() {
         marketAddress: item.market_address,
         ammAddress: item.amm_address,
         createdAt: item.created_at ?? undefined,
+        contractVersion: item.contract_version ?? 1,
+        collateralAddress: item.collateral_address ?? undefined,
+        collateralSymbol: item.collateral_symbol ?? undefined,
+        collateralDecimals: item.collateral_decimals ?? undefined,
+        outcomeDecimals: item.outcome_decimals ?? undefined,
       })) satisfies WorldCupDeployment[];
     }
   }
@@ -158,19 +158,6 @@ async function readDeployments() {
   );
 
   return Array.isArray(parsed) ? parsed : Object.values(parsed);
-}
-
-function readDynamicMarkets() {
-  const parsed = readJsonFile<DynamicMarket[] | Record<string, DynamicMarket>>(
-    "markets.json",
-    [],
-  );
-
-  const markets = Array.isArray(parsed) ? parsed : Object.values(parsed);
-
-  return markets
-    .map(normalizeDynamicMarket)
-    .filter(Boolean) as WorldCupDeployment[];
 }
 
 async function mapLimit<T, R>(
@@ -211,6 +198,12 @@ function formatBigInt(value: bigint) {
   return value.toString();
 }
 
+function tokenText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, maxLength)
+    : fallback;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const wallet = url.searchParams.get("address");
@@ -235,30 +228,31 @@ export async function GET(request: Request) {
     transport: http(rpcUrl),
   });
 
-  const deployments = uniqueDeployments([
-    ...(await readDeployments()),
-    ...readDynamicMarkets(),
-  ]);
+  const deployments = uniqueDeployments(await readDeployments()).filter(
+    (deployment) => contractVersionOf(deployment) === 2,
+  );
 
   let failed = 0;
 
-  const arctBalance = validAddress(ARCT_ADDRESS)
-    ? await publicClient
-        .readContract({
-          address: ARCT_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [wallet],
-        })
-        .catch(() => 0n)
-    : 0n;
+  const arctBalance = 0n;
 
   const scanned = await mapLimit(deployments, CONCURRENCY, async (deployment) => {
     try {
       const marketAddress = deployment.marketAddress as Address;
 
-      const [receivedSettlementPrice, settlementPriceRaw, longToken, shortToken] =
+      const [
+        collateralToken,
+        receivedSettlementPrice,
+        settlementPriceRaw,
+        longToken,
+        shortToken,
+      ] =
         await Promise.all([
+          publicClient.readContract({
+            address: marketAddress,
+            abi: MARKET_ABI,
+            functionName: "collateralToken",
+          }),
           publicClient.readContract({
             address: marketAddress,
             abi: MARKET_ABI,
@@ -283,6 +277,9 @@ export async function GET(request: Request) {
 
       const longTokenAddress = longToken as Address;
       const shortTokenAddress = shortToken as Address;
+      const collateralAddress = normalizeAddress(collateralToken as Address);
+      if (!collateralAddress) return null;
+      const configuredCollateral = getCollateralMetadataByAddress(collateralAddress);
 
       if (
         longTokenAddress === ZERO_ADDRESS ||
@@ -291,7 +288,15 @@ export async function GET(request: Request) {
         return null;
       }
 
-      const [yesBalanceRaw, noBalanceRaw] = await Promise.all([
+      const [
+        yesBalanceRaw,
+        noBalanceRaw,
+        collateralBalanceRaw,
+        collateralSymbolRaw,
+        collateralNameRaw,
+        collateralDecimalsRaw,
+        outcomeDecimalsRaw,
+      ] = await Promise.all([
         publicClient.readContract({
           address: longTokenAddress,
           abi: ERC20_ABI,
@@ -304,10 +309,71 @@ export async function GET(request: Request) {
           functionName: "balanceOf",
           args: [wallet],
         }),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [wallet],
+          })
+          .catch(() => 0n),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "symbol",
+          })
+          .catch(() => configuredCollateral.symbol),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "name",
+          })
+          .catch(() => configuredCollateral.name),
+        publicClient
+          .readContract({
+            address: collateralAddress,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          })
+          .catch(() => configuredCollateral.decimals),
+        publicClient
+          .readContract({
+            address: longTokenAddress,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          })
+          .catch(() => deployment.outcomeDecimals ?? configuredCollateral.decimals),
       ]);
 
       const yesBalance = yesBalanceRaw as bigint;
       const noBalance = noBalanceRaw as bigint;
+      const collateralBalance = collateralBalanceRaw as bigint;
+      const collateralDecimals =
+        typeof collateralDecimalsRaw === "number" &&
+        Number.isInteger(collateralDecimalsRaw) &&
+        collateralDecimalsRaw >= 0 &&
+        collateralDecimalsRaw <= 255
+          ? collateralDecimalsRaw
+          : configuredCollateral.decimals;
+      const collateralSymbol = tokenText(
+        collateralSymbolRaw,
+        configuredCollateral.symbol,
+        16,
+      );
+      const collateralName = tokenText(
+        collateralNameRaw,
+        configuredCollateral.name,
+        64,
+      );
+      const outcomeDecimals =
+        typeof outcomeDecimalsRaw === "number" &&
+        Number.isInteger(outcomeDecimalsRaw) &&
+        outcomeDecimalsRaw >= 0 &&
+        outcomeDecimalsRaw <= 255
+          ? outcomeDecimalsRaw
+          : collateralDecimals;
 
       if (yesBalance <= 0n && noBalance <= 0n) return null;
 
@@ -337,6 +403,22 @@ export async function GET(request: Request) {
               : "Mixed"
           : null,
         claimablePayout: formatBigInt(claimablePayout),
+        claimablePayoutFormatted: formatTokenAmount(
+          claimablePayout,
+          collateralDecimals,
+        ),
+        collateralAddress,
+        collateralSymbol,
+        collateralName,
+        collateralDecimals,
+        collateralBalance: formatBigInt(collateralBalance),
+        collateralBalanceFormatted: formatTokenAmount(
+          collateralBalance,
+          collateralDecimals,
+        ),
+        collateralWarning: configuredCollateral.warning,
+        contractVersion: contractVersionOf(deployment),
+        outcomeDecimals,
       } satisfies PortfolioPosition;
     } catch {
       failed += 1;

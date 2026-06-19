@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ interface ProbabilityBarProps {
   noPrice: number | undefined;
   ammInitialized: boolean | undefined;
   receivedSettlementPrice: boolean | undefined;
+  collateralSymbol?: string;
 }
 
 export function ProbabilityBar({
@@ -30,6 +31,7 @@ export function ProbabilityBar({
   noPrice,
   ammInitialized,
   receivedSettlementPrice,
+  collateralSymbol = "ARCT",
 }: ProbabilityBarProps) {
   const yesPct = yesPrice !== undefined ? Math.round(yesPrice) : null;
   const noPct = noPrice !== undefined ? Math.round(noPrice) : null;
@@ -41,12 +43,8 @@ export function ProbabilityBar({
   return (
     <div className="exchange-panel">
       <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-1.5">
-        <h2 className="text-sm font-bold">
-          Outcome odds
-        </h2>
-        <span className="text-xs">
-          AMM price
-        </span>
+        <h2 className="text-sm font-bold">Outcome odds</h2>
+        <span className="text-xs">AMM price</span>
       </div>
 
       <div className="grid gap-2 p-3 sm:grid-cols-2">
@@ -59,9 +57,10 @@ export function ProbabilityBar({
             <p className="font-mono text-4xl font-black leading-none">{yesPct}%</p>
           </div>
           <p className="mt-3 text-xs text-[#707A8A]">
-            {yesPrice !== undefined ? (yesPrice / 100).toFixed(2) : "--"} ARCT
+            {yesPrice !== undefined ? (yesPrice / 100).toFixed(2) : "--"} {collateralSymbol}
           </p>
         </div>
+
         <div className="terminal-card p-4 text-[#F6465D]">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -71,21 +70,16 @@ export function ProbabilityBar({
             <p className="font-mono text-4xl font-black leading-none">{noPct}%</p>
           </div>
           <p className="mt-3 text-xs text-[#707A8A]">
-            {noPrice !== undefined ? (noPrice / 100).toFixed(2) : "--"} ARCT
+            {noPrice !== undefined ? (noPrice / 100).toFixed(2) : "--"} {collateralSymbol}
           </p>
         </div>
       </div>
 
       <div className="mx-3 flex h-3 overflow-hidden rounded border border-[#2B3139] bg-[#0B0E11]">
-        <div
-          className="bg-[#0ECB81] transition-all duration-500"
-          style={{ width: `${yesPct}%` }}
-        />
-        <div
-          className="bg-[#F6465D] transition-all duration-500"
-          style={{ width: `${noPct}%` }}
-        />
+        <div className="bg-[#0ECB81] transition-all duration-500" style={{ width: `${yesPct}%` }} />
+        <div className="bg-[#F6465D] transition-all duration-500" style={{ width: `${noPct}%` }} />
       </div>
+
       <div className="mx-3 mb-3 mt-2 flex justify-between text-xs text-[#707A8A]">
         <span>Yes liquidity pressure</span>
         <span>No liquidity pressure</span>

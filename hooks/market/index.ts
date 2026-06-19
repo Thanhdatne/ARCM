@@ -19,7 +19,7 @@
 export { useMarketState } from "./useMarketState";
 export { useOracleState } from "./useOracleState";
 export { useTokenBalances, useOracleAllowance } from "./useTokenBalances";
-export { useApproveArct, useMintArct, useCreatePosition, useRedeemPosition, useSettlePosition } from "./useMarketActions";
+export { useApproveToken, useApproveArct, useMintArct, useCreatePosition, useRedeemPosition, useSettlePosition } from "./useMarketActions";
 export { useProposePrice, useProposePriceWithTimer, useDisputePrice, useSettleOracleRequest, useSettleOracleWithTimer } from "./useOracleActions";
 export { useMarketCardData } from "./useMarketCardData";
 export { formatCollateral, oracleStateLabel } from "./helpers";

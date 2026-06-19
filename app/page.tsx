@@ -22,7 +22,6 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { type Address } from "viem";
-import { CreateMarketDialog } from "@/components/CreateMarketDialog";
 import { MarketCard } from "@/components/MarketCard";
 import { MarketAddressProvider } from "@/contexts/MarketAddressContext";
 import { useWallet } from "@/contexts/WalletContext";
@@ -60,6 +59,7 @@ type CategoryFilter = (typeof categories)[number];
 type MarketViewFilter = (typeof filters)[number];
 const adminMarketCreateEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
 const adminResultOverrideEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_RESULT_OVERRIDE === "true";
+const hideLegacyV1 = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
 const ONE = 1000000000000000000n;
 const arcScanBaseUrl = "https://testnet.arcscan.app";
 
@@ -88,6 +88,11 @@ interface WorldCupDeployment {
   createdAt: string;
   txHash?: string;
   transactionHash?: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  outcomeDecimals?: number;
 }
 
 type SettlementFilter = "All" | "Open" | "Resolved" | "Settled" | "Claimable";
@@ -290,7 +295,7 @@ function buildWorldCupFixtureCards(
 
       const fixtureLead = orderedMarkets[0];
       const result = resultsByFixture[fixtureLead.fixtureId];
-      const isCompleted = result?.status === "final" || result?.status === "cancelled";
+      const isCompleted = isWorldCupResultClosed(result);
       const normalizedProbabilities = normalizeFixtureProbabilities(orderedMarkets);
 
       return {
@@ -427,6 +432,34 @@ function groupFixturesByDate(fixtures: WorldCupFixtureCardData[]) {
   }, []);
 }
 
+function getWorldCupKickoffMs(kickoffTime: string) {
+  const parsed = new Date(kickoffTime).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function hasWorldCupFixtureStarted(kickoffTime: string, nowMs: number | null) {
+  if (nowMs === null) return false;
+
+  const kickoffMs = getWorldCupKickoffMs(kickoffTime);
+  return kickoffMs !== null && kickoffMs <= nowMs;
+}
+
+function isWorldCupResultClosed(result?: WorldCupResultRecord) {
+  return result?.status === "final" || result?.status === "cancelled";
+}
+
+function getWorldCupDeployBlockReason(
+  market: WorldCupMarket,
+  resultsByFixture: Record<string, WorldCupResultRecord>,
+  nowMs: number | null,
+) {
+  if (market.marketAddress && market.ammAddress) return "Already deployed";
+  if (isWorldCupResultClosed(resultsByFixture[market.fixtureId])) return "Fixture completed";
+  if (hasWorldCupFixtureStarted(market.kickoffTime, nowMs)) return "Fixture already started";
+
+  return null;
+}
+
 
 const countryFlagCodes: Record<string, string> = {
   "Algeria": "dz",
@@ -490,7 +523,6 @@ const countryFlagCodes: Record<string, string> = {
   "Tunisia": "tn",
   "Turkey": "tr",
   "Turkiye": "tr",
-  "TÃ¼rkiye": "tr",
   "Ukraine": "ua",
   "United States": "us",
   "USA": "us",
@@ -515,7 +547,7 @@ function getCountryFlagCode(team: string) {
   const normalizedKey = normalized
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[â€™']/g, "")
+    .replace(/[\u2019']/g, "")
     .toLowerCase();
 
   const aliasMap: Record<string, string> = {
@@ -698,7 +730,7 @@ function WorldCupMatchupHeader({
         <WorldCupTeamLabel align="right" team={awayTeam} />
       </div>
       <p className="mt-2 truncate text-center text-[11px] font-semibold text-[#707A8A]">
-        World Cup Â· {group}
+        World Cup / {group}
       </p>
     </div>
   );
@@ -730,6 +762,7 @@ function HomeContent() {
   const [adminKey, setAdminKey] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("All");
   const [activeMarketFilter, setActiveMarketFilter] = useState<MarketViewFilter>("Featured");
+  const [clientNowMs, setClientNowMs] = useState<number | null>(null);
 
   const fetchDynamicMarkets = useCallback(async () => {
     try {
@@ -777,24 +810,19 @@ function HomeContent() {
     setAdminKey(window.localStorage.getItem("ARCM-admin-key") ?? "");
   }, []);
 
-  const onchainMarkets = [...dynamicMarkets, ...MARKETS].filter(isConfiguredOnchainMarket);
+  useEffect(() => {
+    const updateClientNow = () => setClientNowMs(Date.now());
 
-  const handleWorldCupCreated = useCallback(
-    (worldCupMarketId: string) => async (market?: DynamicMarket) => {
-      await fetchDynamicMarkets();
-      await fetchWorldCupDeployments();
-      if (market?.address && market.ammAddress) {
-        setDeployedWorldCupMarkets((current) => ({
-          ...current,
-          [worldCupMarketId]: {
-            marketAddress: market.address,
-            ammAddress: market.ammAddress,
-          },
-        }));
-      }
-    },
-    [fetchDynamicMarkets, fetchWorldCupDeployments],
-  );
+    updateClientNow();
+    const intervalId = window.setInterval(updateClientNow, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const onchainMarkets = [
+    ...dynamicMarkets,
+    ...(hideLegacyV1 ? [] : MARKETS),
+  ].filter(isConfiguredOnchainMarket);
 
   const savedWorldCupDeployments = worldCupDeployments.reduce<Record<string, { marketAddress: string; ammAddress: string }>>(
     (acc, deployment) => {
@@ -827,15 +855,15 @@ function HomeContent() {
     .map((market) => ({
       ...market,
       marketAddress:
-        deployedWorldCupMarkets[market.id]?.marketAddress ??
+        (hideLegacyV1 ? undefined : deployedWorldCupMarkets[market.id]?.marketAddress) ??
         savedWorldCupDeployments[market.id]?.marketAddress ??
         persistedWorldCupDeployments[market.id]?.marketAddress ??
-        market.marketAddress,
+        (hideLegacyV1 ? undefined : market.marketAddress),
       ammAddress:
-        deployedWorldCupMarkets[market.id]?.ammAddress ??
+        (hideLegacyV1 ? undefined : deployedWorldCupMarkets[market.id]?.ammAddress) ??
         savedWorldCupDeployments[market.id]?.ammAddress ??
         persistedWorldCupDeployments[market.id]?.ammAddress ??
-        market.ammAddress,
+        (hideLegacyV1 ? undefined : market.ammAddress),
     }))
     .sort((a, b) => Number(Boolean(b.marketAddress && b.ammAddress)) - Number(Boolean(a.marketAddress && a.ammAddress)));
 
@@ -883,10 +911,10 @@ function HomeContent() {
   const visibleWorldCupMarkets = worldCupMarkets.filter(
     (market) => selectedWorldCupGroup === "All" || market.group === selectedWorldCupGroup,
   );
-  const undeployedVisibleWorldCupMarkets = visibleWorldCupMarkets.filter(
-    (market) => !deployedWorldCupMarkets[market.id],
+  const deployableVisibleWorldCupMarkets = visibleWorldCupMarkets.filter(
+    (market) => !getWorldCupDeployBlockReason(market, worldCupResultsByFixture, clientNowMs),
   );
-  const nextFixtureWorldCupMarkets = undeployedVisibleWorldCupMarkets.slice(0, 3);
+  const nextFixtureWorldCupMarkets = deployableVisibleWorldCupMarkets.slice(0, 3);
   const deployedWorldCupMarketsForSettlement = worldCupMarkets.filter((market) => market.marketAddress && market.ammAddress);
   const visibleSettlementMarkets = deployedWorldCupMarketsForSettlement.filter(
     (market) => selectedWorldCupGroup === "All" || market.group === selectedWorldCupGroup,
@@ -897,7 +925,11 @@ function HomeContent() {
     }
     return acc;
   }, []);
-  const selectedWorldCupMarkets = visibleWorldCupMarkets.filter((market) => selectedWorldCupMarketIds.includes(market.id));
+  const selectedWorldCupMarkets = visibleWorldCupMarkets.filter(
+    (market) =>
+      selectedWorldCupMarketIds.includes(market.id) &&
+      !getWorldCupDeployBlockReason(market, worldCupResultsByFixture, clientNowMs),
+  );
   const selectedSafeWorldCupMarkets = selectedWorldCupMarkets.slice(0, 3);
 
   const deployWorldCupMarkets = useCallback(
@@ -907,12 +939,36 @@ function HomeContent() {
       const uniqueMarkets = marketsToDeploy.filter(
         (market, index, source) => source.findIndex((item) => item.id === market.id) === index,
       );
+      const deployCheckNowMs = Date.now();
+      const deployableMarkets = uniqueMarkets.filter(
+        (market) => !getWorldCupDeployBlockReason(market, worldCupResultsByFixture, deployCheckNowMs),
+      );
+      const blockedMarkets = uniqueMarkets.filter((market) => !deployableMarkets.some((item) => item.id === market.id));
+
+      if (blockedMarkets.length > 0) {
+        setBulkDeployStatuses((current) => {
+          const next = { ...current };
+
+          for (const market of blockedMarkets) {
+            next[market.id] = {
+              state: "skipped",
+              message:
+                getWorldCupDeployBlockReason(market, worldCupResultsByFixture, deployCheckNowMs) ??
+                "Skipped: fixture already started or completed.",
+            };
+          }
+
+          return next;
+        });
+      }
+
+      if (deployableMarkets.length === 0) return;
 
       if (!adminKey.trim()) {
         setBulkDeployStatuses((current) => {
           const next = { ...current };
 
-          for (const market of uniqueMarkets) {
+          for (const market of deployableMarkets) {
             next[market.id] = {
               state: "failed",
               message: "Admin deploy key missing. Save it in /admin/markets first.",
@@ -927,7 +983,7 @@ function HomeContent() {
       setIsBulkDeploying(true);
 
       try {
-        for (const market of uniqueMarkets) {
+        for (const market of deployableMarkets) {
           if (market.marketAddress && market.ammAddress) {
             setBulkDeployStatuses((current) => ({
               ...current,
@@ -951,17 +1007,19 @@ function HomeContent() {
                 headers["x-admin-key"] = adminKey.trim();
               }
 
-              const response = await fetch("/api/create-market", {
+              const response = await fetch("/api/create-market-v2", {
                 method: "POST",
                 headers,
                 body: JSON.stringify({
                   title: market.question,
                   category: "World Cup",
-                  settlementRule: market.settlementRule,
                   worldCupMarketId: market.id,
                   fixtureId: market.fixtureId,
                   group: market.group,
                   outcomeType: market.outcomeType,
+                  proposerReward: "0.2",
+                  proposerBond: "0.2",
+                  initialLiquidity: "0.2",
                 }),
               });
               const data = (await response.json()) as {
@@ -1032,14 +1090,22 @@ function HomeContent() {
         setIsBulkDeploying(false);
       }
     },
-    [adminKey, fetchDynamicMarkets, fetchWorldCupDeployments, isBulkDeploying],
+    [adminKey, fetchDynamicMarkets, fetchWorldCupDeployments, isBulkDeploying, worldCupResultsByFixture],
   );
 
-  const toggleWorldCupSelection = useCallback((marketId: string, selected: boolean) => {
-    setSelectedWorldCupMarketIds((current) =>
-      selected ? [...new Set([...current, marketId])] : current.filter((id) => id !== marketId),
-    );
-  }, []);
+  const toggleWorldCupSelection = useCallback(
+    (marketId: string, selected: boolean) => {
+      if (selected) {
+        const market = worldCupMarkets.find((item) => item.id === marketId);
+        if (!market || getWorldCupDeployBlockReason(market, worldCupResultsByFixture, clientNowMs)) return;
+      }
+
+      setSelectedWorldCupMarketIds((current) =>
+        selected ? [...new Set([...current, marketId])] : current.filter((id) => id !== marketId),
+      );
+    },
+    [clientNowMs, worldCupMarkets, worldCupResultsByFixture],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-4 px-3 py-3 sm:px-5">
@@ -1080,7 +1146,7 @@ function HomeContent() {
       </section>
 
       {homeMarketCount === 0 ? (
-        <EmptyMarketState isConnected={isConnected} />
+        <EmptyMarketState isClientMounted={clientNowMs !== null} isConnected={isConnected} />
       ) : (
         <section className="space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -1088,7 +1154,7 @@ function HomeContent() {
               <h2 className="text-lg font-bold text-[#EAECEF]">Markets</h2>
               <p className="mt-1 text-xs text-[#707A8A]">
                 {marketSearchQuery
-                  ? `Showing open markets matching â€œ${marketSearchQuery}â€.`
+                  ? `Showing open markets matching "${marketSearchQuery}"`
                   : "Showing open markets on Arc Testnet."}
               </p>
             </div>
@@ -1149,7 +1215,7 @@ function HomeContent() {
               Deploy World Cup Markets
             </h2>
             <p className="mt-1 text-xs text-[#707A8A]">
-              Admin-only catalog. Undeployed templates use the existing create-market flow before they become tradable.
+              Admin-only catalog. Undeployed templates use the V2 USDC create-market flow before they become tradable.
             </p>
             <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
               {WORLD_CUP_GROUP_FILTERS.map((group) => (
@@ -1215,11 +1281,11 @@ function HomeContent() {
           {visibleWorldCupMarkets.map((market) => (
             <WorldCupSignalCard
               adminCreateEnabled={adminMarketCreateEnabled}
-              adminKey={adminKey}
               bulkStatus={bulkDeployStatuses[market.id]}
               key={market.id}
               market={market}
-              onCreated={handleWorldCupCreated(market.id)}
+              deployBlockReason={getWorldCupDeployBlockReason(market, worldCupResultsByFixture, clientNowMs)}
+              onDeploy={deployWorldCupMarkets}
               onSelectedChange={toggleWorldCupSelection}
               selected={selectedWorldCupMarketIds.includes(market.id)}
             />
@@ -1349,7 +1415,7 @@ function WorldCupDateSections({
                 <h3 className="text-sm font-black text-[#EAECEF]">{group.dateLabel}</h3>
               </div>
               <p className="mt-1 text-xs text-[#707A8A]">
-                {group.fixtures.length} fixture{group.fixtures.length === 1 ? "" : "s"} Â· sorted by kickoff time
+                {group.fixtures.length} fixture{group.fixtures.length === 1 ? "" : "s"} / sorted by kickoff time
               </p>
             </div>
             <span className="text-xs font-semibold text-[#707A8A]">UTC schedule</span>
@@ -1477,18 +1543,18 @@ function HomeFallback() {
 
 function WorldCupSignalCard({
   adminCreateEnabled,
-  adminKey,
   bulkStatus,
+  deployBlockReason,
   market,
-  onCreated,
+  onDeploy,
   onSelectedChange,
   selected,
 }: {
   adminCreateEnabled: boolean;
-  adminKey: string;
   bulkStatus?: BulkDeployStatus;
+  deployBlockReason?: string | null;
   market: WorldCupMarket;
-  onCreated: (market?: DynamicMarket) => void | Promise<void>;
+  onDeploy: (markets: WorldCupMarket[]) => void | Promise<void>;
   onSelectedChange: (marketId: string, selected: boolean) => void;
   selected: boolean;
 }) {
@@ -1521,7 +1587,7 @@ function WorldCupSignalCard({
             {market.homeTeam} vs {market.awayTeam}
           </p>
         </div>
-        {adminCreateEnabled && !isTradable && (
+        {adminCreateEnabled && !isTradable && !deployBlockReason && (
           <label className="focus-ring flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-[#2B3139] bg-[#2B3139] px-2 text-[10px] font-bold text-[#707A8A] hover:border-[#FCD535] hover:text-[#EAECEF]">
               <input
                 checked={selected}
@@ -1546,11 +1612,11 @@ function WorldCupSignalCard({
         </span>
         <CardAction
           adminCreateEnabled={adminCreateEnabled}
-          adminKey={adminKey}
           bulkStatus={bulkStatus}
+          deployBlockReason={deployBlockReason}
           isTradable={isTradable}
           market={market}
-          onCreated={onCreated}
+          onDeploy={onDeploy}
         />
       </div>
     </article>
@@ -1975,18 +2041,18 @@ function LifecycleLink({
 
 function CardAction({
   adminCreateEnabled,
-  adminKey,
   bulkStatus,
+  deployBlockReason,
   isTradable,
   market,
-  onCreated,
+  onDeploy,
 }: {
   adminCreateEnabled: boolean;
-  adminKey: string;
   bulkStatus?: BulkDeployStatus;
+  deployBlockReason?: string | null;
   isTradable: boolean;
   market: WorldCupMarket;
-  onCreated: (market?: DynamicMarket) => void | Promise<void>;
+  onDeploy: (markets: WorldCupMarket[]) => void | Promise<void>;
 }) {
   if (isTradable) {
     return <span className="shrink-0 font-bold text-[#FCD535]">Open Market</span>;
@@ -2015,22 +2081,26 @@ function CardAction({
     return <span className="shrink-0 text-[#707A8A]">Skipped</span>;
   }
 
+  if (adminCreateEnabled && deployBlockReason) {
+    return (
+      <span
+        className="max-w-[140px] shrink-0 truncate text-right text-[#707A8A]"
+        title={deployBlockReason}
+      >
+        Not deployable
+      </span>
+    );
+  }
+
   if (adminCreateEnabled) {
     return (
-      <CreateMarketDialog
-        adminKey={adminKey.trim()}
-        initialCategory="World Cup"
-        initialSettlementRule={market.settlementRule}
-        initialTitle={market.question}
-        onCreated={onCreated}
-        redirectOnCreated={false}
-        triggerClassName="interactive-link border-0 bg-transparent p-0 text-[11px] font-bold shadow-none hover:bg-transparent"
-        triggerLabel="Deploy on Arc"
-        fixtureId={market.fixtureId}
-        group={market.group}
-        outcomeType={market.outcomeType}
-        worldCupMarketId={market.id}
-      />
+      <button
+        className="interactive-link shrink-0 border-0 bg-transparent p-0 text-[11px] font-bold shadow-none hover:bg-transparent"
+        onClick={() => onDeploy([market])}
+        type="button"
+      >
+        Deploy on Arc
+      </button>
     );
   }
 
@@ -2124,7 +2194,7 @@ function FilteredMarketEmptyState({
       <h3 className="text-lg font-bold text-[#EAECEF]">No markets found</h3>
       <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#707A8A]">
         {searchQuery
-          ? `No open markets match â€œ${searchQuery}â€. Try another team, draw, group, category, or market address.`
+          ? `No open markets match "${searchQuery}"`
           : `No open markets are available for ${activeCategory} / ${activeFilter} yet.`}
       </p>
       <p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-[#707A8A]">
@@ -2135,8 +2205,10 @@ function FilteredMarketEmptyState({
 }
 
 function EmptyMarketState({
+  isClientMounted,
   isConnected,
 }: {
+  isClientMounted: boolean;
   isConnected: boolean;
 }) {
   return (
@@ -2146,9 +2218,9 @@ function EmptyMarketState({
       </div>
       <h2 className="text-2xl font-bold text-[#EAECEF]">No onchain markets found yet.</h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#707A8A]">
-        Create your first ARCM market on Arc Testnet, then open it to trade YES or NO with ARCT test collateral.
+        V2 markets will appear here after the factory, allowlist, and verified USDC collateral flow pass end-to-end checks.
       </p>
-      {!isConnected && (
+      {isClientMounted && !isConnected && (
         <p className="mx-auto mt-4 max-w-lg rounded-lg border border-[#FCD535] bg-[#FCD535]/15 px-4 py-3 text-sm font-bold text-[#FFF3AF]">
           Connect wallet to trade on Arc Testnet.
         </p>
@@ -2156,4 +2228,3 @@ function EmptyMarketState({
     </section>
   );
 }
-  

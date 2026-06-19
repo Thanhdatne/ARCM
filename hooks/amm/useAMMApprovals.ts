@@ -21,19 +21,19 @@
 import { useReadContracts } from "wagmi";
 import { type Address } from "viem";
 import { ERC20_ABI } from "@/lib/contracts/abis/erc20";
-import { ARCT_ADDRESS } from "@/lib/contracts/addresses";
 import { useContractWrite } from "@/hooks/useContractWrite";
 import { useWallet } from "@/contexts/WalletContext";
 import { useMarketAddress } from "@/contexts/MarketAddressContext";
 import { LIVE_STATE_REFETCH_INTERVAL } from "@/lib/wagmi";
 
-export function useApproveArctForAMM() {
+export function useApproveArctForAMM(collateralAddress?: Address) {
   const { write, isPending, isConfirming, isSuccess, error, hash } = useContractWrite();
   const { ammAddress } = useMarketAddress();
 
   const approve = (amount: bigint) => {
+    if (!collateralAddress) return;
     write({
-      address: ARCT_ADDRESS,
+      address: collateralAddress,
       abi: ERC20_ABI,
       functionName: "approve",
       args: [ammAddress, amount],
@@ -61,6 +61,7 @@ export function useApproveTokenForAMM(tokenAddress: Address | undefined) {
 }
 
 export function useAMMAllowances(
+  collateralAddress: Address | undefined,
   longTokenAddress: Address | undefined,
   shortTokenAddress: Address | undefined
 ) {
@@ -70,7 +71,7 @@ export function useAMMAllowances(
   const { data, isLoading, refetch } = useReadContracts({
     contracts: [
       {
-        address: ARCT_ADDRESS,
+        address: collateralAddress,
         abi: ERC20_ABI,
         functionName: "allowance",
         args: address ? [address, ammAddress] : undefined,
@@ -89,14 +90,14 @@ export function useAMMAllowances(
       },
     ],
     query: {
-      enabled: !!address && !!longTokenAddress && !!shortTokenAddress,
+      enabled: !!address && !!collateralAddress && !!longTokenAddress && !!shortTokenAddress,
       refetchInterval: LIVE_STATE_REFETCH_INTERVAL,
       refetchIntervalInBackground: false,
     },
   });
 
   return {
-    arctAllowance: data?.[0]?.result as bigint | undefined,
+    collateralAllowance: data?.[0]?.result as bigint | undefined,
     longAllowance: data?.[1]?.result as bigint | undefined,
     shortAllowance: data?.[2]?.result as bigint | undefined,
     isLoading,

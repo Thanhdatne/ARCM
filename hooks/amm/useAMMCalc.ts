@@ -20,22 +20,29 @@
 
 import { useReadContracts } from "wagmi";
 import { parseUnits } from "viem";
-import { AMM_ABI } from "@/lib/contracts/abis/amm";
-import { COLLATERAL_DECIMALS } from "@/lib/contracts/addresses";
+import { AMM_V2_ABI } from "@/lib/contracts";
 import { useMarketAddress } from "@/contexts/MarketAddressContext";
 
-export function useCalcBuy(outcome: "yes" | "no", amount: string) {
+function safeParseAmount(amount: string, decimals: number | null): bigint {
+  if (!amount || decimals === null) return 0n;
+  try {
+    const parsed = parseUnits(amount, decimals);
+    return parsed > 0n ? parsed : 0n;
+  } catch {
+    return 0n;
+  }
+}
+
+export function useCalcBuy(outcome: "yes" | "no", amount: string, collateralDecimals: number) {
   const { ammAddress } = useMarketAddress();
 
-  const amountBigInt = amount && parseFloat(amount) > 0
-    ? parseUnits(amount, COLLATERAL_DECIMALS)
-    : 0n;
+  const amountBigInt = safeParseAmount(amount, collateralDecimals);
 
   const { data, isLoading } = useReadContracts({
     contracts: [
       {
         address: ammAddress,
-        abi: AMM_ABI,
+        abi: AMM_V2_ABI,
         functionName: outcome === "yes" ? "calcBuyYes" : "calcBuyNo",
         args: [amountBigInt],
       },
@@ -52,18 +59,16 @@ export function useCalcBuy(outcome: "yes" | "no", amount: string) {
   return { tokensOut, isLoading };
 }
 
-export function useCalcSell(outcome: "yes" | "no", tokenAmount: string) {
+export function useCalcSell(outcome: "yes" | "no", tokenAmount: string, outcomeDecimals: number | null) {
   const { ammAddress } = useMarketAddress();
 
-  const amountBigInt = tokenAmount && parseFloat(tokenAmount) > 0
-    ? parseUnits(tokenAmount, COLLATERAL_DECIMALS)
-    : 0n;
+  const amountBigInt = safeParseAmount(tokenAmount, outcomeDecimals);
 
   const { data, isLoading } = useReadContracts({
     contracts: [
       {
         address: ammAddress,
-        abi: AMM_ABI,
+        abi: AMM_V2_ABI,
         functionName: outcome === "yes" ? "calcSellYes" : "calcSellNo",
         args: [amountBigInt],
       },

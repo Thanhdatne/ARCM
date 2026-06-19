@@ -26,6 +26,21 @@ import { useContractWrite } from "@/hooks/useContractWrite";
 import { useWallet } from "@/contexts/WalletContext";
 import { useMarketAddress } from "@/contexts/MarketAddressContext";
 
+export function useApproveToken(spender: Address, tokenAddress?: Address) {
+  const { write, isPending, isConfirming, isSuccess, error, hash } = useContractWrite();
+
+  const approve = (amount: bigint) => {
+    write({
+      address: tokenAddress ?? ARCT_ADDRESS,
+      abi: ERC20_ABI,
+      functionName: "approve",
+      args: [spender, amount],
+    });
+  };
+
+  return { approve, isPending, isConfirming, isSuccess, error, hash };
+}
+
 export function useApproveArct(spender: Address) {
   const { write, isPending, isConfirming, isSuccess, error, hash } = useContractWrite();
 

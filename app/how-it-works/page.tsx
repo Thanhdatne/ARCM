@@ -24,9 +24,9 @@ const steps = [
       "For football fixtures, one match can show three choices: Team A, Draw, and Team B. Each choice opens the real binary market behind it.",
   },
   {
-    title: "Trade with test collateral",
+    title: "Trade with Arc Testnet USDC",
     description:
-      "Buy YES or NO using ARCT test collateral on Arc Testnet. Positions are read from your connected wallet.",
+      "Buy YES or NO using Arc Testnet USDC. Positions are read from your connected wallet.",
   },
   {
     title: "Wait for settlement",
@@ -90,7 +90,7 @@ export default function HowItWorksPage() {
             <div className="mb-4 flex flex-wrap gap-2">
               {["Arc Testnet", "Prediction markets", "Onchain settlement"].map((item) => (
                 <span
-                  className="rounded-full border border-[#2B3139] bg-[#1E2329] px-3 py-1 text-xs font-bold text-[#707A8A]"
+                  className="rounded-full border border-[#2B3139] bg-[#1E2329] px-3 py-1 text-xs font-bold text-[#A7B1C2]"
                   key={item}
                 >
                   {item}
@@ -99,10 +99,10 @@ export default function HowItWorksPage() {
             </div>
 
             <h1 className="max-w-3xl text-2xl font-black tracking-tight text-[#EAECEF] sm:text-4xl">
-              Trade event outcomes on ARCM.
+              Trade real testnet prediction markets on ARCM.
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-[#707A8A]">
-              ARCM is an Arc Testnet prediction market MVP. Pick an event, trade an outcome, wait for settlement, then claim rewards if your position wins.
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-[#A7B1C2]">
+              ARCM is an Arc Testnet prediction market MVP. Pick a deployed market, trade YES or NO with testnet USDC, wait for UMA-style settlement, then claim rewards if your position wins.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -123,8 +123,8 @@ export default function HowItWorksPage() {
               <CircleHelp className="h-4 w-4" />
               MVP rule
             </div>
-            <p className="text-sm leading-6 text-[#707A8A]">
-              Home is for open tradable markets only. Portfolio is for positions. Claims is for rewards. Admin deployment and settlement tools should stay hidden on public builds.
+            <p className="text-sm leading-6 text-[#A7B1C2]">
+              Home is for deployed tradable markets only. Portfolio is for positions. Claims is for rewards. Admin deployment and settlement tools should stay hidden on public builds.
             </p>
           </div>
         </div>
@@ -137,7 +137,7 @@ export default function HowItWorksPage() {
               {index + 1}
             </div>
             <h2 className="text-sm font-black text-[#EAECEF]">{step.title}</h2>
-            <p className="mt-2 text-xs leading-5 text-[#707A8A]">{step.description}</p>
+            <p className="mt-2 text-xs leading-5 text-[#A7B1C2]">{step.description}</p>
           </article>
         ))}
       </section>
@@ -152,7 +152,7 @@ export default function HowItWorksPage() {
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-base font-bold text-[#EAECEF]">More categories, same real-market rule</h3>
-              <p className="mt-1 text-xs text-[#707A8A]">
+              <p className="mt-1 text-xs text-[#A7B1C2]">
                 New categories can be added, but they should only appear as tradable when deployed and settlement rules are clear.
               </p>
             </div>
@@ -166,13 +166,13 @@ export default function HowItWorksPage() {
               <article className="terminal-card p-3" key={category.title}>
                 <div className="flex items-start justify-between gap-3">
                   <h4 className="text-sm font-black text-[#EAECEF]">{category.title}</h4>
-                  <span className="rounded border border-[#2B3139] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#707A8A]">
+                  <span className="rounded border border-[#2B3139] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#A7B1C2]">
                     {category.status}
                   </span>
                 </div>
                 <ul className="mt-3 space-y-2">
                   {category.examples.map((example) => (
-                    <li className="flex items-center gap-2 text-xs text-[#707A8A]" key={example}>
+                    <li className="flex items-center gap-2 text-xs text-[#A7B1C2]" key={example}>
                       <ArrowRight className="h-3.5 w-3.5 text-[#FCD535]" />
                       {example}
                     </li>
@@ -192,7 +192,7 @@ export default function HowItWorksPage() {
           </div>
           <div className="space-y-2 p-4">
             {rules.map((rule) => (
-              <div className="terminal-card flex items-start gap-2 p-3 text-sm text-[#707A8A]" key={rule}>
+              <div className="terminal-card flex items-start gap-2 p-3 text-sm text-[#A7B1C2]" key={rule}>
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#0ECB81]" />
                 <span>{rule}</span>
               </div>
@@ -207,20 +207,20 @@ export default function HowItWorksPage() {
           </div>
           <div className="space-y-3 p-4">
             <div className="terminal-card p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#707A8A]">Question</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#A7B1C2]">Question</p>
               <p className="mt-1 text-sm font-bold text-[#EAECEF]">
                 Will ETH close above $4,000 on June 30, 2026?
               </p>
             </div>
             <div className="terminal-card p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#707A8A]">Settlement rule</p>
-              <p className="mt-1 text-sm leading-6 text-[#707A8A]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#A7B1C2]">Settlement rule</p>
+              <p className="mt-1 text-sm leading-6 text-[#A7B1C2]">
                 YES if the selected ETH/USD source closes above $4,000 on the target date. Otherwise NO.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <MiniTile icon={Trophy} label="Outcome" value="YES / NO" />
-              <MiniTile icon={BadgeDollarSign} label="Collateral" value="ARCT" />
+              <MiniTile icon={BadgeDollarSign} label="Collateral" value="USDC" />
               <MiniTile icon={ShieldCheck} label="Status" value="Deploy only when clear" />
             </div>
           </div>
@@ -242,7 +242,7 @@ function MiniTile({
   return (
     <div className="terminal-card p-3">
       <Icon className="mb-2 h-4 w-4 text-[#FCD535]" />
-      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#707A8A]">{label}</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#A7B1C2]">{label}</p>
       <p className="mt-1 text-xs font-bold text-[#EAECEF]">{value}</p>
     </div>
   );

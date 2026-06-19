@@ -20,6 +20,15 @@ import { NextResponse } from "next/server";
 import * as fs from "fs";
 import * as path from "path";
 
+interface MarketRecord {
+  contractVersion?: number;
+  contract_version?: number;
+}
+
+function getContractVersion(market: MarketRecord) {
+  return market.contractVersion ?? market.contract_version ?? 1;
+}
+
 function getMarketsFilePath() {
   return path.resolve(process.cwd(), "data", "markets.json");
 }
@@ -27,8 +36,15 @@ function getMarketsFilePath() {
 export async function GET() {
   try {
     const data = fs.readFileSync(getMarketsFilePath(), "utf-8");
-    const markets = JSON.parse(data);
-    return NextResponse.json(markets);
+    const parsed = JSON.parse(data) as MarketRecord[] | Record<string, MarketRecord>;
+    const markets = Array.isArray(parsed) ? parsed : Object.values(parsed);
+    const hideLegacy = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
+
+    return NextResponse.json(
+      hideLegacy
+        ? markets.filter((market) => getContractVersion(market) === 2)
+        : markets,
+    );
   } catch {
     return NextResponse.json([]);
   }

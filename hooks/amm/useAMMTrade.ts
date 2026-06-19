@@ -19,73 +19,90 @@
 "use client";
 
 import { parseUnits } from "viem";
-import { AMM_ABI } from "@/lib/contracts/abis/amm";
-import { COLLATERAL_DECIMALS } from "@/lib/contracts/addresses";
+import { AMM_V2_ABI } from "@/lib/contracts";
 import { useContractWrite } from "@/hooks/useContractWrite";
 import { useMarketAddress } from "@/contexts/MarketAddressContext";
 
-export function useBuyYes() {
+function safeParseAmount(amount: string, decimals: number | null): bigint | null {
+  if (!amount || decimals === null) return null;
+  try {
+    const parsed = parseUnits(amount, decimals);
+    return parsed > 0n ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function defaultDeadline(): bigint {
+  return BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
+}
+
+export function useBuyYes(collateralDecimals: number) {
   const { write, isPending, isConfirming, isSuccess, error, hash } = useContractWrite();
   const { ammAddress } = useMarketAddress();
 
   const buy = (amount: string) => {
-    const parsed = parseUnits(amount, COLLATERAL_DECIMALS);
+    const parsed = safeParseAmount(amount, collateralDecimals);
+    if (parsed === null) return;
     write({
       address: ammAddress,
-      abi: AMM_ABI,
+      abi: AMM_V2_ABI,
       functionName: "buyYes",
-      args: [parsed],
+      args: [parsed, 0n, defaultDeadline()],
     });
   };
 
   return { buy, isPending, isConfirming, isSuccess, error, hash };
 }
 
-export function useBuyNo() {
+export function useBuyNo(collateralDecimals: number) {
   const { write, isPending, isConfirming, isSuccess, error, hash } = useContractWrite();
   const { ammAddress } = useMarketAddress();
 
   const buy = (amount: string) => {
-    const parsed = parseUnits(amount, COLLATERAL_DECIMALS);
+    const parsed = safeParseAmount(amount, collateralDecimals);
+    if (parsed === null) return;
     write({
       address: ammAddress,
-      abi: AMM_ABI,
+      abi: AMM_V2_ABI,
       functionName: "buyNo",
-      args: [parsed],
+      args: [parsed, 0n, defaultDeadline()],
     });
   };
 
   return { buy, isPending, isConfirming, isSuccess, error, hash };
 }
 
-export function useSellYes() {
+export function useSellYes(outcomeDecimals: number | null) {
   const { write, isPending, isConfirming, isSuccess, error, hash } = useContractWrite();
   const { ammAddress } = useMarketAddress();
 
   const sell = (tokenAmount: string) => {
-    const parsed = parseUnits(tokenAmount, COLLATERAL_DECIMALS);
+    const parsed = safeParseAmount(tokenAmount, outcomeDecimals);
+    if (parsed === null) return;
     write({
       address: ammAddress,
-      abi: AMM_ABI,
+      abi: AMM_V2_ABI,
       functionName: "sellYes",
-      args: [parsed],
+      args: [parsed, 0n, defaultDeadline()],
     });
   };
 
   return { sell, isPending, isConfirming, isSuccess, error, hash };
 }
 
-export function useSellNo() {
+export function useSellNo(outcomeDecimals: number | null) {
   const { write, isPending, isConfirming, isSuccess, error, hash } = useContractWrite();
   const { ammAddress } = useMarketAddress();
 
   const sell = (tokenAmount: string) => {
-    const parsed = parseUnits(tokenAmount, COLLATERAL_DECIMALS);
+    const parsed = safeParseAmount(tokenAmount, outcomeDecimals);
+    if (parsed === null) return;
     write({
       address: ammAddress,
-      abi: AMM_ABI,
+      abi: AMM_V2_ABI,
       functionName: "sellNo",
-      args: [parsed],
+      args: [parsed, 0n, defaultDeadline()],
     });
   };
 

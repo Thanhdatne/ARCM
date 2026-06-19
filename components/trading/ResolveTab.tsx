@@ -23,11 +23,22 @@ import { parseUnits, formatUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCollateral, oracleStateLabel } from "@/hooks/market/helpers";
+import { oracleStateLabel } from "@/hooks/market/helpers";
 import { OracleState, COLLATERAL_DECIMALS } from "@/lib/contracts";
 import { TxStatus, type TxStatusProps } from "./TxStatus";
 
 const ONE = 1000000000000000000n;
+
+function formatTokenAmount(amount: bigint | undefined, decimals: number, full = false): string {
+  if (amount === undefined) return full ? "0" : "...";
+  const formatted = formatUnits(amount, decimals);
+  if (full) return formatted;
+  const value = Number(formatted);
+  if (!Number.isFinite(value)) return formatted;
+  if (value === 0) return "0";
+  if (value < 0.0001) return value.toExponential(2);
+  return value.toFixed(4);
+}
 
 interface ResolveTabProps {
   oracleState: OracleState | undefined;
@@ -46,10 +57,13 @@ interface ResolveTabProps {
   proposePrice: TxStatusProps & { propose: (price: bigint) => void };
   disputePrice: TxStatusProps & { dispute: () => void };
   settleOracle: TxStatusProps & { settleOracle: () => void };
-  settleOracleWithTimer: TxStatusProps & { settleOracle: () => void };
+  settleOracleWithTimer: TxStatusProps & { settleOracle: (targetTimestamp?: bigint) => void };
   isOracleSettlementRefreshing: boolean;
   settlePos: TxStatusProps & { settle: (longAmt: bigint, shortAmt: bigint) => void };
   adminSettlementEnabled: boolean;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  outcomeDecimals?: number | null;
 }
 
 export function ResolveTab({
@@ -73,11 +87,15 @@ export function ResolveTab({
   isOracleSettlementRefreshing,
   settlePos,
   adminSettlementEnabled,
+  collateralSymbol = "ARCT",
+  collateralDecimals = COLLATERAL_DECIMALS,
+  outcomeDecimals,
 }: ResolveTabProps) {
   const [longSettleAmt, setLongSettleAmt] = useState("");
   const [shortSettleAmt, setShortSettleAmt] = useState("");
   const [advancedClaimOpen, setAdvancedClaimOpen] = useState(false);
   const [disputeEscalated, setDisputeEscalated] = useState(false);
+  const tokenDecimals = outcomeDecimals ?? collateralDecimals;
 
   useEffect(() => {
     if (proposePrice.isSuccess) setDisputeEscalated(false);
@@ -125,6 +143,7 @@ export function ResolveTab({
     settleOracleWithTimer.isPending ||
     settleOracleWithTimer.isConfirming ||
     isOracleSettlementRefreshing;
+  const fastForwardSettleTime = expirationTime !== undefined ? expirationTime + 1n : undefined;
   const settlementPriceNumber = settlementPrice !== undefined ? Number(settlementPrice) / 1e18 : undefined;
   const longPaysOut = settlementPriceNumber !== undefined && settlementPriceNumber > 0;
   const shortPaysOut = settlementPriceNumber !== undefined && settlementPriceNumber < 1;
@@ -178,7 +197,7 @@ export function ResolveTab({
         <div className="space-y-3">
           <p className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
             No one has proposed a resolution yet. Propose YES (1e18), NO (0), or Undetermined (5e17).
-            Requires a bond of {bond !== undefined ? formatCollateral(bond) : "..."} ARCT.
+            Requires a bond of {bond !== undefined ? formatTokenAmount(bond, collateralDecimals) : "..."} {collateralSymbol}.
           </p>
           {isOracleAllowanceLoading ? (
             <Skeleton className="h-10 w-full rounded-md" />
@@ -187,12 +206,12 @@ export function ResolveTab({
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => approveArctForOO.approve(parseUnits("1000000", COLLATERAL_DECIMALS))}
+                onClick={() => approveArctForOO.approve(parseUnits("1000000", collateralDecimals))}
                 disabled={approveArctForOO.isPending || approveArctForOO.isConfirming}
               >
                 {approveArctForOO.isPending || approveArctForOO.isConfirming
                   ? "Approving..."
-                  : "Approve ARCT for Oracle"}
+                  : `Approve ${collateralSymbol} for Oracle`}
               </Button>
               <TxStatus {...approveArctForOO} />
             </>
@@ -259,12 +278,12 @@ export function ResolveTab({
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => approveArctForOO.approve(parseUnits("1000000", COLLATERAL_DECIMALS))}
+                onClick={() => approveArctForOO.approve(parseUnits("1000000", collateralDecimals))}
                 disabled={approveArctForOO.isPending || approveArctForOO.isConfirming}
               >
                 {approveArctForOO.isPending || approveArctForOO.isConfirming
                   ? "Approving..."
-                  : "Approve ARCT for Oracle"}
+                  : `Approve ${collateralSymbol} for Oracle`}
               </Button>
               <TxStatus {...approveArctForOO} />
             </>
@@ -272,7 +291,7 @@ export function ResolveTab({
             <>
               <Button
                 className="w-full"
-                onClick={() => settleOracleWithTimer.settleOracle()}
+                onClick={() => settleOracleWithTimer.settleOracle(fastForwardSettleTime)}
                 disabled={isSettleOracleWithTimerBusy}
               >
                 {isSettleOracleWithTimerBusy
@@ -290,6 +309,25 @@ export function ResolveTab({
             </>
           ) : (
             <>
+              <Button
+                className="w-full"
+                onClick={() => settleOracleWithTimer.settleOracle(fastForwardSettleTime)}
+                disabled={isSettleOracleWithTimerBusy || fastForwardSettleTime === undefined}
+              >
+                {isSettleOracleWithTimerBusy
+                  ? isOracleSettlementRefreshing
+                    ? "Finalizing Oracle..."
+                    : "Fast-forwarding..."
+                  : "Fast-forward + Settle Oracle"}
+              </Button>
+              <TxStatus {...settleOracleWithTimer} />
+              {isOracleSettlementRefreshing && (
+                <p className="text-xs font-bold text-[#FCD535]">
+                  Refreshing oracle state until settlement is fully reflected in the UI...
+                </p>
+              )}
+
+
               <Button
                 className="w-full text-[#F43F5E]"
                 variant="outline"
@@ -369,24 +407,24 @@ export function ResolveTab({
                   <p className="text-xs font-bold text-[#707A8A]">Claimable reward</p>
                   <div className="mt-2 grid gap-2 text-sm font-bold">
                     <div className="flex items-center justify-between gap-3">
-                      <span>ARCT payout</span>
-                      <span className="font-mono">{formatCollateral(payoutAmount)} ARCT</span>
+                      <span>{collateralSymbol} payout</span>
+                      <span className="font-mono">{formatTokenAmount(payoutAmount, collateralDecimals)} {collateralSymbol}</span>
                     </div>
                     {redeemableLong > 0n && (
                       <div className="flex items-center justify-between gap-3">
                         <span>YES tokens</span>
-                        <span className="font-mono">{formatCollateral(redeemableLong)} tokens</span>
+                        <span className="font-mono">{formatTokenAmount(redeemableLong, tokenDecimals)} tokens</span>
                       </div>
                     )}
                     {redeemableShort > 0n && (
                       <div className="flex items-center justify-between gap-3">
                         <span>NO tokens</span>
-                        <span className="font-mono">{formatCollateral(redeemableShort)} tokens</span>
+                        <span className="font-mono">{formatTokenAmount(redeemableShort, tokenDecimals)} tokens</span>
                       </div>
                     )}
                   </div>
                   <p className="mt-2 text-xs leading-5 text-[#707A8A]">
-                    Claim Reward redeems your winning YES/NO tokens for ARCT payout.
+                    Claim Reward redeems your winning YES/NO tokens for {collateralSymbol} payout.
                   </p>
                 </div>
 
@@ -419,14 +457,14 @@ export function ResolveTab({
                         <div>
                           <p className="mb-1 text-xs font-bold text-[#707A8A]">
                             Yes tokens
-                            <span className="float-right font-mono">{formatCollateral(redeemableLong)}</span>
+                            <span className="float-right font-mono">{formatTokenAmount(redeemableLong, tokenDecimals)}</span>
                           </p>
                           <div className="flex gap-2">
                             <Input
                               type="number"
                               placeholder="0"
                               min="0"
-                              max={formatCollateral(redeemableLong, true)}
+                              max={formatTokenAmount(redeemableLong, tokenDecimals, true)}
                               value={longSettleAmt}
                               onChange={(e) => {
                                 const raw = e.target.value;
@@ -434,9 +472,9 @@ export function ResolveTab({
                                   setLongSettleAmt(raw);
                                   return;
                                 }
-                                const parsed = parseUnits(raw, COLLATERAL_DECIMALS);
+                                const parsed = parseUnits(raw, tokenDecimals);
                                 if (parsed > redeemableLong) {
-                                  setLongSettleAmt(formatUnits(redeemableLong, COLLATERAL_DECIMALS));
+                                  setLongSettleAmt(formatUnits(redeemableLong, tokenDecimals));
                                 } else {
                                   setLongSettleAmt(raw);
                                 }
@@ -446,7 +484,7 @@ export function ResolveTab({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setLongSettleAmt(formatUnits(redeemableLong, COLLATERAL_DECIMALS))}
+                              onClick={() => setLongSettleAmt(formatUnits(redeemableLong, tokenDecimals))}
                             >
                               MAX
                             </Button>
@@ -457,14 +495,14 @@ export function ResolveTab({
                         <div>
                           <p className="mb-1 text-xs font-bold text-[#707A8A]">
                             No tokens
-                            <span className="float-right font-mono">{formatCollateral(redeemableShort)}</span>
+                            <span className="float-right font-mono">{formatTokenAmount(redeemableShort, tokenDecimals)}</span>
                           </p>
                           <div className="flex gap-2">
                             <Input
                               type="number"
                               placeholder="0"
                               min="0"
-                              max={formatCollateral(redeemableShort, true)}
+                              max={formatTokenAmount(redeemableShort, tokenDecimals, true)}
                               value={shortSettleAmt}
                               onChange={(e) => {
                                 const raw = e.target.value;
@@ -472,9 +510,9 @@ export function ResolveTab({
                                   setShortSettleAmt(raw);
                                   return;
                                 }
-                                const parsed = parseUnits(raw, COLLATERAL_DECIMALS);
+                                const parsed = parseUnits(raw, tokenDecimals);
                                 if (parsed > redeemableShort) {
-                                  setShortSettleAmt(formatUnits(redeemableShort, COLLATERAL_DECIMALS));
+                                  setShortSettleAmt(formatUnits(redeemableShort, tokenDecimals));
                                 } else {
                                   setShortSettleAmt(raw);
                                 }
@@ -484,7 +522,7 @@ export function ResolveTab({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setShortSettleAmt(formatUnits(redeemableShort, COLLATERAL_DECIMALS))}
+                              onClick={() => setShortSettleAmt(formatUnits(redeemableShort, tokenDecimals))}
                             >
                               MAX
                             </Button>
@@ -496,8 +534,8 @@ export function ResolveTab({
                     <Button
                       className="w-full text-[#22C55E]"
                       onClick={() => {
-                        const longVal = longSettleAmt ? parseUnits(longSettleAmt, COLLATERAL_DECIMALS) : 0n;
-                        const shortVal = shortSettleAmt ? parseUnits(shortSettleAmt, COLLATERAL_DECIMALS) : 0n;
+                        const longVal = longSettleAmt ? parseUnits(longSettleAmt, tokenDecimals) : 0n;
+                        const shortVal = shortSettleAmt ? parseUnits(shortSettleAmt, tokenDecimals) : 0n;
                         settlePos.settle(
                           longVal > redeemableLong ? redeemableLong : longVal,
                           shortVal > redeemableShort ? redeemableShort : shortVal,
