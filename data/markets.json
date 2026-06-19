@@ -1,5 +1,20 @@
 [
   {
+    "id": "v2-1781843629454",
+    "address": "0x0A5f315a286ed2027336d4725f83A7E48776a7f3",
+    "marketAddress": "0x0A5f315a286ed2027336d4725f83A7E48776a7f3",
+    "ammAddress": "0x2375fb6A586bFaD303bDd4d78Cc762accAa1417f",
+    "title": "Will the ARCM V2 USDC smoke test resolve YES?",
+    "category": "Test",
+    "createdAt": "2026-06-19T04:33:49.454Z",
+    "transactionHash": "0xfd0031f5942c55351564e30299a572f880eb887c6817960338b98edf88afd213",
+    "contractVersion": 2,
+    "collateralAddress": "0x3600000000000000000000000000000000000000",
+    "collateralSymbol": "USDC",
+    "collateralDecimals": 6,
+    "outcomeDecimals": 6
+  },
+  {
     "id": "user-1781603394647",
     "address": "0x054f910013002e833b97d7e0fe57b2996e09606d",
     "ammAddress": "0xb6aa30ad28f733e033c38717609fd2627060d8d1",
@@ -1920,4 +1935,3 @@
     "createdAt": "2026-06-15T09:06:24.806Z"
   }
 ]
-
