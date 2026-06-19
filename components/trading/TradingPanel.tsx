@@ -414,6 +414,8 @@ export function TradingPanel() {
             settlePos={settlePos}
             adminSettlementEnabled={adminSettlementEnabled}
             collateralSymbol={collateralSymbol}
+            collateralDecimals={collateralDecimals}
+            outcomeDecimals={outcomeDecimals}
           />
         )}
 
