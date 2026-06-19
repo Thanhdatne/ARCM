@@ -211,7 +211,7 @@ export function useSettleOracleWithTimer(
 
   const hasTimer = TIMER_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
-  const settleOracle = useCallback(async () => {
+  const settleOracle = useCallback(async (targetTimestamp?: bigint) => {
     if (!priceIdentifier || requestTimestamp === undefined || !ancillaryDataHex) return;
 
     setIsPending(true);
@@ -236,7 +236,7 @@ export function useSettleOracleWithTimer(
             data: encodeFunctionData({
               abi: TIMER_ABI,
               functionName: "setCurrentTime",
-              args: [BigInt(Math.floor(Date.now() / 1000))],
+              args: [targetTimestamp ?? BigInt(Math.floor(Date.now() / 1000))],
             }),
           });
         }
@@ -262,7 +262,7 @@ export function useSettleOracleWithTimer(
             address: TIMER_ADDRESS,
             abi: TIMER_ABI,
             functionName: "setCurrentTime",
-            args: [BigInt(Math.floor(Date.now() / 1000))],
+            args: [targetTimestamp ?? BigInt(Math.floor(Date.now() / 1000))],
           });
         }
 

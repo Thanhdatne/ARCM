@@ -57,7 +57,7 @@ interface ResolveTabProps {
   proposePrice: TxStatusProps & { propose: (price: bigint) => void };
   disputePrice: TxStatusProps & { dispute: () => void };
   settleOracle: TxStatusProps & { settleOracle: () => void };
-  settleOracleWithTimer: TxStatusProps & { settleOracle: () => void };
+  settleOracleWithTimer: TxStatusProps & { settleOracle: (targetTimestamp?: bigint) => void };
   isOracleSettlementRefreshing: boolean;
   settlePos: TxStatusProps & { settle: (longAmt: bigint, shortAmt: bigint) => void };
   adminSettlementEnabled: boolean;
@@ -143,6 +143,7 @@ export function ResolveTab({
     settleOracleWithTimer.isPending ||
     settleOracleWithTimer.isConfirming ||
     isOracleSettlementRefreshing;
+  const fastForwardSettleTime = expirationTime !== undefined ? expirationTime + 1n : undefined;
   const settlementPriceNumber = settlementPrice !== undefined ? Number(settlementPrice) / 1e18 : undefined;
   const longPaysOut = settlementPriceNumber !== undefined && settlementPriceNumber > 0;
   const shortPaysOut = settlementPriceNumber !== undefined && settlementPriceNumber < 1;
@@ -290,7 +291,7 @@ export function ResolveTab({
             <>
               <Button
                 className="w-full"
-                onClick={() => settleOracleWithTimer.settleOracle()}
+                onClick={() => settleOracleWithTimer.settleOracle(fastForwardSettleTime)}
                 disabled={isSettleOracleWithTimerBusy}
               >
                 {isSettleOracleWithTimerBusy
@@ -308,6 +309,25 @@ export function ResolveTab({
             </>
           ) : (
             <>
+              <Button
+                className="w-full"
+                onClick={() => settleOracleWithTimer.settleOracle(fastForwardSettleTime)}
+                disabled={isSettleOracleWithTimerBusy || fastForwardSettleTime === undefined}
+              >
+                {isSettleOracleWithTimerBusy
+                  ? isOracleSettlementRefreshing
+                    ? "Finalizing Oracle..."
+                    : "Fast-forwarding..."
+                  : "Fast-forward + Settle Oracle"}
+              </Button>
+              <TxStatus {...settleOracleWithTimer} />
+              {isOracleSettlementRefreshing && (
+                <p className="text-xs font-bold text-[#FCD535]">
+                  Refreshing oracle state until settlement is fully reflected in the UI...
+                </p>
+              )}
+
+
               <Button
                 className="w-full text-[#F43F5E]"
                 variant="outline"
