@@ -21,7 +21,7 @@
 import { useReadContracts } from "wagmi";
 import { hexToString } from "viem";
 import { type Address } from "viem";
-import { MARKET_ABI } from "@/lib/contracts/abis/market";
+import { MARKET_V2_ABI } from "@/lib/contracts";
 import { ERC20_ABI } from "@/lib/contracts/abis/erc20";
 import { useMarketAddress } from "@/contexts/MarketAddressContext";
 import { LIVE_STATE_REFETCH_INTERVAL } from "@/lib/wagmi";
@@ -32,19 +32,19 @@ export function useMarketState() {
 
   const { data, isLoading, refetch } = useReadContracts({
     contracts: [
-      { address: marketAddress, abi: MARKET_ABI, functionName: "pairName" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "customAncillaryData" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "priceRequested" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "receivedSettlementPrice" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "settlementPrice" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "longToken" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "shortToken" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "requestTimestamp" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "priceIdentifier" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "proposerReward" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "optimisticOracleProposerBond" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "optimisticOracleLivenessTime" },
-      { address: marketAddress, abi: MARKET_ABI, functionName: "collateralToken" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "pairName" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "customAncillaryData" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "priceRequested" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "receivedSettlementPrice" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "settlementPrice" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "longToken" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "shortToken" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "requestTimestamp" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "priceIdentifier" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "proposerReward" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "optimisticOracleProposerBond" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "optimisticOracleLivenessTime" },
+      { address: marketAddress, abi: MARKET_V2_ABI, functionName: "collateralToken" },
     ],
     query: {
       enabled: marketAddress !== "0x0000000000000000000000000000000000000000",
@@ -73,9 +73,11 @@ export function useMarketState() {
       { address: collateralAddress ?? marketAddress, abi: ERC20_ABI, functionName: "symbol" },
       { address: collateralAddress ?? marketAddress, abi: ERC20_ABI, functionName: "name" },
       { address: collateralAddress ?? marketAddress, abi: ERC20_ABI, functionName: "decimals" },
+      { address: longTokenAddress ?? marketAddress, abi: ERC20_ABI, functionName: "decimals" },
+      { address: shortTokenAddress ?? marketAddress, abi: ERC20_ABI, functionName: "decimals" },
     ],
     query: {
-      enabled: collateralAddress !== undefined,
+      enabled: collateralAddress !== undefined && longTokenAddress !== undefined && shortTokenAddress !== undefined,
       staleTime: 5 * 60_000,
     },
   });
@@ -83,6 +85,8 @@ export function useMarketState() {
   const symbolResult = collateralData?.[0]?.result;
   const nameResult = collateralData?.[1]?.result;
   const decimalsResult = collateralData?.[2]?.result;
+  const longDecimalsResult = collateralData?.[3]?.result;
+  const shortDecimalsResult = collateralData?.[4]?.result;
   const collateralSymbol =
     typeof symbolResult === "string" && symbolResult.trim()
       ? symbolResult.trim()
@@ -96,10 +100,17 @@ export function useMarketState() {
         ? "Arc Test Collateral"
         : configuredCollateral.name;
   const collateralDecimals =
-    typeof decimalsResult === "number" ? decimalsResult : configuredCollateral.decimals;
-  const collateralEnabled =
-    configuredCollateral.enabled && configuredCollateral.symbol === "ARCT";
-  const collateralWarning = configuredCollateral.warning || !collateralEnabled;
+    typeof decimalsResult === "number" && Number.isSafeInteger(decimalsResult)
+      ? decimalsResult
+      : configuredCollateral.decimals;
+  const outcomeDecimals =
+    typeof longDecimalsResult === "number" &&
+    Number.isSafeInteger(longDecimalsResult) &&
+    longDecimalsResult === shortDecimalsResult
+      ? longDecimalsResult
+      : null;
+  const collateralEnabled = configuredCollateral.enabled && !configuredCollateral.warning;
+  const collateralWarning = configuredCollateral.warning || !collateralEnabled || outcomeDecimals === null;
 
   let question: string | undefined;
   if (ancillaryDataHex) {
@@ -128,6 +139,7 @@ export function useMarketState() {
     collateralSymbol,
     collateralName,
     collateralDecimals,
+    outcomeDecimals,
     collateralEnabled,
     collateralWarning,
     isLoading: isLoading || (collateralAddress !== undefined && isCollateralLoading),

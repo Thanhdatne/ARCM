@@ -22,8 +22,6 @@ import { parseUnits, formatUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCollateral } from "@/hooks/market/helpers";
-import { COLLATERAL_DECIMALS } from "@/lib/contracts";
 import { TxStatus, type TxStatusProps } from "./TxStatus";
 import { OutcomeSelector } from "./OutcomeSelector";
 
@@ -36,13 +34,15 @@ interface BuyTabProps {
   onAmountChange: (a: string) => void;
   yesPrice?: number;
   noPrice?: number;
-  arctBalance: bigint | undefined;
+  collateralBalance: bigint | undefined;
   buyPreview: bigint | undefined;
   needsApproval: boolean;
   isAllowancesLoading: boolean;
-  approveArct: TxStatusProps & { approve: (amount: bigint) => void };
+  approveCollateral: TxStatusProps & { approve: (amount: bigint) => void };
   buyHook: TxStatusProps & { buy: (amount: string) => void };
   collateralSymbol?: string;
+  collateralDecimals: number;
+  outcomeDecimals: number;
 }
 
 export function BuyTab({
@@ -52,15 +52,22 @@ export function BuyTab({
   onAmountChange,
   yesPrice,
   noPrice,
-  arctBalance,
+  collateralBalance,
   buyPreview,
   needsApproval,
   isAllowancesLoading,
-  approveArct,
+  approveCollateral,
   buyHook,
   collateralSymbol = "ARCT",
+  collateralDecimals,
+  outcomeDecimals,
 }: BuyTabProps) {
-  const amountBigInt = amount ? parseUnits(amount, COLLATERAL_DECIMALS) : 0n;
+  let amountBigInt = 0n;
+  try {
+    amountBigInt = amount ? parseUnits(amount, collateralDecimals) : 0n;
+  } catch {
+    amountBigInt = 0n;
+  }
   const spotPrice = outcome === "yes" ? yesPrice : noPrice;
   const quickAmounts = ["10", "25", "50"];
 
@@ -68,7 +75,7 @@ export function BuyTab({
   let priceImpact: number | undefined;
 
   if (buyPreview !== undefined && amountBigInt > 0n) {
-    const tokensReceived = parseFloat(formatUnits(buyPreview, COLLATERAL_DECIMALS));
+    const tokensReceived = parseFloat(formatUnits(buyPreview, outcomeDecimals));
     const spent = parseFloat(amount);
     if (tokensReceived > 0) {
       avgPrice = spent / tokensReceived;
@@ -91,7 +98,7 @@ export function BuyTab({
         <div className="mb-2 flex items-center justify-between gap-3">
           <label className="text-xs font-bold text-[#707A8A]">Amount</label>
           <span className="text-xs text-[#707A8A]">
-            Balance <span className="font-mono font-bold text-[#EAECEF]">{formatCollateral(arctBalance)} {collateralSymbol}</span>
+            Balance <span className="font-mono font-bold text-[#EAECEF]">{collateralBalance !== undefined ? formatUnits(collateralBalance, collateralDecimals) : "0"} {collateralSymbol}</span>
           </span>
         </div>
         <div className="relative">
@@ -117,7 +124,7 @@ export function BuyTab({
             </button>
           ))}
           <button
-            onClick={() => onAmountChange(formatCollateral(arctBalance, true))}
+            onClick={() => onAmountChange(collateralBalance !== undefined ? formatUnits(collateralBalance, collateralDecimals) : "0")}
             className="preset-button focus-ring rounded-lg px-2 py-2 text-xs font-bold"
           >
             Max
@@ -130,7 +137,7 @@ export function BuyTab({
           <span className="text-[#707A8A]">Estimated receive</span>
           <span className="font-mono font-bold text-[#EAECEF]">
             {buyPreview !== undefined
-              ? `${parseFloat(formatUnits(buyPreview, COLLATERAL_DECIMALS)).toFixed(2)} ${outcome === "yes" ? "YES" : "NO"}`
+              ? `${parseFloat(formatUnits(buyPreview, outcomeDecimals)).toFixed(2)} ${outcome === "yes" ? "YES" : "NO"}`
               : `0 ${outcome === "yes" ? "YES" : "NO"}`}
           </span>
         </div>
@@ -160,15 +167,15 @@ export function BuyTab({
             className="focus-ring h-12 w-full rounded-xl border border-[#FCD535] bg-[#FCD535] text-base font-black text-[#181A20] hover:bg-[#F0B90B] active:translate-y-px disabled:cursor-not-allowed disabled:border-[#2B3139] disabled:bg-[#2B3139] disabled:text-[#707A8A]"
             variant="outline"
             onClick={() =>
-              approveArct.approve(parseUnits("1000000", COLLATERAL_DECIMALS))
+              approveCollateral.approve(amountBigInt)
             }
-            disabled={approveArct.isPending || approveArct.isConfirming}
+            disabled={amountBigInt <= 0n || approveCollateral.isPending || approveCollateral.isConfirming}
           >
-            {approveArct.isPending || approveArct.isConfirming
+            {approveCollateral.isPending || approveCollateral.isConfirming
               ? "Approving..."
               : `Approve ${collateralSymbol}`}
           </Button>
-          <TxStatus {...approveArct} />
+          <TxStatus {...approveCollateral} />
         </>
       ) : (
         <>
@@ -181,7 +188,7 @@ export function BuyTab({
             disabled={
               buyHook.isPending || buyHook.isConfirming ||
               !amount ||
-              parseFloat(amount) <= 0
+              amountBigInt <= 0n
             }
           >
             {buyHook.isPending || buyHook.isConfirming

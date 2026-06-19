@@ -22,8 +22,6 @@ import { parseUnits, formatUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCollateral } from "@/hooks/market/helpers";
-import { COLLATERAL_DECIMALS } from "@/lib/contracts";
 import { TxStatus, type TxStatusProps } from "./TxStatus";
 import { OutcomeSelector } from "./OutcomeSelector";
 
@@ -44,6 +42,8 @@ interface SellTabProps {
   approveHook: TxStatusProps & { approve: (amount: bigint) => void };
   sellHook: TxStatusProps & { sell: (amount: string) => void };
   collateralSymbol?: string;
+  collateralDecimals: number;
+  outcomeDecimals: number;
 }
 
 export function SellTab({
@@ -61,17 +61,24 @@ export function SellTab({
   approveHook,
   sellHook,
   collateralSymbol = "ARCT",
+  collateralDecimals,
+  outcomeDecimals,
 }: SellTabProps) {
   const selectedBalance = outcome === "yes" ? longBalance : shortBalance;
   const hasTokens = selectedBalance && selectedBalance > 0n;
-  const amountBigInt = amount ? parseUnits(amount, COLLATERAL_DECIMALS) : 0n;
+  let amountBigInt = 0n;
+  try {
+    amountBigInt = amount ? parseUnits(amount, outcomeDecimals) : 0n;
+  } catch {
+    amountBigInt = 0n;
+  }
   const spotPrice = outcome === "yes" ? yesPrice : noPrice;
 
   let avgPrice: number | undefined;
   let priceImpact: number | undefined;
 
   if (sellPreview !== undefined && amountBigInt > 0n) {
-    const received = parseFloat(formatUnits(sellPreview, COLLATERAL_DECIMALS));
+    const received = parseFloat(formatUnits(sellPreview, collateralDecimals));
     const tokensSpent = parseFloat(amount);
     if (tokensSpent > 0) {
       avgPrice = received / tokensSpent;
@@ -106,7 +113,7 @@ export function SellTab({
               <span className="text-xs text-[#707A8A]">
                 Balance{" "}
                 <span className="font-mono font-bold text-[#EAECEF]">
-                  {formatCollateral(selectedBalance)} {outcome === "yes" ? "YES" : "NO"}
+                  {selectedBalance !== undefined ? formatUnits(selectedBalance, outcomeDecimals) : "0"} {outcome === "yes" ? "YES" : "NO"}
                 </span>
               </span>
             </div>
@@ -115,7 +122,7 @@ export function SellTab({
               type="number"
               placeholder="0"
               min="0"
-              max={formatCollateral(selectedBalance, true)}
+              max={selectedBalance !== undefined ? formatUnits(selectedBalance, outcomeDecimals) : "0"}
               value={amount}
               onChange={(e) => {
                 const raw = e.target.value;
@@ -123,11 +130,15 @@ export function SellTab({
                   onAmountChange(raw);
                   return;
                 }
-                const parsed = parseUnits(raw, COLLATERAL_DECIMALS);
-                const safeMax = selectedBalance > 1n ? selectedBalance - 1n : selectedBalance;
-                if (parsed > safeMax) {
-                  onAmountChange(formatUnits(safeMax, COLLATERAL_DECIMALS));
-                } else {
+                try {
+                  const parsed = parseUnits(raw, outcomeDecimals);
+                  const safeMax = selectedBalance > 1n ? selectedBalance - 1n : selectedBalance;
+                  if (parsed > safeMax) {
+                    onAmountChange(formatUnits(safeMax, outcomeDecimals));
+                  } else {
+                    onAmountChange(raw);
+                  }
+                } catch {
                   onAmountChange(raw);
                 }
               }}
@@ -150,7 +161,7 @@ export function SellTab({
               <button
                 onClick={() => {
                   const safeMax = selectedBalance > 1n ? selectedBalance - 1n : selectedBalance;
-                  onAmountChange(formatUnits(safeMax, COLLATERAL_DECIMALS));
+                  onAmountChange(formatUnits(safeMax, outcomeDecimals));
                 }}
                 className="preset-button focus-ring rounded-lg px-2 py-2 text-xs font-bold"
               >
@@ -164,7 +175,7 @@ export function SellTab({
               <span className="text-[#707A8A]">Estimated receive</span>
               <span className="font-mono font-bold text-[#EAECEF]">
                 {sellPreview !== undefined
-                  ? `${parseFloat(formatUnits(sellPreview, COLLATERAL_DECIMALS)).toFixed(2)}`
+                  ? `${parseFloat(formatUnits(sellPreview, collateralDecimals)).toFixed(2)}`
                   : "0.00"} {collateralSymbol}
               </span>
             </div>
@@ -193,8 +204,8 @@ export function SellTab({
               <Button
                 className="focus-ring h-12 w-full rounded-xl border border-[#FCD535] bg-[#FCD535] text-base font-black text-[#181A20] hover:bg-[#F0B90B] active:translate-y-px disabled:cursor-not-allowed disabled:border-[#2B3139] disabled:bg-[#2B3139] disabled:text-[#707A8A]"
                 variant="outline"
-                onClick={() => approveHook.approve(parseUnits("1000000", COLLATERAL_DECIMALS))}
-                disabled={approveHook.isPending || approveHook.isConfirming}
+                onClick={() => approveHook.approve(amountBigInt)}
+                disabled={amountBigInt <= 0n || approveHook.isPending || approveHook.isConfirming}
               >
                 {approveHook.isPending || approveHook.isConfirming
                   ? "Approving..."
@@ -213,7 +224,7 @@ export function SellTab({
                 disabled={
                   sellHook.isPending || sellHook.isConfirming ||
                   !amount ||
-                  parseFloat(amount) <= 0
+                  amountBigInt <= 0n
                 }
               >
                 {sellHook.isPending || sellHook.isConfirming

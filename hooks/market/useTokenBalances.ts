@@ -27,16 +27,27 @@ import { useMarketAddress } from "@/contexts/MarketAddressContext";
 import { LIVE_STATE_REFETCH_INTERVAL } from "@/lib/wagmi";
 
 export function useTokenBalances(
-  longTokenAddress: Address | undefined,
-  shortTokenAddress: Address | undefined
+  collateralOrLongTokenAddress: Address | undefined,
+  longOrShortTokenAddress: Address | undefined,
+  maybeShortTokenAddress?: Address | undefined
 ) {
   const { address } = useWallet();
   const { marketAddress } = useMarketAddress();
+  const collateralAddress = maybeShortTokenAddress === undefined
+    ? ARCT_ADDRESS
+    : collateralOrLongTokenAddress;
+  const longTokenAddress = maybeShortTokenAddress === undefined
+    ? collateralOrLongTokenAddress
+    : longOrShortTokenAddress;
+  const shortTokenAddress = maybeShortTokenAddress === undefined
+    ? longOrShortTokenAddress
+    : maybeShortTokenAddress;
+  const isLegacyCall = maybeShortTokenAddress === undefined;
 
   const { data, isLoading, refetch } = useReadContracts({
     contracts: [
       {
-        address: ARCT_ADDRESS,
+        address: collateralAddress,
         abi: ERC20_ABI,
         functionName: "balanceOf",
         args: address ? [address] : undefined,
@@ -54,24 +65,26 @@ export function useTokenBalances(
         args: address ? [address] : undefined,
       },
       {
-        address: ARCT_ADDRESS,
+        address: collateralAddress,
         abi: ERC20_ABI,
         functionName: "allowance",
         args: address ? [address, marketAddress] : undefined,
       },
     ],
     query: {
-      enabled: !!address && !!longTokenAddress && !!shortTokenAddress,
+      enabled: !!address && !!collateralAddress && !!longTokenAddress && !!shortTokenAddress,
       refetchInterval: LIVE_STATE_REFETCH_INTERVAL,
       refetchIntervalInBackground: false,
     },
   });
 
   return {
-    arctBalance: data?.[0]?.result as bigint | undefined,
+    collateralBalance: data?.[0]?.result as bigint | undefined,
+    arctBalance: isLegacyCall ? data?.[0]?.result as bigint | undefined : undefined,
     longBalance: data?.[1]?.result as bigint | undefined,
     shortBalance: data?.[2]?.result as bigint | undefined,
-    arctAllowance: data?.[3]?.result as bigint | undefined,
+    collateralAllowance: data?.[3]?.result as bigint | undefined,
+    arctAllowance: isLegacyCall ? data?.[3]?.result as bigint | undefined : undefined,
     isLoading,
     refetch,
   };
