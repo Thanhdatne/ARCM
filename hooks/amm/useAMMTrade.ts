@@ -33,6 +33,10 @@ function safeParseAmount(amount: string, decimals: number | null): bigint | null
   }
 }
 
+function defaultDeadline(): bigint {
+  return BigInt(Math.floor(Date.now() / 1000) + 10 * 60);
+}
+
 export function useBuyYes(collateralDecimals: number) {
   const { write, isPending, isConfirming, isSuccess, error, hash } = useContractWrite();
   const { ammAddress } = useMarketAddress();
@@ -44,7 +48,7 @@ export function useBuyYes(collateralDecimals: number) {
       address: ammAddress,
       abi: AMM_V2_ABI,
       functionName: "buyYes",
-      args: [parsed],
+      args: [parsed, 0n, defaultDeadline()],
     });
   };
 
@@ -62,7 +66,7 @@ export function useBuyNo(collateralDecimals: number) {
       address: ammAddress,
       abi: AMM_V2_ABI,
       functionName: "buyNo",
-      args: [parsed],
+      args: [parsed, 0n, defaultDeadline()],
     });
   };
 
@@ -80,7 +84,7 @@ export function useSellYes(outcomeDecimals: number | null) {
       address: ammAddress,
       abi: AMM_V2_ABI,
       functionName: "sellYes",
-      args: [parsed],
+      args: [parsed, 0n, defaultDeadline()],
     });
   };
 
@@ -98,7 +102,7 @@ export function useSellNo(outcomeDecimals: number | null) {
       address: ammAddress,
       abi: AMM_V2_ABI,
       functionName: "sellNo",
-      args: [parsed],
+      args: [parsed, 0n, defaultDeadline()],
     });
   };
 
