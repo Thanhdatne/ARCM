@@ -295,11 +295,17 @@ export default function AdminMarketsPage() {
       .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
   }, [worldCupResults]);
 
-  const visibleFinalResults = useMemo(() => {
+  const deployedFinalResults = useMemo(() => {
     return finalResults.filter((result) => (
-      resolverStatuses[result.fixtureId]?.status !== "settled"
+      resolverStatuses[result.fixtureId]?.status !== "notDeployed"
     ));
   }, [finalResults, resolverStatuses]);
+
+  const visibleFinalResults = useMemo(() => {
+    return deployedFinalResults.filter((result) => (
+      resolverStatuses[result.fixtureId]?.status !== "settled"
+    ));
+  }, [deployedFinalResults, resolverStatuses]);
 
   const deploymentsByFixture = useMemo(() => {
     const grouped: Record<string, WorldCupDeployment[]> = {};
@@ -322,7 +328,8 @@ export default function AdminMarketsPage() {
     return grouped;
   }, [worldCupDeployments]);
 
-  const settledFixtureCount = finalResults.length - visibleFinalResults.length;
+  const hiddenNotDeployedCount = finalResults.length - deployedFinalResults.length;
+  const settledFixtureCount = deployedFinalResults.length - visibleFinalResults.length;
   const readyToSettleCount = visibleFinalResults.filter((result) => (
     resolverStatuses[result.fixtureId]?.status === "readyToSettle"
   )).length;
@@ -456,6 +463,12 @@ export default function AdminMarketsPage() {
                   {settledFixtureCount} settled hidden
                 </span>
               ) : null}
+
+              {hiddenNotDeployedCount > 0 ? (
+                <span className="rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 py-2 text-xs font-bold text-[#707A8A]">
+                  {hiddenNotDeployedCount} not deployed hidden
+                </span>
+              ) : null}
             </div>
 
             {!adminKey.trim() ? (
@@ -479,7 +492,7 @@ export default function AdminMarketsPage() {
 
               {!resultsLoading && visibleFinalResults.length === 0 ? (
                 <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-sm font-bold text-[#707A8A]">
-                  No unresolved final fixtures. Settled fixtures are hidden.
+                  No unresolved deployed final fixtures. Settled and undeployed fixtures are hidden.
                 </div>
               ) : null}
 
