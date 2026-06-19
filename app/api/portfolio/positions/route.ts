@@ -8,7 +8,7 @@ import {
   type Address,
 } from "viem";
 import { arcTestnet } from "@/lib/chain";
-import { ARCT_ADDRESS, COLLATERAL_DECIMALS } from "@/lib/contracts";
+import { COLLATERAL_DECIMALS } from "@/lib/contracts";
 import { ERC20_ABI } from "@/lib/contracts/abis/erc20";
 import {
   formatTokenAmount,
@@ -79,22 +79,6 @@ interface WorldCupDeployment {
   outcomeDecimals?: number;
 }
 
-interface DynamicMarket {
-  id?: string;
-  title?: string;
-  question?: string;
-  address?: string;
-  marketAddress?: string;
-  ammAddress?: string;
-  isReal?: boolean;
-  contractVersion?: number;
-  contract_version?: number;
-  collateralAddress?: string;
-  collateralSymbol?: string;
-  collateralDecimals?: number;
-  outcomeDecimals?: number;
-}
-
 interface PortfolioPosition {
   id: string;
   fixtureId?: string;
@@ -140,28 +124,6 @@ function validAddress(value: string | null | undefined): value is Address {
   return Boolean(value && isAddress(value));
 }
 
-function normalizeDynamicMarket(item: DynamicMarket): WorldCupDeployment | null {
-  const marketAddress = item.marketAddress || item.address;
-  const ammAddress = item.ammAddress;
-
-  if (!validAddress(marketAddress) || !validAddress(ammAddress)) return null;
-
-  return {
-    worldCupMarketId: item.id || marketAddress,
-    fixtureId: "dynamic",
-    group: "Market",
-    question: item.question || item.title || "Prediction market",
-    outcomeType: "dynamic",
-    marketAddress,
-    ammAddress,
-    contractVersion: item.contractVersion ?? item.contract_version ?? 1,
-    collateralAddress: item.collateralAddress,
-    collateralSymbol: item.collateralSymbol,
-    collateralDecimals: item.collateralDecimals,
-    outcomeDecimals: item.outcomeDecimals,
-  };
-}
-
 async function readDeployments() {
   const supabase = getSupabaseAdmin();
 
@@ -196,19 +158,6 @@ async function readDeployments() {
   );
 
   return Array.isArray(parsed) ? parsed : Object.values(parsed);
-}
-
-function readDynamicMarkets() {
-  const parsed = readJsonFile<DynamicMarket[] | Record<string, DynamicMarket>>(
-    "markets.json",
-    [],
-  );
-
-  const markets = Array.isArray(parsed) ? parsed : Object.values(parsed);
-
-  return markets
-    .map(normalizeDynamicMarket)
-    .filter(Boolean) as WorldCupDeployment[];
 }
 
 async function mapLimit<T, R>(
@@ -279,27 +228,13 @@ export async function GET(request: Request) {
     transport: http(rpcUrl),
   });
 
-  const allDeployments = uniqueDeployments([
-    ...(await readDeployments()),
-    ...readDynamicMarkets(),
-  ]);
-  const hideLegacy = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
-  const deployments = hideLegacy
-    ? allDeployments.filter((deployment) => contractVersionOf(deployment) === 2)
-    : allDeployments;
+  const deployments = uniqueDeployments(await readDeployments()).filter(
+    (deployment) => contractVersionOf(deployment) === 2,
+  );
 
   let failed = 0;
 
-  const arctBalance = !hideLegacy && validAddress(ARCT_ADDRESS)
-    ? await publicClient
-        .readContract({
-          address: ARCT_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [wallet],
-        })
-        .catch(() => 0n)
-    : 0n;
+  const arctBalance = 0n;
 
   const scanned = await mapLimit(deployments, CONCURRENCY, async (deployment) => {
     try {
@@ -313,13 +248,11 @@ export async function GET(request: Request) {
         shortToken,
       ] =
         await Promise.all([
-          publicClient
-            .readContract({
-              address: marketAddress,
-              abi: MARKET_ABI,
-              functionName: "collateralToken",
-            })
-            .catch(() => ARCT_ADDRESS),
+          publicClient.readContract({
+            address: marketAddress,
+            abi: MARKET_ABI,
+            functionName: "collateralToken",
+          }),
           publicClient.readContract({
             address: marketAddress,
             abi: MARKET_ABI,
@@ -344,8 +277,8 @@ export async function GET(request: Request) {
 
       const longTokenAddress = longToken as Address;
       const shortTokenAddress = shortToken as Address;
-      const collateralAddress =
-        normalizeAddress(collateralToken as Address) ?? ARCT_ADDRESS;
+      const collateralAddress = normalizeAddress(collateralToken as Address);
+      if (!collateralAddress) return null;
       const configuredCollateral = getCollateralMetadataByAddress(collateralAddress);
 
       if (
@@ -362,6 +295,7 @@ export async function GET(request: Request) {
         collateralSymbolRaw,
         collateralNameRaw,
         collateralDecimalsRaw,
+        outcomeDecimalsRaw,
       ] = await Promise.all([
         publicClient.readContract({
           address: longTokenAddress,
@@ -404,6 +338,13 @@ export async function GET(request: Request) {
             functionName: "decimals",
           })
           .catch(() => configuredCollateral.decimals),
+        publicClient
+          .readContract({
+            address: longTokenAddress,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          })
+          .catch(() => deployment.outcomeDecimals ?? configuredCollateral.decimals),
       ]);
 
       const yesBalance = yesBalanceRaw as bigint;
@@ -426,6 +367,13 @@ export async function GET(request: Request) {
         configuredCollateral.name,
         64,
       );
+      const outcomeDecimals =
+        typeof outcomeDecimalsRaw === "number" &&
+        Number.isInteger(outcomeDecimalsRaw) &&
+        outcomeDecimalsRaw >= 0 &&
+        outcomeDecimalsRaw <= 255
+          ? outcomeDecimalsRaw
+          : collateralDecimals;
 
       if (yesBalance <= 0n && noBalance <= 0n) return null;
 
@@ -470,7 +418,7 @@ export async function GET(request: Request) {
         ),
         collateralWarning: configuredCollateral.warning,
         contractVersion: contractVersionOf(deployment),
-        outcomeDecimals: deployment.outcomeDecimals ?? collateralDecimals,
+        outcomeDecimals,
       } satisfies PortfolioPosition;
     } catch {
       failed += 1;

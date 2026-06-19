@@ -7,12 +7,7 @@ import { type Address } from "viem";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/contexts/WalletContext";
-import {
-  formatCollateral,
-  formatTokenDisplayAmount,
-} from "@/hooks/market/helpers";
-
-const hideLegacyV1 = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
+import { formatTokenDisplayAmount } from "@/hooks/market/helpers";
 
 interface PortfolioPosition {
   id: string;
@@ -34,6 +29,7 @@ interface PortfolioPosition {
   collateralBalance?: string;
   collateralBalanceFormatted?: string;
   collateralWarning?: boolean;
+  outcomeDecimals?: number;
 }
 
 interface PortfolioResponse {
@@ -112,7 +108,7 @@ export default function PortfolioPage() {
         <div className="flex flex-col gap-5 p-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              {["Portfolio", "Arc Testnet", hideLegacyV1 ? "V2" : "ARCT"].map((badge) => (
+              {["Portfolio", "Arc Testnet", "V2 USDC"].map((badge) => (
                 <Badge
                   key={badge}
                   variant="outline"
@@ -146,16 +142,7 @@ export default function PortfolioPage() {
       </section>
 
       <section className="grid gap-3 md:grid-cols-3">
-        <OverviewCard
-          label={hideLegacyV1 ? "Default collateral" : "ARCT balance"}
-          value={
-            hideLegacyV1
-              ? "USDC · gated"
-              : walletReady
-                ? `${formatCollateral(BigInt(portfolio?.arctBalance ?? "0"))} ARCT`
-                : "Connect wallet"
-          }
-        />
+        <OverviewCard label="World Cup V2 collateral" value="USDC" />
         <OverviewCard
           label="Markets with positions"
           value={walletReady ? `${marketsWithPositions}` : "Connect wallet"}
@@ -227,8 +214,9 @@ function PositionRow({
   const yesBalance = BigInt(position.yesBalance);
   const noBalance = BigInt(position.noBalance);
   const claimablePayout = BigInt(position.claimablePayout);
-  const decimals = position.collateralDecimals ?? (hideLegacyV1 ? 6 : 18);
-  const collateralSymbol = position.collateralSymbol ?? (hideLegacyV1 ? "USDC" : "ARCT");
+  const collateralDecimals = position.collateralDecimals ?? 6;
+  const outcomeDecimals = position.outcomeDecimals ?? collateralDecimals;
+  const collateralSymbol = position.collateralSymbol ?? "USDC";
 
   return (
     <article className="terminal-card p-3">
@@ -264,7 +252,7 @@ function PositionRow({
               <span>
                 YES{" "}
                 <span className="font-mono font-bold text-[#0ECB81]">
-                  {formatTokenDisplayAmount(yesBalance, decimals)}
+                  {formatTokenDisplayAmount(yesBalance, outcomeDecimals)}
                 </span>
               </span>
             )}
@@ -272,7 +260,7 @@ function PositionRow({
               <span>
                 NO{" "}
                 <span className="font-mono font-bold text-[#F6465D]">
-                  {formatTokenDisplayAmount(noBalance, decimals)}
+                  {formatTokenDisplayAmount(noBalance, outcomeDecimals)}
                 </span>
               </span>
             )}
@@ -283,7 +271,7 @@ function PositionRow({
                   {position.claimablePayoutFormatted ??
                     formatTokenDisplayAmount(
                       claimablePayout,
-                      decimals,
+                      collateralDecimals,
                     )}{" "}
                   {collateralSymbol}
                 </span>
@@ -293,11 +281,11 @@ function PositionRow({
         </div>
 
         <div className="flex gap-2 lg:justify-end">
-          <Link className="interactive-link w-fit text-xs" href={`/market/${position.address}`}>
-            Open detail
+          <Link className="interactive-link w-fit text-xs" href={`/market/${position.address}?tab=resolve`}>
+            Open Resolve
           </Link>
           {settled && claimablePayout > 0n && (
-            <Link className="interactive-link w-fit text-xs" href="/claims">
+            <Link className="interactive-link w-fit text-xs" href={`/market/${position.address}?tab=resolve`}>
               Claim
             </Link>
           )}

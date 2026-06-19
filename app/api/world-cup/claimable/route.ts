@@ -10,10 +10,8 @@ import { arcTestnet } from "@/lib/chain";
 import {
   formatTokenAmount,
   getCollateralMetadataByAddress,
-  getDefaultCollateral,
   normalizeAddress,
 } from "@/lib/collateral";
-import { ARCT_ADDRESS } from "@/lib/contracts";
 import { ERC20_ABI } from "@/lib/contracts/abis/erc20";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -24,7 +22,6 @@ export const maxDuration = 300;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ONE = 1000000000000000000n;
 const CONCURRENCY = 10;
-const CACHE_TTL_MS = 10 * 60 * 1000;
 
 const MARKET_ABI = [
   {
@@ -239,92 +236,6 @@ async function mapLimit<T, R>(
   return results;
 }
 
-function cacheRowToMarket(row: any): ClaimableMarket {
-  // The existing cache schema predates per-market collateral metadata. Current
-  // cached markets are ARCT-only; a forced refresh performs the onchain read.
-  const collateral = getDefaultCollateral();
-  const payoutAmount = String(row.payout_amount);
-
-  return {
-    id: row.world_cup_market_id || row.market_address,
-    fixtureId: row.fixture_id,
-    group: row.group,
-    title: row.title,
-    address: row.market_address,
-    ammAddress: row.amm_address,
-    winningSide: row.winning_side,
-    claimLongAmount: String(row.claim_long_amount),
-    claimShortAmount: String(row.claim_short_amount),
-    payoutAmount,
-    payoutAmountFormatted: formatTokenAmount(
-      BigInt(payoutAmount),
-      collateral.decimals,
-    ),
-    yesBalance: String(row.yes_balance),
-    noBalance: String(row.no_balance),
-    collateralAddress: collateral.address ?? ZERO_ADDRESS,
-    collateralSymbol: collateral.symbol,
-    collateralName: collateral.name,
-    collateralDecimals: collateral.decimals,
-    collateralWarning: collateral.address === null,
-    contractVersion: 1,
-    outcomeDecimals: collateral.decimals,
-  };
-}
-
-async function readFreshCache(wallet: Address) {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) return null;
-
-  const cutoff = new Date(Date.now() - CACHE_TTL_MS).toISOString();
-
-  const { data, error } = await supabase
-    .from("claimable_cache")
-    .select("*")
-    .eq("wallet_address", wallet.toLowerCase())
-    .eq("claimed", false)
-    .gt("payout_amount", "0")
-    .gt("updated_at", cutoff)
-    .order("updated_at", { ascending: false });
-
-  if (error || !data || data.length === 0) return null;
-
-  return data.map(cacheRowToMarket);
-}
-
-async function writeCache(wallet: Address, markets: ClaimableMarket[]) {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) return;
-
-  await supabase
-    .from("claimable_cache")
-    .delete()
-    .eq("wallet_address", wallet.toLowerCase());
-
-  if (!markets.length) return;
-
-  await supabase.from("claimable_cache").upsert(
-    markets.map((market) => ({
-      wallet_address: wallet.toLowerCase(),
-      market_address: market.address.toLowerCase(),
-      amm_address: market.ammAddress.toLowerCase(),
-      world_cup_market_id: market.id,
-      fixture_id: market.fixtureId,
-      group: market.group,
-      title: market.title,
-      winning_side: market.winningSide,
-      claim_long_amount: market.claimLongAmount,
-      claim_short_amount: market.claimShortAmount,
-      payout_amount: market.payoutAmount,
-      yes_balance: market.yesBalance,
-      no_balance: market.noBalance,
-      claimed: false,
-      updated_at: new Date().toISOString(),
-    })),
-    { onConflict: "wallet_address,market_address" },
-  );
-}
-
 function formatBigInt(value: bigint) {
   return value.toString();
 }
@@ -338,7 +249,6 @@ function tokenText(value: unknown, fallback: string, maxLength: number) {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const wallet = url.searchParams.get("address");
-  const refresh = url.searchParams.get("refresh") === "1";
 
   if (!validAddress(wallet)) {
     return NextResponse.json(
@@ -351,28 +261,6 @@ export async function GET(request: Request) {
       },
       { status: 400 },
     );
-  }
-
-  const hideLegacy = process.env.NEXT_PUBLIC_HIDE_LEGACY_V1 === "true";
-
-  if (!refresh && !hideLegacy) {
-    const cachedMarkets = await readFreshCache(wallet);
-    if (cachedMarkets) {
-      return NextResponse.json(
-        {
-          success: true,
-          source: "supabase_cache",
-          scanned: 0,
-          settled: 0,
-          failed: 0,
-          withWinningBalance: cachedMarkets.length,
-          markets: cachedMarkets,
-        },
-        {
-          headers: { "Cache-Control": "no-store" },
-        },
-      );
-    }
   }
 
   const rpcUrl =
@@ -394,7 +282,7 @@ export async function GET(request: Request) {
     .filter((deployment) => (
       validAddress(deployment.marketAddress) &&
       validAddress(deployment.ammAddress) &&
-      (!hideLegacy || contractVersionOf(deployment) === 2) &&
+      contractVersionOf(deployment) === 2 &&
       (finalFixtureIds.size === 0 || finalFixtureIds.has(deployment.fixtureId))
     ))
     .sort((a, b) =>
@@ -416,13 +304,11 @@ export async function GET(request: Request) {
         shortToken,
       ] =
         await Promise.all([
-          publicClient
-            .readContract({
-              address: marketAddress,
-              abi: MARKET_ABI,
-              functionName: "collateralToken",
-            })
-            .catch(() => ARCT_ADDRESS),
+          publicClient.readContract({
+            address: marketAddress,
+            abi: MARKET_ABI,
+            functionName: "collateralToken",
+          }),
           publicClient.readContract({
             address: marketAddress,
             abi: MARKET_ABI,
@@ -452,8 +338,8 @@ export async function GET(request: Request) {
       const settlementPrice = settlementPriceRaw as bigint;
       const longTokenAddress = longToken as Address;
       const shortTokenAddress = shortToken as Address;
-      const collateralAddress =
-        normalizeAddress(collateralToken as Address) ?? ARCT_ADDRESS;
+      const collateralAddress = normalizeAddress(collateralToken as Address);
+      if (!collateralAddress) return null;
       const configuredCollateral = getCollateralMetadataByAddress(collateralAddress);
 
       if (
@@ -469,6 +355,7 @@ export async function GET(request: Request) {
         collateralSymbolRaw,
         collateralNameRaw,
         collateralDecimalsRaw,
+        outcomeDecimalsRaw,
       ] = await Promise.all([
         publicClient.readContract({
           address: longTokenAddress,
@@ -503,6 +390,13 @@ export async function GET(request: Request) {
             functionName: "decimals",
           })
           .catch(() => configuredCollateral.decimals),
+        publicClient
+          .readContract({
+            address: longTokenAddress,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          })
+          .catch(() => deployment.outcomeDecimals ?? configuredCollateral.decimals),
       ]);
 
       const longBalance = longBalanceRaw as bigint;
@@ -524,6 +418,13 @@ export async function GET(request: Request) {
         configuredCollateral.name,
         64,
       );
+      const outcomeDecimals =
+        typeof outcomeDecimalsRaw === "number" &&
+        Number.isInteger(outcomeDecimalsRaw) &&
+        outcomeDecimalsRaw >= 0 &&
+        outcomeDecimalsRaw <= 255
+          ? outcomeDecimalsRaw
+          : collateralDecimals;
 
       const claimLongAmount = settlementPrice > 0n ? longBalance : 0n;
       const claimShortAmount = settlementPrice < ONE ? shortBalance : 0n;
@@ -556,7 +457,7 @@ export async function GET(request: Request) {
         collateralDecimals,
         collateralWarning: configuredCollateral.warning,
         contractVersion: contractVersionOf(deployment),
-        outcomeDecimals: deployment.outcomeDecimals ?? collateralDecimals,
+        outcomeDecimals,
       } satisfies ClaimableMarket;
     } catch {
       failed += 1;
@@ -565,8 +466,6 @@ export async function GET(request: Request) {
   });
 
   const markets = scannedMarkets.filter(Boolean) as ClaimableMarket[];
-
-  await writeCache(wallet, markets);
 
   return NextResponse.json(
     {
