@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -523,7 +523,6 @@ const countryFlagCodes: Record<string, string> = {
   "Tunisia": "tn",
   "Turkey": "tr",
   "Turkiye": "tr",
-  "TÃ¼rkiye": "tr",
   "Ukraine": "ua",
   "United States": "us",
   "USA": "us",
@@ -548,7 +547,7 @@ function getCountryFlagCode(team: string) {
   const normalizedKey = normalized
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[â€™']/g, "")
+    .replace(/[\u2019']/g, "")
     .toLowerCase();
 
   const aliasMap: Record<string, string> = {
@@ -731,7 +730,7 @@ function WorldCupMatchupHeader({
         <WorldCupTeamLabel align="right" team={awayTeam} />
       </div>
       <p className="mt-2 truncate text-center text-[11px] font-semibold text-[#707A8A]">
-        World Cup Â· {group}
+        World Cup / {group}
       </p>
     </div>
   );
@@ -1155,7 +1154,7 @@ function HomeContent() {
               <h2 className="text-lg font-bold text-[#EAECEF]">Markets</h2>
               <p className="mt-1 text-xs text-[#707A8A]">
                 {marketSearchQuery
-                  ? `Showing open markets matching â€œ${marketSearchQuery}â€.`
+                  ? `Showing open markets matching "${marketSearchQuery}"`
                   : "Showing open markets on Arc Testnet."}
               </p>
             </div>
@@ -1416,7 +1415,7 @@ function WorldCupDateSections({
                 <h3 className="text-sm font-black text-[#EAECEF]">{group.dateLabel}</h3>
               </div>
               <p className="mt-1 text-xs text-[#707A8A]">
-                {group.fixtures.length} fixture{group.fixtures.length === 1 ? "" : "s"} Â· sorted by kickoff time
+                {group.fixtures.length} fixture{group.fixtures.length === 1 ? "" : "s"} / sorted by kickoff time
               </p>
             </div>
             <span className="text-xs font-semibold text-[#707A8A]">UTC schedule</span>
@@ -2195,7 +2194,7 @@ function FilteredMarketEmptyState({
       <h3 className="text-lg font-bold text-[#EAECEF]">No markets found</h3>
       <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#707A8A]">
         {searchQuery
-          ? `No open markets match â€œ${searchQuery}â€. Try another team, draw, group, category, or market address.`
+          ? `No open markets match "${searchQuery}"`
           : `No open markets are available for ${activeCategory} / ${activeFilter} yet.`}
       </p>
       <p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-[#707A8A]">
