@@ -295,7 +295,7 @@ function buildWorldCupFixtureCards(
 
       const fixtureLead = orderedMarkets[0];
       const result = resultsByFixture[fixtureLead.fixtureId];
-      const isCompleted = result?.status === "final" || result?.status === "cancelled";
+      const isCompleted = isWorldCupResultClosed(result);
       const normalizedProbabilities = normalizeFixtureProbabilities(orderedMarkets);
 
       return {
@@ -430,6 +430,34 @@ function groupFixturesByDate(fixtures: WorldCupFixtureCardData[]) {
 
     return groups;
   }, []);
+}
+
+function getWorldCupKickoffMs(kickoffTime: string) {
+  const parsed = new Date(kickoffTime).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function hasWorldCupFixtureStarted(kickoffTime: string, nowMs: number | null) {
+  if (nowMs === null) return false;
+
+  const kickoffMs = getWorldCupKickoffMs(kickoffTime);
+  return kickoffMs !== null && kickoffMs <= nowMs;
+}
+
+function isWorldCupResultClosed(result?: WorldCupResultRecord) {
+  return result?.status === "final" || result?.status === "cancelled";
+}
+
+function getWorldCupDeployBlockReason(
+  market: WorldCupMarket,
+  resultsByFixture: Record<string, WorldCupResultRecord>,
+  nowMs: number | null,
+) {
+  if (market.marketAddress && market.ammAddress) return "Already deployed";
+  if (isWorldCupResultClosed(resultsByFixture[market.fixtureId])) return "Fixture completed";
+  if (hasWorldCupFixtureStarted(market.kickoffTime, nowMs)) return "Fixture already started";
+
+  return null;
 }
 
 
@@ -735,6 +763,7 @@ function HomeContent() {
   const [adminKey, setAdminKey] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("All");
   const [activeMarketFilter, setActiveMarketFilter] = useState<MarketViewFilter>("Featured");
+  const [clientNowMs, setClientNowMs] = useState<number | null>(null);
 
   const fetchDynamicMarkets = useCallback(async () => {
     try {
@@ -780,6 +809,15 @@ function HomeContent() {
 
   useEffect(() => {
     setAdminKey(window.localStorage.getItem("ARCM-admin-key") ?? "");
+  }, []);
+
+  useEffect(() => {
+    const updateClientNow = () => setClientNowMs(Date.now());
+
+    updateClientNow();
+    const intervalId = window.setInterval(updateClientNow, 60_000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   const onchainMarkets = [
@@ -874,10 +912,10 @@ function HomeContent() {
   const visibleWorldCupMarkets = worldCupMarkets.filter(
     (market) => selectedWorldCupGroup === "All" || market.group === selectedWorldCupGroup,
   );
-  const undeployedVisibleWorldCupMarkets = visibleWorldCupMarkets.filter(
-    (market) => !deployedWorldCupMarkets[market.id],
+  const deployableVisibleWorldCupMarkets = visibleWorldCupMarkets.filter(
+    (market) => !getWorldCupDeployBlockReason(market, worldCupResultsByFixture, clientNowMs),
   );
-  const nextFixtureWorldCupMarkets = undeployedVisibleWorldCupMarkets.slice(0, 3);
+  const nextFixtureWorldCupMarkets = deployableVisibleWorldCupMarkets.slice(0, 3);
   const deployedWorldCupMarketsForSettlement = worldCupMarkets.filter((market) => market.marketAddress && market.ammAddress);
   const visibleSettlementMarkets = deployedWorldCupMarketsForSettlement.filter(
     (market) => selectedWorldCupGroup === "All" || market.group === selectedWorldCupGroup,
@@ -888,7 +926,11 @@ function HomeContent() {
     }
     return acc;
   }, []);
-  const selectedWorldCupMarkets = visibleWorldCupMarkets.filter((market) => selectedWorldCupMarketIds.includes(market.id));
+  const selectedWorldCupMarkets = visibleWorldCupMarkets.filter(
+    (market) =>
+      selectedWorldCupMarketIds.includes(market.id) &&
+      !getWorldCupDeployBlockReason(market, worldCupResultsByFixture, clientNowMs),
+  );
   const selectedSafeWorldCupMarkets = selectedWorldCupMarkets.slice(0, 3);
 
   const deployWorldCupMarkets = useCallback(
@@ -898,12 +940,36 @@ function HomeContent() {
       const uniqueMarkets = marketsToDeploy.filter(
         (market, index, source) => source.findIndex((item) => item.id === market.id) === index,
       );
+      const deployCheckNowMs = Date.now();
+      const deployableMarkets = uniqueMarkets.filter(
+        (market) => !getWorldCupDeployBlockReason(market, worldCupResultsByFixture, deployCheckNowMs),
+      );
+      const blockedMarkets = uniqueMarkets.filter((market) => !deployableMarkets.some((item) => item.id === market.id));
+
+      if (blockedMarkets.length > 0) {
+        setBulkDeployStatuses((current) => {
+          const next = { ...current };
+
+          for (const market of blockedMarkets) {
+            next[market.id] = {
+              state: "skipped",
+              message:
+                getWorldCupDeployBlockReason(market, worldCupResultsByFixture, deployCheckNowMs) ??
+                "Skipped: fixture already started or completed.",
+            };
+          }
+
+          return next;
+        });
+      }
+
+      if (deployableMarkets.length === 0) return;
 
       if (!adminKey.trim()) {
         setBulkDeployStatuses((current) => {
           const next = { ...current };
 
-          for (const market of uniqueMarkets) {
+          for (const market of deployableMarkets) {
             next[market.id] = {
               state: "failed",
               message: "Admin deploy key missing. Save it in /admin/markets first.",
@@ -918,7 +984,7 @@ function HomeContent() {
       setIsBulkDeploying(true);
 
       try {
-        for (const market of uniqueMarkets) {
+        for (const market of deployableMarkets) {
           if (market.marketAddress && market.ammAddress) {
             setBulkDeployStatuses((current) => ({
               ...current,
@@ -952,9 +1018,9 @@ function HomeContent() {
                   fixtureId: market.fixtureId,
                   group: market.group,
                   outcomeType: market.outcomeType,
-                  proposerReward: "1",
-                  proposerBond: "1",
-                  initialLiquidity: "1",
+                  proposerReward: "0.2",
+                  proposerBond: "0.2",
+                  initialLiquidity: "0.2",
                 }),
               });
               const data = (await response.json()) as {
@@ -1025,14 +1091,22 @@ function HomeContent() {
         setIsBulkDeploying(false);
       }
     },
-    [adminKey, fetchDynamicMarkets, fetchWorldCupDeployments, isBulkDeploying],
+    [adminKey, fetchDynamicMarkets, fetchWorldCupDeployments, isBulkDeploying, worldCupResultsByFixture],
   );
 
-  const toggleWorldCupSelection = useCallback((marketId: string, selected: boolean) => {
-    setSelectedWorldCupMarketIds((current) =>
-      selected ? [...new Set([...current, marketId])] : current.filter((id) => id !== marketId),
-    );
-  }, []);
+  const toggleWorldCupSelection = useCallback(
+    (marketId: string, selected: boolean) => {
+      if (selected) {
+        const market = worldCupMarkets.find((item) => item.id === marketId);
+        if (!market || getWorldCupDeployBlockReason(market, worldCupResultsByFixture, clientNowMs)) return;
+      }
+
+      setSelectedWorldCupMarketIds((current) =>
+        selected ? [...new Set([...current, marketId])] : current.filter((id) => id !== marketId),
+      );
+    },
+    [clientNowMs, worldCupMarkets, worldCupResultsByFixture],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-4 px-3 py-3 sm:px-5">
@@ -1073,7 +1147,7 @@ function HomeContent() {
       </section>
 
       {homeMarketCount === 0 ? (
-        <EmptyMarketState isConnected={isConnected} />
+        <EmptyMarketState isClientMounted={clientNowMs !== null} isConnected={isConnected} />
       ) : (
         <section className="space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -1211,6 +1285,7 @@ function HomeContent() {
               bulkStatus={bulkDeployStatuses[market.id]}
               key={market.id}
               market={market}
+              deployBlockReason={getWorldCupDeployBlockReason(market, worldCupResultsByFixture, clientNowMs)}
               onDeploy={deployWorldCupMarkets}
               onSelectedChange={toggleWorldCupSelection}
               selected={selectedWorldCupMarketIds.includes(market.id)}
@@ -1470,6 +1545,7 @@ function HomeFallback() {
 function WorldCupSignalCard({
   adminCreateEnabled,
   bulkStatus,
+  deployBlockReason,
   market,
   onDeploy,
   onSelectedChange,
@@ -1477,6 +1553,7 @@ function WorldCupSignalCard({
 }: {
   adminCreateEnabled: boolean;
   bulkStatus?: BulkDeployStatus;
+  deployBlockReason?: string | null;
   market: WorldCupMarket;
   onDeploy: (markets: WorldCupMarket[]) => void | Promise<void>;
   onSelectedChange: (marketId: string, selected: boolean) => void;
@@ -1511,7 +1588,7 @@ function WorldCupSignalCard({
             {market.homeTeam} vs {market.awayTeam}
           </p>
         </div>
-        {adminCreateEnabled && !isTradable && (
+        {adminCreateEnabled && !isTradable && !deployBlockReason && (
           <label className="focus-ring flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-[#2B3139] bg-[#2B3139] px-2 text-[10px] font-bold text-[#707A8A] hover:border-[#FCD535] hover:text-[#EAECEF]">
               <input
                 checked={selected}
@@ -1537,6 +1614,7 @@ function WorldCupSignalCard({
         <CardAction
           adminCreateEnabled={adminCreateEnabled}
           bulkStatus={bulkStatus}
+          deployBlockReason={deployBlockReason}
           isTradable={isTradable}
           market={market}
           onDeploy={onDeploy}
@@ -1965,12 +2043,14 @@ function LifecycleLink({
 function CardAction({
   adminCreateEnabled,
   bulkStatus,
+  deployBlockReason,
   isTradable,
   market,
   onDeploy,
 }: {
   adminCreateEnabled: boolean;
   bulkStatus?: BulkDeployStatus;
+  deployBlockReason?: string | null;
   isTradable: boolean;
   market: WorldCupMarket;
   onDeploy: (markets: WorldCupMarket[]) => void | Promise<void>;
@@ -2000,6 +2080,17 @@ function CardAction({
 
   if (bulkStatus?.state === "skipped") {
     return <span className="shrink-0 text-[#707A8A]">Skipped</span>;
+  }
+
+  if (adminCreateEnabled && deployBlockReason) {
+    return (
+      <span
+        className="max-w-[140px] shrink-0 truncate text-right text-[#707A8A]"
+        title={deployBlockReason}
+      >
+        Not deployable
+      </span>
+    );
   }
 
   if (adminCreateEnabled) {
@@ -2115,8 +2206,10 @@ function FilteredMarketEmptyState({
 }
 
 function EmptyMarketState({
+  isClientMounted,
   isConnected,
 }: {
+  isClientMounted: boolean;
   isConnected: boolean;
 }) {
   return (
@@ -2128,7 +2221,7 @@ function EmptyMarketState({
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#707A8A]">
         V2 markets will appear here after the factory, allowlist, and verified USDC collateral flow pass end-to-end checks.
       </p>
-      {!isConnected && (
+      {isClientMounted && !isConnected && (
         <p className="mx-auto mt-4 max-w-lg rounded-lg border border-[#FCD535] bg-[#FCD535]/15 px-4 py-3 text-sm font-bold text-[#FFF3AF]">
           Connect wallet to trade on Arc Testnet.
         </p>
