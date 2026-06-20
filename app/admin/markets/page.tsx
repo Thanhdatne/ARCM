@@ -43,7 +43,7 @@ interface ResolverItem {
   outcomeType: string;
   question: string;
   proposedSide?: "YES" | "NO";
-  action: "prepared" | "proposed" | "settled" | "skipped" | "failed";
+  action: "prepared" | "proposed" | "timerAdvanced" | "settled" | "skipped" | "failed";
   reason: string;
   state?: number;
   txHash?: string;
@@ -54,7 +54,9 @@ interface ResolverResponse {
   error?: string;
   action?: string;
   fixtureId?: string;
+  scanned?: number;
   proposed?: number;
+  timerAdvanced?: number;
   settled?: number;
   skipped?: number;
   failed?: number;
@@ -338,7 +340,7 @@ export default function AdminMarketsPage() {
   )).length;
 
   const runResolver = async (
-    action: "resolveFixture" | "settleFixture" | "settleReady",
+    action: "resolveFixture" | "settleFixture" | "settleReady" | "resolveAndFastSettle",
     fixtureId?: string,
   ) => {
     const key = adminKey.trim();
@@ -420,8 +422,11 @@ export default function AdminMarketsPage() {
                   Resolve finished fixtures
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-[#707A8A]">
-                  Pick one finished match, click Resolve Fixture once, wait for UMA liveness,
-                  then click Settle Fixture. One fixture controls all 3 markets: home win, draw, away win.
+                  Resolve and settle all 3 binary markets for one finished fixture in a single
+                  protected server action.
+                </p>
+                <p className="mt-2 text-xs font-bold text-[#FFF3AF]">
+                  Testnet admin shortcut. Public settlement still uses UMA liveness.
                 </p>
               </div>
             </div>
@@ -439,6 +444,17 @@ export default function AdminMarketsPage() {
                 Refresh status
               </button>
 
+              <button
+                className="terminal-button focus-ring px-4 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!adminKey.trim() || !!resolverBusy || visibleFinalResults.length === 0}
+                onClick={() => void runResolver("resolveAndFastSettle")}
+                type="button"
+              >
+                {resolverBusy === "resolveAndFastSettle"
+                  ? "Resolving & settling..."
+                  : "Resolve & Fast Settle Finished"}
+              </button>
+
               {readyToSettleCount > 0 ? (
                 <button
                   className="terminal-button focus-ring px-4 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
@@ -454,7 +470,7 @@ export default function AdminMarketsPage() {
 
               {waitingFixtureCount > 0 ? (
                 <span className="rounded-lg border border-[#FCD535]/30 bg-[#FCD535]/10 px-3 py-2 text-xs font-bold text-[#FFF3AF]">
-                  {waitingFixtureCount} fixture{waitingFixtureCount > 1 ? "s" : ""} waiting UMA liveness
+                  {waitingFixtureCount} fixture{waitingFixtureCount > 1 ? "s" : ""} eligible for fast settle
                 </span>
               ) : null}
 
@@ -499,6 +515,7 @@ export default function AdminMarketsPage() {
               {visibleFinalResults.map((result) => {
                 const busyResolve = resolverBusy === `resolveFixture:${result.fixtureId}`;
                 const busySettle = resolverBusy === `settleFixture:${result.fixtureId}`;
+                const busyFastSettle = resolverBusy === `resolveAndFastSettle:${result.fixtureId}`;
                 const status = resolverStatuses[result.fixtureId];
                 const statusKey = status?.status ?? "unknown";
                 const fixtureDeployments = deploymentsByFixture[result.fixtureId] ?? [];
@@ -592,6 +609,15 @@ export default function AdminMarketsPage() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        className="terminal-button focus-ring px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!adminKey.trim() || !!resolverBusy}
+                        onClick={() => void runResolver("resolveAndFastSettle", result.fixtureId)}
+                        type="button"
+                      >
+                        {busyFastSettle ? "Resolving & settling..." : "Resolve & Fast Settle"}
+                      </button>
+
                       {canResolve ? (
                         <button
                           className="terminal-button focus-ring px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
@@ -620,7 +646,7 @@ export default function AdminMarketsPage() {
                           disabled
                           type="button"
                         >
-                          Waiting liveness
+                          Fast settle available
                         </button>
                       ) : null}
 
@@ -657,9 +683,12 @@ export default function AdminMarketsPage() {
 
             {resolverResponse ? (
               <>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                  <ResolveMetric label="Scanned" value={resolverResponse.scanned ?? 0} />
                   <ResolveMetric label="Proposed" value={resolverResponse.proposed ?? 0} />
+                  <ResolveMetric label="Timer advanced" value={resolverResponse.timerAdvanced ?? 0} />
                   <ResolveMetric label="Settled" value={resolverResponse.settled ?? 0} />
+                  <ResolveMetric label="Skipped" value={resolverResponse.skipped ?? 0} />
                   <ResolveMetric label="Failed" value={resolverResponse.failed ?? 0} />
                 </div>
 
@@ -686,8 +715,7 @@ export default function AdminMarketsPage() {
               </>
             ) : (
               <p className="mt-3 text-sm leading-6 text-[#707A8A]">
-                Click Resolve Fixture on one finished match. After 60–90 seconds,
-                click Settle Fixture for the same match.
+                Use Resolve & Fast Settle for one fixture, or process visible finished fixtures in a safe batch.
               </p>
             )}
           </div>

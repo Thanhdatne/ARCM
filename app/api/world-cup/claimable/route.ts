@@ -149,7 +149,65 @@ function readResultsFromJson() {
   return Array.isArray(parsed) ? parsed : Object.values(parsed);
 }
 
+function normalizeDeployment(item: any): WorldCupDeployment {
+  return {
+    worldCupMarketId: item.worldCupMarketId ?? item.world_cup_market_id ?? "",
+    fixtureId: item.fixtureId ?? item.fixture_id ?? "",
+    group: item.group ?? "",
+    question: item.question ?? "",
+    outcomeType: item.outcomeType ?? item.outcome_type ?? "",
+    marketAddress: item.marketAddress ?? item.market_address ?? "",
+    ammAddress: item.ammAddress ?? item.amm_address ?? "",
+    createdAt: item.createdAt ?? item.created_at ?? undefined,
+    txHash: item.txHash ?? item.tx_hash ?? undefined,
+    transactionHash: item.transactionHash ?? item.transaction_hash ?? undefined,
+    contractVersion: item.contractVersion ?? item.contract_version ?? 1,
+    collateralAddress: item.collateralAddress ?? item.collateral_address ?? undefined,
+    collateralSymbol: item.collateralSymbol ?? item.collateral_symbol ?? undefined,
+    collateralDecimals: item.collateralDecimals ?? item.collateral_decimals ?? undefined,
+    outcomeDecimals: item.outcomeDecimals ?? item.outcome_decimals ?? undefined,
+  };
+}
+
+function normalizeResult(item: any): WorldCupResultRecord {
+  return {
+    fixtureId: item.fixtureId ?? item.fixture_id ?? "",
+    homeTeam: item.homeTeam ?? item.home_team ?? "",
+    awayTeam: item.awayTeam ?? item.away_team ?? "",
+    homeScore: item.homeScore ?? item.home_score ?? null,
+    awayScore: item.awayScore ?? item.away_score ?? null,
+    status: item.status ?? "pending",
+    result: item.result ?? null,
+    updatedAt: item.updatedAt ?? item.result_updated_at ?? item.updated_at ?? "",
+    source: item.source ?? undefined,
+  };
+}
+
+function mergeDeployments(items: WorldCupDeployment[]) {
+  const byKey = new Map<string, WorldCupDeployment>();
+
+  for (const item of items) {
+    const marketKey = normalizeAddress(item.marketAddress);
+    const fallbackKey = item.worldCupMarketId || `${item.fixtureId}:${item.outcomeType}`;
+    const key = marketKey || fallbackKey;
+    if (!key) continue;
+
+    const existing = byKey.get(key);
+    byKey.set(key, {
+      ...existing,
+      ...item,
+      collateralAddress: item.collateralAddress ?? existing?.collateralAddress,
+      collateralSymbol: item.collateralSymbol ?? existing?.collateralSymbol,
+      collateralDecimals: item.collateralDecimals ?? existing?.collateralDecimals,
+      outcomeDecimals: item.outcomeDecimals ?? existing?.outcomeDecimals,
+    });
+  }
+
+  return Array.from(byKey.values());
+}
+
 async function readDeployments() {
+  const deployments = readDeploymentsFromJson().map(normalizeDeployment);
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
@@ -159,30 +217,15 @@ async function readDeployments() {
       .order("fixture_id", { ascending: true });
 
     if (!error && data) {
-      return data.map((item) => ({
-        worldCupMarketId: item.world_cup_market_id,
-        fixtureId: item.fixture_id,
-        group: item.group,
-        question: item.question,
-        outcomeType: item.outcome_type,
-        marketAddress: item.market_address,
-        ammAddress: item.amm_address,
-        createdAt: item.created_at ?? undefined,
-        txHash: item.tx_hash ?? undefined,
-        transactionHash: item.transaction_hash ?? undefined,
-        contractVersion: item.contract_version ?? 1,
-        collateralAddress: item.collateral_address ?? undefined,
-        collateralSymbol: item.collateral_symbol ?? undefined,
-        collateralDecimals: item.collateral_decimals ?? undefined,
-        outcomeDecimals: item.outcome_decimals ?? undefined,
-      })) satisfies WorldCupDeployment[];
+      deployments.push(...data.map(normalizeDeployment));
     }
   }
 
-  return readDeploymentsFromJson();
+  return mergeDeployments(deployments);
 }
 
 async function readResults() {
+  const results = readResultsFromJson().map(normalizeResult);
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
@@ -192,21 +235,20 @@ async function readResults() {
       .eq("status", "final");
 
     if (!error && data) {
-      return data.map((item) => ({
-        fixtureId: item.fixture_id,
-        homeTeam: item.home_team,
-        awayTeam: item.away_team,
-        homeScore: item.home_score,
-        awayScore: item.away_score,
-        status: item.status,
-        result: item.result,
-        updatedAt: item.result_updated_at ?? item.updated_at,
-        source: item.source ?? undefined,
-      })) satisfies WorldCupResultRecord[];
+      results.push(...data.map(normalizeResult));
     }
   }
 
-  return readResultsFromJson();
+  const byFixture = new Map<string, WorldCupResultRecord>();
+  for (const result of results) {
+    if (!result.fixtureId) continue;
+    byFixture.set(result.fixtureId, {
+      ...byFixture.get(result.fixtureId),
+      ...result,
+    });
+  }
+
+  return Array.from(byFixture.values());
 }
 
 function validAddress(value: string | null | undefined): value is Address {
@@ -272,18 +314,17 @@ export async function GET(request: Request) {
     transport: http(rpcUrl),
   });
 
-  const finalFixtureIds = new Set(
-    (await readResults())
-      .filter((result) => result.status === "final" && result.result)
-      .map((result) => result.fixtureId),
-  );
+  // Read results for parity with the portfolio route, but do not use them to
+  // gate the scan. Claims are proven by onchain settlement state; filtering by
+  // result rows can hide valid settled markets when Supabase/local result caches
+  // are temporarily out of sync.
+  await readResults();
 
   const deployments = (await readDeployments())
     .filter((deployment) => (
       validAddress(deployment.marketAddress) &&
       validAddress(deployment.ammAddress) &&
-      contractVersionOf(deployment) === 2 &&
-      (finalFixtureIds.size === 0 || finalFixtureIds.has(deployment.fixtureId))
+      contractVersionOf(deployment) === 2
     ))
     .sort((a, b) =>
       `${a.fixtureId}-${a.outcomeType}`.localeCompare(`${b.fixtureId}-${b.outcomeType}`),

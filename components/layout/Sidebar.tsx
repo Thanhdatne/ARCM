@@ -29,7 +29,7 @@ import { CreateMarketDialog } from "@/components/CreateMarketDialog";
 
 const navItems = [
   { label: "Markets", href: "/", icon: Compass },
-  { label: "Deposit", href: null, icon: Download },
+  { label: "Deposit", href: "/deposit", icon: Download },
   { label: "Portfolio", href: "/portfolio", icon: BarChart3 },
   { label: "Claims", href: "/claims", icon: BadgeDollarSign },
   { label: "How it works", href: "/how-it-works", icon: CircleHelp },
