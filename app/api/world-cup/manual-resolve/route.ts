@@ -191,7 +191,11 @@ const TIMER_ABI = [
 ] as const;
 
 type OutcomeType = "home_win" | "draw" | "away_win";
-type ResolverAction = "resolveFixture" | "settleFixture" | "settleReady";
+type ResolverAction =
+  | "resolveFixture"
+  | "settleFixture"
+  | "settleReady"
+  | "resolveAndFastSettle";
 
 interface WorldCupDeployment {
   worldCupMarketId: string;
@@ -223,7 +227,13 @@ interface ResolverItem {
   outcomeType: string;
   question: string;
   proposedSide?: "YES" | "NO";
-  action: "prepared" | "proposed" | "settled" | "skipped" | "failed";
+  action:
+    | "prepared"
+    | "proposed"
+    | "timerAdvanced"
+    | "settled"
+    | "skipped"
+    | "failed";
   reason: string;
   state?: number;
   txHash?: Hex;
@@ -452,31 +462,52 @@ async function queueTimerSync({
   walletClient,
   getNonce,
   items,
+  targetTime,
+  marketItem,
+  recordItem = true,
 }: {
   walletClient: any;
   getNonce: () => number;
   items: ResolverItem[];
+  targetTime?: bigint;
+  marketItem?: Pick<ResolverItem, "fixtureId" | "outcomeType" | "question">;
+  recordItem?: boolean;
 }) {
   const timerAddress = optionalAddress("NEXT_PUBLIC_TIMER_ADDRESS");
 
-  if (!timerAddress) return;
+  if (!timerAddress) return null;
+
+  const nextTime = targetTime ?? BigInt(Math.floor(Date.now() / 1000));
 
   const hash = await walletClient.writeContract({
     address: timerAddress,
     abi: TIMER_ABI,
     functionName: "setCurrentTime",
-    args: [BigInt(Math.floor(Date.now() / 1000))],
+    args: [nextTime],
     nonce: getNonce(),
   });
 
-  items.push({
-    fixtureId: "setup",
-    outcomeType: "timer",
-    question: "Fast-forward UMA timer",
-    action: "prepared",
-    reason: "Queued UMA Timer sync before oracle settlement.",
-    txHash: hash as Hex,
-  });
+  if (recordItem) {
+    items.push({
+      fixtureId: marketItem?.fixtureId ?? "setup",
+      outcomeType: marketItem?.outcomeType ?? "timer",
+      question: marketItem?.question ?? "Fast-forward UMA timer",
+      action: marketItem ? "timerAdvanced" : "prepared",
+      reason: marketItem
+        ? `Queued UMA Timer advance to ${nextTime.toString()}.`
+        : "Queued UMA Timer sync before oracle settlement.",
+      txHash: hash as Hex,
+    });
+  }
+
+  return hash as Hex;
+}
+
+function getProposedPrice(requestData: unknown) {
+  const tuple = requestData as { proposedPrice?: unknown; [key: number]: unknown };
+  const value = tuple?.proposedPrice ?? tuple?.[5];
+
+  return typeof value === "bigint" ? value : null;
 }
 
 export async function POST(request: Request) {
@@ -501,7 +532,12 @@ export async function POST(request: Request) {
       ? Math.min(Math.max(Math.floor(body.limit), 1), 18)
       : 9;
 
-  if (action !== "resolveFixture" && action !== "settleFixture" && action !== "settleReady") {
+  if (
+    action !== "resolveFixture" &&
+    action !== "settleFixture" &&
+    action !== "settleReady" &&
+    action !== "resolveAndFastSettle"
+  ) {
     return NextResponse.json({ error: "Invalid resolver action." }, { status: 400 });
   }
 
@@ -510,7 +546,9 @@ export async function POST(request: Request) {
   }
 
   const items: ResolverItem[] = [];
+  let scanned = 0;
   let proposed = 0;
+  let timerAdvanced = 0;
   let settled = 0;
   let skipped = 0;
   let failed = 0;
@@ -555,9 +593,17 @@ export async function POST(request: Request) {
       {},
     );
 
-    const deployments = readDeployments()
+    let deployments = readDeployments()
+      .filter((deployment) =>
+        action !== "resolveAndFastSettle" ||
+        (Boolean(deployment.marketAddress) && Boolean(deployment.ammAddress)),
+      )
       .filter((deployment) => {
-        if (action === "resolveFixture" || action === "settleFixture") {
+        if (
+          action === "resolveFixture" ||
+          action === "settleFixture" ||
+          (action === "resolveAndFastSettle" && fixtureId)
+        ) {
           return deployment.fixtureId === fixtureId;
         }
 
@@ -566,15 +612,29 @@ export async function POST(request: Request) {
       })
       .sort((a, b) =>
         `${a.fixtureId}-${a.outcomeType}`.localeCompare(`${b.fixtureId}-${b.outcomeType}`),
-      )
-      .slice(0, action === "settleReady" ? limit : 3);
+      );
+
+    if (action === "resolveAndFastSettle" && !fixtureId) {
+      const fixtureIds = [...new Set(deployments.map((deployment) => deployment.fixtureId))]
+        .slice(0, Math.min(limit, 3));
+      const selectedFixtureIds = new Set(fixtureIds);
+      deployments = deployments.filter((deployment) =>
+        selectedFixtureIds.has(deployment.fixtureId),
+      );
+    } else {
+      deployments = deployments.slice(0, action === "settleReady" ? limit : 3);
+    }
+
+    scanned = deployments.length;
 
     if (deployments.length === 0) {
       return NextResponse.json({
         success: true,
         action,
         fixtureId,
+        scanned,
         proposed,
+        timerAdvanced,
         settled,
         skipped,
         failed,
@@ -590,7 +650,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (action === "resolveFixture") {
+    if (action === "resolveFixture" || (action === "resolveAndFastSettle" && fixtureId)) {
       const result = resultsByFixtureId[fixtureId];
       if (!result || result.status !== "final" || !result.result) {
         return NextResponse.json(
@@ -598,7 +658,9 @@ export async function POST(request: Request) {
           { status: 422 },
         );
       }
+    }
 
+    if (action === "resolveFixture" || action === "resolveAndFastSettle") {
       await queueCollateralSetup({
         publicClient,
         walletClient,
@@ -721,6 +783,168 @@ export async function POST(request: Request) {
           continue;
         }
 
+        if (action === "resolveAndFastSettle") {
+          const price = outcomePrice(deployment.outcomeType, result?.result);
+
+          if (price === null) {
+            skipped += 1;
+            items.push({
+              ...baseItem,
+              action: "skipped",
+              reason: "Missing final result or unsupported outcome type.",
+              state,
+            });
+            continue;
+          }
+
+          let currentState = state;
+
+          if (currentState === 0 || currentState === 1) {
+            const proposalHash = await walletClient.writeContract({
+              address: oracleAddress,
+              abi: OO_V2_ABI,
+              functionName: "proposePrice",
+              args: [
+                marketAddress,
+                context.priceIdentifier,
+                context.requestTimestamp,
+                context.ancillaryData,
+                price,
+              ],
+              nonce: getNonce(),
+            });
+            const proposalReceipt = await publicClient.waitForTransactionReceipt({
+              hash: proposalHash,
+            });
+
+            if (proposalReceipt.status !== "success") {
+              throw new Error("Proposal transaction reverted.");
+            }
+
+            proposed += 1;
+            items.push({
+              ...baseItem,
+              proposedSide: outcomeLabel(price),
+              action: "proposed",
+              reason: `Confirmed ${outcomeLabel(price)} proposal.`,
+              state,
+              txHash: proposalHash as Hex,
+            });
+            currentState = 2;
+          }
+
+          if (proposalActiveState(currentState)) {
+            const requestData = await publicClient.readContract({
+              address: oracleAddress,
+              abi: OO_V2_ABI,
+              functionName: "getRequest",
+              args: [
+                marketAddress,
+                context.priceIdentifier,
+                context.requestTimestamp,
+                context.ancillaryData,
+              ],
+            });
+            const expirationTime = getExpirationTime(requestData);
+            const proposedPrice = getProposedPrice(requestData);
+
+            if (expirationTime === 0n) {
+              throw new Error("Proposal expiration time was not readable.");
+            }
+
+            if (proposedPrice === null || proposedPrice !== price) {
+              throw new Error(
+                `Existing proposal does not match the required ${outcomeLabel(price)} result.`,
+              );
+            }
+
+            const timerHash = await queueTimerSync({
+              walletClient,
+              getNonce,
+              items,
+              targetTime: expirationTime + 1n,
+              marketItem: baseItem,
+              recordItem: false,
+            });
+
+            if (!timerHash) {
+              throw new Error("NEXT_PUBLIC_TIMER_ADDRESS is required for fast settlement.");
+            }
+
+            const timerReceipt = await publicClient.waitForTransactionReceipt({ hash: timerHash });
+            if (timerReceipt.status !== "success") {
+              throw new Error("UMA Timer transaction reverted.");
+            }
+
+            timerAdvanced += 1;
+            items.push({
+              ...baseItem,
+              proposedSide: outcomeLabel(price),
+              action: "timerAdvanced",
+              reason: `Confirmed UMA Timer advance past expiration ${expirationTime.toString()}.`,
+              state: currentState,
+              txHash: timerHash,
+            });
+            currentState = Number(
+              await publicClient.readContract({
+                address: oracleAddress,
+                abi: OO_V2_ABI,
+                functionName: "getState",
+                args: [
+                  marketAddress,
+                  context.priceIdentifier,
+                  context.requestTimestamp,
+                  context.ancillaryData,
+                ],
+              }),
+            );
+          }
+
+          if (!isSettleableState(currentState)) {
+            skipped += 1;
+            items.push({
+              ...baseItem,
+              proposedSide: outcomeLabel(price),
+              action: "skipped",
+              reason:
+                currentState === 6
+                  ? "Oracle request already settled."
+                  : `Oracle state ${currentState} is not ready to settle after Timer advance.`,
+              state: currentState,
+            });
+            continue;
+          }
+
+          const settleHash = await walletClient.writeContract({
+            address: oracleAddress,
+            abi: OO_V2_ABI,
+            functionName: "settle",
+            args: [
+              marketAddress,
+              context.priceIdentifier,
+              context.requestTimestamp,
+              context.ancillaryData,
+            ],
+            nonce: getNonce(),
+          });
+          const settleReceipt = await publicClient.waitForTransactionReceipt({ hash: settleHash });
+
+          if (settleReceipt.status !== "success") {
+            throw new Error("Settlement transaction reverted.");
+          }
+
+          settled += 1;
+          items.push({
+            ...baseItem,
+            proposedSide: outcomeLabel(price),
+            action: "settled",
+            reason: "Confirmed settlement after UMA Timer fast-forward.",
+            state: currentState,
+            txHash: settleHash as Hex,
+          });
+          continue;
+        }
+
         if (proposalActiveState(state)) {
           const requestData = await publicClient.readContract({
             address: oracleAddress,
@@ -799,7 +1023,9 @@ export async function POST(request: Request) {
       success: true,
       action,
       fixtureId,
+      scanned,
       proposed,
+      timerAdvanced,
       settled,
       skipped,
       failed,
@@ -812,7 +1038,9 @@ export async function POST(request: Request) {
         error: errorMessage(error),
         action,
         fixtureId,
+        scanned,
         proposed,
+        timerAdvanced,
         settled,
         skipped,
         failed,
