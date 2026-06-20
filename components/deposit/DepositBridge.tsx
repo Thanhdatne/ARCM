@@ -24,7 +24,6 @@ import {
   type BridgeResult,
 } from "@circle-fin/bridge-kit";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/contexts/WalletContext";
 import { arcTestnet } from "@/lib/wagmi";
@@ -170,16 +169,9 @@ export function DepositBridge() {
       <section className="exchange-panel">
         <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Deposit</div>
         <div className="p-4 sm:p-5">
-          <div className="mb-4 flex flex-wrap gap-2">
-            {['Circle CCTP v2', 'Testnet USDC', 'Arc Testnet'].map((label) => (
-              <Badge key={label} variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
-                {label}
-              </Badge>
-            ))}
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-[#EAECEF] sm:text-2xl">Bridge USDC to ARCM</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[#EAECEF] sm:text-3xl">Bridge USDC to Arc Testnet</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#848E9C]">
-            Move testnet USDC from a supported EVM testnet into the same wallet on Arc Testnet. Circle Bridge Kit executes the real approval, burn, attestation, and mint flow.
+            Move testnet USDC into your Arc wallet for trading ARCM markets.
           </p>
         </div>
       </section>
@@ -188,6 +180,9 @@ export function DepositBridge() {
         <section className="exchange-panel overflow-hidden">
           <div className="terminal-titlebar px-3 py-2 text-sm font-bold">Bridge route</div>
           <div className="space-y-4 p-4 sm:p-5">
+            <p className="text-xs font-medium text-[#707A8A]">
+              Network: Arc Testnet · Asset: USDC · Powered by Circle CCTP
+            </p>
             <div>
               <label htmlFor="source-chain" className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#848E9C]">From</label>
               <select
@@ -298,16 +293,9 @@ function DepositBridgeSkeleton() {
       <section className="exchange-panel">
         <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Deposit</div>
         <div className="p-4 sm:p-5">
-          <div className="mb-4 flex flex-wrap gap-2">
-            {["Circle CCTP v2", "Testnet USDC", "Arc Testnet"].map((label) => (
-              <Badge key={label} variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
-                {label}
-              </Badge>
-            ))}
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-[#EAECEF] sm:text-2xl">Bridge USDC to ARCM</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[#EAECEF] sm:text-3xl">Bridge USDC to Arc Testnet</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#848E9C]">
-            Loading the browser wallet bridge. This keeps server and client rendering stable before wallet state is available.
+            Move testnet USDC into your Arc wallet for trading ARCM markets.
           </p>
         </div>
       </section>

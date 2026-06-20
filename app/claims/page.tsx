@@ -106,22 +106,11 @@ export default function ClaimsPage() {
         <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Claims</div>
         <div className="flex flex-col gap-5 p-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {["Claims", "Claim Reward", "Arc Testnet", "Collateral payout"].map((badge) => (
-                <Badge
-                  key={badge}
-                  variant="outline"
-                  className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]"
-                >
-                  {badge}
-                </Badge>
-              ))}
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-[#EAECEF] sm:text-2xl">
+            <h1 className="text-2xl font-bold tracking-tight text-[#EAECEF] sm:text-3xl">
               Claim Rewards
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-[#707A8A]">
-              Claim settled winning YES/NO positions directly from this page. Your connected wallet signs the real market settlement transaction.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#707A8A]">
+              Redeem settled winning positions directly from your wallet.
             </p>
           </div>
           <WalletPill address={address} isConnected={walletReady} />

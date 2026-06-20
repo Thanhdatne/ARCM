@@ -87,18 +87,7 @@ export default function HowItWorksPage() {
         <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">How it works</div>
         <div className="grid gap-5 p-4 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
           <div>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {["Arc Testnet", "Prediction markets", "Onchain settlement"].map((item) => (
-                <span
-                  className="rounded-full border border-[#2B3139] bg-[#1E2329] px-3 py-1 text-xs font-bold text-[#A7B1C2]"
-                  key={item}
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-
-            <h1 className="max-w-3xl text-2xl font-black tracking-tight text-[#EAECEF] sm:text-4xl">
+            <h1 className="max-w-3xl text-2xl font-black tracking-tight text-[#EAECEF] sm:text-3xl">
               Trade real testnet prediction markets on ARCM.
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#A7B1C2]">

@@ -1,6 +1,5 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { Activity, EyeOff, FileCheck2, KeyRound, ReceiptText, ShieldCheck } from "lucide-react";
 
 const features = [
@@ -26,22 +25,15 @@ export default function PrivacyPage() {
       <section className="exchange-panel">
         <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Privacy Preview</div>
         <div className="p-4">
-        <div className="mb-4 flex flex-wrap gap-2">
-          {["Concept only", "Arc Testnet", "Public today"].map((badge) => (
-            <Badge key={badge} variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
-              {badge}
-            </Badge>
-          ))}
-        </div>
-        <h1 className="text-xl font-bold tracking-tight text-[#EAECEF] sm:text-2xl">
-          Arc Privacy Preview: Concept Only
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-[#A7B1C2]">
-          This page shows a future privacy concept only. The current ARCM app does not hide trades, positions, wallet activity, claims, or settlement on Arc Testnet.
-        </p>
-        <p className="terminal-card mt-4 max-w-3xl p-4 text-sm font-bold leading-6 text-[#EAECEF]">
-          Privacy Preview is concept-only. Current Arc Testnet trades, positions, wallet activity, claims, and settlement are public.
-        </p>
+          <h1 className="text-2xl font-bold tracking-tight text-[#EAECEF] sm:text-3xl">
+            Arc Privacy Preview: Concept Only
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[#A7B1C2]">
+            This page shows a future privacy concept only. The current ARCM app does not hide trades, positions, wallet activity, claims, or settlement on Arc Testnet.
+          </p>
+          <p className="terminal-card mt-4 max-w-3xl p-4 text-sm font-bold leading-6 text-[#EAECEF]">
+            Privacy Preview is concept-only. Current Arc Testnet trades, positions, wallet activity, claims, and settlement are public.
+          </p>
         </div>
       </section>
 
