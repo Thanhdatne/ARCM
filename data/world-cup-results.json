@@ -43,6 +43,17 @@
     "updatedAt": "2026-06-16T09:57:07.788Z",
     "source": "manual_admin"
   },
+  "group-c-brazil-vs-haiti": {
+    "fixtureId": "group-c-brazil-vs-haiti",
+    "homeTeam": "Brazil",
+    "awayTeam": "Haiti",
+    "homeScore": 3,
+    "awayScore": 0,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-20T08:48:26.888Z",
+    "source": "manual_admin"
+  },
   "group-c-brazil-vs-morocco": {
     "fixtureId": "group-c-brazil-vs-morocco",
     "homeTeam": "Brazil",
@@ -65,6 +76,17 @@
     "updatedAt": "2026-06-16T09:57:35.358Z",
     "source": "manual_admin"
   },
+  "group-c-scotland-vs-morocco": {
+    "fixtureId": "group-c-scotland-vs-morocco",
+    "homeTeam": "Scotland",
+    "awayTeam": "Morocco",
+    "homeScore": 0,
+    "awayScore": 1,
+    "status": "final",
+    "result": "away_win",
+    "updatedAt": "2026-06-20T08:48:21.535Z",
+    "source": "manual_admin"
+  },
   "group-d-australia-vs-turkey": {
     "fixtureId": "group-d-australia-vs-turkey",
     "homeTeam": "Australia",
@@ -74,6 +96,28 @@
     "status": "final",
     "result": "home_win",
     "updatedAt": "2026-06-16T09:57:43.884Z",
+    "source": "manual_admin"
+  },
+  "group-d-turkey-vs-paraguay": {
+    "fixtureId": "group-d-turkey-vs-paraguay",
+    "homeTeam": "Turkey",
+    "awayTeam": "Paraguay",
+    "homeScore": 0,
+    "awayScore": 1,
+    "status": "final",
+    "result": "away_win",
+    "updatedAt": "2026-06-20T08:48:42.845Z",
+    "source": "manual_admin"
+  },
+  "group-d-united-states-vs-australia": {
+    "fixtureId": "group-d-united-states-vs-australia",
+    "homeTeam": "United States",
+    "awayTeam": "Australia",
+    "homeScore": 2,
+    "awayScore": 0,
+    "status": "final",
+    "result": "home_win",
+    "updatedAt": "2026-06-20T08:48:01.137Z",
     "source": "manual_admin"
   },
   "group-d-united-states-vs-paraguay": {
