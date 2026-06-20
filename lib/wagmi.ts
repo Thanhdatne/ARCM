@@ -18,6 +18,12 @@
 
 import { http, createConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
+import {
+  arbitrumSepolia,
+  baseSepolia,
+  optimismSepolia,
+  sepolia,
+} from "wagmi/chains";
 import { arcTestnet, ARC_TESTNET_RPC_URL } from "./chain";
 
 export const WAGMI_POLLING_INTERVAL = 2_000;
@@ -26,10 +32,20 @@ export const LIVE_STATE_REFETCH_INTERVAL = 5_000;
 export { arcTestnet };
 
 export const config = createConfig({
-  chains: [arcTestnet],
+  chains: [
+    arcTestnet,
+    sepolia,
+    baseSepolia,
+    arbitrumSepolia,
+    optimismSepolia,
+  ],
   connectors: [injected()],
   pollingInterval: WAGMI_POLLING_INTERVAL,
   transports: {
     [arcTestnet.id]: http(ARC_TESTNET_RPC_URL),
+    [sepolia.id]: http(),
+    [baseSepolia.id]: http(),
+    [arbitrumSepolia.id]: http(),
+    [optimismSepolia.id]: http(),
   },
 });
