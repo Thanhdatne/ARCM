@@ -1,527 +1,63 @@
 import { NextResponse } from "next/server";
-import * as fs from "fs";
-import * as path from "path";
-import {
-  createPublicClient,
-  http,
-  type Address,
-} from "viem";
-import { arcTestnet } from "@/lib/chain";
-import {
-  formatTokenAmount,
-  getCollateralMetadataByAddress,
-  normalizeAddress,
-} from "@/lib/collateral";
-import { ERC20_ABI } from "@/lib/contracts/abis/erc20";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { isAddress, type Address } from "viem";
+import { scanWalletPositions } from "@/lib/world-cup/scanWalletPositions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const ONE = 1000000000000000000n;
-const CONCURRENCY = 10;
-
-const MARKET_ABI = [
-  {
-    inputs: [],
-    name: "collateralToken",
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "receivedSettlementPrice",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "settlementPrice",
-    outputs: [{ name: "", type: "int256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "longToken",
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "shortToken",
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
-interface WorldCupDeployment {
-  worldCupMarketId: string;
-  fixtureId: string;
-  group: string;
-  question: string;
-  outcomeType: string;
-  marketAddress: string;
-  ammAddress: string;
-  createdAt?: string;
-  txHash?: string;
-  transactionHash?: string;
-  contractVersion?: number;
-  collateralAddress?: string;
-  collateralSymbol?: string;
-  collateralDecimals?: number;
-  outcomeDecimals?: number;
-}
-
-interface WorldCupResultRecord {
-  fixtureId: string;
-  homeTeam: string;
-  awayTeam: string;
-  homeScore: number | null;
-  awayScore: number | null;
-  status: "pending" | "final" | "postponed" | "cancelled";
-  result?: "home_win" | "draw" | "away_win" | null;
-  updatedAt: string;
-  source?: string;
-}
-
-interface ClaimableMarket {
-  id: string;
-  fixtureId: string;
-  group: string;
-  title: string;
-  address: string;
-  ammAddress: string;
-  winningSide: "YES" | "NO" | "Mixed";
-  claimLongAmount: string;
-  claimShortAmount: string;
-  payoutAmount: string;
-  payoutAmountFormatted: string;
-  yesBalance: string;
-  noBalance: string;
-  collateralAddress: string;
-  collateralSymbol: string;
-  collateralName: string;
-  collateralDecimals: number;
-  collateralWarning: boolean;
-  contractVersion: number;
-  outcomeDecimals: number;
-}
-
-function contractVersionOf(item: WorldCupDeployment) {
-  return item.contractVersion ?? 1;
-}
-
-function dataPath(fileName: string) {
-  return path.resolve(process.cwd(), "data", fileName);
-}
-
-function readJsonFile<T>(fileName: string, fallback: T): T {
-  try {
-    const raw = fs.readFileSync(dataPath(fileName), "utf-8").replace(/^\uFEFF/, "");
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function readDeploymentsFromJson() {
-  const parsed = readJsonFile<WorldCupDeployment[] | Record<string, WorldCupDeployment>>(
-    "world-cup-deployments.json",
-    [],
-  );
-
-  return Array.isArray(parsed) ? parsed : Object.values(parsed);
-}
-
-function readResultsFromJson() {
-  const parsed = readJsonFile<WorldCupResultRecord[] | Record<string, WorldCupResultRecord>>(
-    "world-cup-results.json",
-    [],
-  );
-
-  return Array.isArray(parsed) ? parsed : Object.values(parsed);
-}
-
-function normalizeDeployment(item: any): WorldCupDeployment {
-  return {
-    worldCupMarketId: item.worldCupMarketId ?? item.world_cup_market_id ?? "",
-    fixtureId: item.fixtureId ?? item.fixture_id ?? "",
-    group: item.group ?? "",
-    question: item.question ?? "",
-    outcomeType: item.outcomeType ?? item.outcome_type ?? "",
-    marketAddress: item.marketAddress ?? item.market_address ?? "",
-    ammAddress: item.ammAddress ?? item.amm_address ?? "",
-    createdAt: item.createdAt ?? item.created_at ?? undefined,
-    txHash: item.txHash ?? item.tx_hash ?? undefined,
-    transactionHash: item.transactionHash ?? item.transaction_hash ?? undefined,
-    contractVersion: item.contractVersion ?? item.contract_version ?? 1,
-    collateralAddress: item.collateralAddress ?? item.collateral_address ?? undefined,
-    collateralSymbol: item.collateralSymbol ?? item.collateral_symbol ?? undefined,
-    collateralDecimals: item.collateralDecimals ?? item.collateral_decimals ?? undefined,
-    outcomeDecimals: item.outcomeDecimals ?? item.outcome_decimals ?? undefined,
-  };
-}
-
-function normalizeResult(item: any): WorldCupResultRecord {
-  return {
-    fixtureId: item.fixtureId ?? item.fixture_id ?? "",
-    homeTeam: item.homeTeam ?? item.home_team ?? "",
-    awayTeam: item.awayTeam ?? item.away_team ?? "",
-    homeScore: item.homeScore ?? item.home_score ?? null,
-    awayScore: item.awayScore ?? item.away_score ?? null,
-    status: item.status ?? "pending",
-    result: item.result ?? null,
-    updatedAt: item.updatedAt ?? item.result_updated_at ?? item.updated_at ?? "",
-    source: item.source ?? undefined,
-  };
-}
-
-function mergeDeployments(items: WorldCupDeployment[]) {
-  const byKey = new Map<string, WorldCupDeployment>();
-
-  for (const item of items) {
-    const marketKey = normalizeAddress(item.marketAddress);
-    const fallbackKey = item.worldCupMarketId || `${item.fixtureId}:${item.outcomeType}`;
-    const key = marketKey || fallbackKey;
-    if (!key) continue;
-
-    const existing = byKey.get(key);
-    byKey.set(key, {
-      ...existing,
-      ...item,
-      collateralAddress: item.collateralAddress ?? existing?.collateralAddress,
-      collateralSymbol: item.collateralSymbol ?? existing?.collateralSymbol,
-      collateralDecimals: item.collateralDecimals ?? existing?.collateralDecimals,
-      outcomeDecimals: item.outcomeDecimals ?? existing?.outcomeDecimals,
-    });
-  }
-
-  return Array.from(byKey.values());
-}
-
-async function readDeployments() {
-  const deployments = readDeploymentsFromJson().map(normalizeDeployment);
-  const supabase = getSupabaseAdmin();
-
-  if (supabase) {
-    const { data, error } = await supabase
-      .from("world_cup_deployments")
-      .select("*")
-      .order("fixture_id", { ascending: true });
-
-    if (!error && data) {
-      deployments.push(...data.map(normalizeDeployment));
-    }
-  }
-
-  return mergeDeployments(deployments);
-}
-
-async function readResults() {
-  const results = readResultsFromJson().map(normalizeResult);
-  const supabase = getSupabaseAdmin();
-
-  if (supabase) {
-    const { data, error } = await supabase
-      .from("world_cup_results")
-      .select("*")
-      .eq("status", "final");
-
-    if (!error && data) {
-      results.push(...data.map(normalizeResult));
-    }
-  }
-
-  const byFixture = new Map<string, WorldCupResultRecord>();
-  for (const result of results) {
-    if (!result.fixtureId) continue;
-    byFixture.set(result.fixtureId, {
-      ...byFixture.get(result.fixtureId),
-      ...result,
-    });
-  }
-
-  return Array.from(byFixture.values());
-}
-
-function validAddress(value: string | null | undefined): value is Address {
-  return Boolean(value && /^0x[a-fA-F0-9]{40}$/.test(value));
-}
-
-async function mapLimit<T, R>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  let index = 0;
-
-  async function run() {
-    while (index < items.length) {
-      const currentIndex = index;
-      index += 1;
-      results[currentIndex] = await worker(items[currentIndex]);
-    }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, () => run()),
-  );
-
-  return results;
-}
-
-function formatBigInt(value: bigint) {
-  return value.toString();
-}
-
-function tokenText(value: unknown, fallback: string, maxLength: number) {
-  return typeof value === "string" && value.trim()
-    ? value.trim().slice(0, maxLength)
-    : fallback;
-}
-
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const wallet = url.searchParams.get("address");
 
-  if (!validAddress(wallet)) {
+  if (!wallet || !isAddress(wallet)) {
     return NextResponse.json(
-      {
-        error: "Valid wallet address is required.",
-        markets: [],
-        scanned: 0,
-        settled: 0,
-        withWinningBalance: 0,
-      },
+      { error: "Valid wallet address is required.", markets: [], scanned: 0, settled: 0, withWinningBalance: 0 },
       { status: 400 },
     );
   }
 
-  const rpcUrl =
-    process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL?.trim() ||
-    "https://rpc.testnet.arc.network";
+  try {
+    const scan = await scanWalletPositions(wallet as Address, url.searchParams.get("refresh") === "1");
+    const markets = scan.claimablePositions.map((position) => ({
+      id: position.id,
+      fixtureId: position.fixtureId,
+      group: position.group,
+      title: position.title,
+      address: position.address,
+      ammAddress: position.ammAddress,
+      winningSide: position.winningSide ?? "Mixed",
+      claimLongAmount: position.claimLongAmount,
+      claimShortAmount: position.claimShortAmount,
+      payoutAmount: position.claimablePayout,
+      payoutAmountFormatted: position.claimablePayoutFormatted,
+      yesBalance: position.yesBalance,
+      noBalance: position.noBalance,
+      collateralAddress: position.collateralAddress,
+      collateralSymbol: position.collateralSymbol,
+      collateralName: position.collateralName,
+      collateralDecimals: position.collateralDecimals,
+      collateralWarning: position.collateralWarning,
+      contractVersion: position.contractVersion,
+      outcomeDecimals: position.outcomeDecimals,
+    }));
 
-  const publicClient = createPublicClient({
-    chain: arcTestnet,
-    transport: http(rpcUrl),
-  });
-
-  // Read results for parity with the portfolio route, but do not use them to
-  // gate the scan. Claims are proven by onchain settlement state; filtering by
-  // result rows can hide valid settled markets when Supabase/local result caches
-  // are temporarily out of sync.
-  await readResults();
-
-  const deployments = (await readDeployments())
-    .filter((deployment) => (
-      validAddress(deployment.marketAddress) &&
-      validAddress(deployment.ammAddress) &&
-      contractVersionOf(deployment) === 2
-    ))
-    .sort((a, b) =>
-      `${a.fixtureId}-${a.outcomeType}`.localeCompare(`${b.fixtureId}-${b.outcomeType}`),
-    );
-
-  let settled = 0;
-  let failed = 0;
-
-  const scannedMarkets = await mapLimit(deployments, CONCURRENCY, async (deployment) => {
-    try {
-      const marketAddress = deployment.marketAddress as Address;
-
-      const [
-        collateralToken,
-        receivedSettlementPrice,
-        settlementPriceRaw,
-        longToken,
-        shortToken,
-      ] =
-        await Promise.all([
-          publicClient.readContract({
-            address: marketAddress,
-            abi: MARKET_ABI,
-            functionName: "collateralToken",
-          }),
-          publicClient.readContract({
-            address: marketAddress,
-            abi: MARKET_ABI,
-            functionName: "receivedSettlementPrice",
-          }),
-          publicClient.readContract({
-            address: marketAddress,
-            abi: MARKET_ABI,
-            functionName: "settlementPrice",
-          }),
-          publicClient.readContract({
-            address: marketAddress,
-            abi: MARKET_ABI,
-            functionName: "longToken",
-          }),
-          publicClient.readContract({
-            address: marketAddress,
-            abi: MARKET_ABI,
-            functionName: "shortToken",
-          }),
-        ]);
-
-      if (!receivedSettlementPrice) return null;
-
-      settled += 1;
-
-      const settlementPrice = settlementPriceRaw as bigint;
-      const longTokenAddress = longToken as Address;
-      const shortTokenAddress = shortToken as Address;
-      const collateralAddress = normalizeAddress(collateralToken as Address);
-      if (!collateralAddress) return null;
-      const configuredCollateral = getCollateralMetadataByAddress(collateralAddress);
-
-      if (
-        longTokenAddress === ZERO_ADDRESS ||
-        shortTokenAddress === ZERO_ADDRESS
-      ) {
-        return null;
-      }
-
-      const [
-        longBalanceRaw,
-        shortBalanceRaw,
-        collateralSymbolRaw,
-        collateralNameRaw,
-        collateralDecimalsRaw,
-        outcomeDecimalsRaw,
-      ] = await Promise.all([
-        publicClient.readContract({
-          address: longTokenAddress,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [wallet],
-        }),
-        publicClient.readContract({
-          address: shortTokenAddress,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [wallet],
-        }),
-        publicClient
-          .readContract({
-            address: collateralAddress,
-            abi: ERC20_ABI,
-            functionName: "symbol",
-          })
-          .catch(() => configuredCollateral.symbol),
-        publicClient
-          .readContract({
-            address: collateralAddress,
-            abi: ERC20_ABI,
-            functionName: "name",
-          })
-          .catch(() => configuredCollateral.name),
-        publicClient
-          .readContract({
-            address: collateralAddress,
-            abi: ERC20_ABI,
-            functionName: "decimals",
-          })
-          .catch(() => configuredCollateral.decimals),
-        publicClient
-          .readContract({
-            address: longTokenAddress,
-            abi: ERC20_ABI,
-            functionName: "decimals",
-          })
-          .catch(() => deployment.outcomeDecimals ?? configuredCollateral.decimals),
-      ]);
-
-      const longBalance = longBalanceRaw as bigint;
-      const shortBalance = shortBalanceRaw as bigint;
-      const collateralDecimals =
-        typeof collateralDecimalsRaw === "number" &&
-        Number.isInteger(collateralDecimalsRaw) &&
-        collateralDecimalsRaw >= 0 &&
-        collateralDecimalsRaw <= 255
-          ? collateralDecimalsRaw
-          : configuredCollateral.decimals;
-      const collateralSymbol = tokenText(
-        collateralSymbolRaw,
-        configuredCollateral.symbol,
-        16,
-      );
-      const collateralName = tokenText(
-        collateralNameRaw,
-        configuredCollateral.name,
-        64,
-      );
-      const outcomeDecimals =
-        typeof outcomeDecimalsRaw === "number" &&
-        Number.isInteger(outcomeDecimalsRaw) &&
-        outcomeDecimalsRaw >= 0 &&
-        outcomeDecimalsRaw <= 255
-          ? outcomeDecimalsRaw
-          : collateralDecimals;
-
-      const claimLongAmount = settlementPrice > 0n ? longBalance : 0n;
-      const claimShortAmount = settlementPrice < ONE ? shortBalance : 0n;
-      const payoutAmount =
-        (claimLongAmount * settlementPrice + claimShortAmount * (ONE - settlementPrice)) / ONE;
-
-      if (payoutAmount <= 0n) return null;
-
-      return {
-        id: deployment.worldCupMarketId || deployment.marketAddress,
-        fixtureId: deployment.fixtureId,
-        group: deployment.group,
-        title: deployment.question,
-        address: deployment.marketAddress,
-        ammAddress: deployment.ammAddress,
-        winningSide:
-          settlementPrice === ONE ? "YES" : settlementPrice === 0n ? "NO" : "Mixed",
-        claimLongAmount: formatBigInt(claimLongAmount),
-        claimShortAmount: formatBigInt(claimShortAmount),
-        payoutAmount: formatBigInt(payoutAmount),
-        payoutAmountFormatted: formatTokenAmount(
-          payoutAmount,
-          collateralDecimals,
-        ),
-        yesBalance: formatBigInt(longBalance),
-        noBalance: formatBigInt(shortBalance),
-        collateralAddress,
-        collateralSymbol,
-        collateralName,
-        collateralDecimals,
-        collateralWarning: configuredCollateral.warning,
-        contractVersion: contractVersionOf(deployment),
-        outcomeDecimals,
-      } satisfies ClaimableMarket;
-    } catch {
-      failed += 1;
-      return null;
-    }
-  });
-
-  const markets = scannedMarkets.filter(Boolean) as ClaimableMarket[];
-
-  return NextResponse.json(
-    {
-      success: true,
-      source: "onchain_scan",
-      scanned: deployments.length,
-      settled,
-      failed,
-      withWinningBalance: markets.length,
-      markets,
-    },
-    {
-      headers: {
-        "Cache-Control": "no-store",
+    return NextResponse.json(
+      {
+        success: true,
+        source: "onchain_scan",
+        scanned: scan.scanned,
+        settled: scan.settledMarketCount,
+        failed: scan.failed,
+        withWinningBalance: markets.length,
+        markets,
       },
-    },
-  );
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to scan claimable rewards.", markets: [], scanned: 0, settled: 0, withWinningBalance: 0 },
+      { status: 500, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 }

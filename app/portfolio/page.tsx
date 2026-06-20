@@ -58,7 +58,7 @@ export default function PortfolioPage() {
     setIsHydrated(true);
   }, []);
 
-  const loadPortfolio = useCallback(async () => {
+  const loadPortfolio = useCallback(async (forceRefresh = false) => {
     if (!walletReady || !address) {
       setPortfolio(null);
       return;
@@ -68,7 +68,8 @@ export default function PortfolioPage() {
     setError("");
 
     try {
-      const res = await fetch(`/api/portfolio/positions?address=${address}`, {
+      const refreshParam = forceRefresh ? "&refresh=1" : "";
+      const res = await fetch(`/api/portfolio/positions?address=${address}${refreshParam}`, {
         cache: "no-store",
       });
       const data = (await res.json().catch(() => ({}))) as PortfolioResponse;
@@ -107,22 +108,11 @@ export default function PortfolioPage() {
         <div className="terminal-titlebar px-3 py-1.5 text-sm font-bold">Portfolio</div>
         <div className="flex flex-col gap-5 p-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {["Portfolio", "Arc Testnet", "V2 USDC"].map((badge) => (
-                <Badge
-                  key={badge}
-                  variant="outline"
-                  className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]"
-                >
-                  {badge}
-                </Badge>
-              ))}
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-[#EAECEF] sm:text-2xl">
+            <h1 className="text-2xl font-bold tracking-tight text-[#EAECEF] sm:text-3xl">
               ARCM Portfolio
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-[#707A8A]">
-              Your live wallet balance and open YES/NO positions. Claimable rewards stay on Claims.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#707A8A]">
+              Track open positions, settled rewards, and Arc USDC balance.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
@@ -130,7 +120,7 @@ export default function PortfolioPage() {
             <Button
               className="h-8 gap-2 px-3 text-xs"
               disabled={!walletReady || isLoading}
-              onClick={loadPortfolio}
+              onClick={() => void loadPortfolio(true)}
               type="button"
               variant="outline"
             >
