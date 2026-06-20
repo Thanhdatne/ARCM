@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { type Address } from "viem";
+import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/contexts/WalletContext";
 import { formatTokenDisplayAmount } from "@/hooks/market/helpers";
-import { BadgeDollarSign, RefreshCw } from "lucide-react";
+import { MARKET_ABI } from "@/lib/contracts/abis/market";
+import { BadgeDollarSign, Check, ExternalLink, RefreshCw } from "lucide-react";
 
 interface ApiClaimMarket {
   id: string;
@@ -39,6 +41,15 @@ interface ClaimableResponse {
   failed?: number;
   withWinningBalance?: number;
   markets?: ApiClaimMarket[];
+}
+
+function cleanClaimError(error: unknown) {
+  if (!(error instanceof Error)) return "Claim transaction failed.";
+  const message = error.message.split("\n")[0].trim();
+  if (/user rejected|denied transaction signature|rejected the request/i.test(message)) {
+    return "The wallet request was rejected. Nothing was claimed.";
+  }
+  return message || "Claim transaction failed.";
 }
 
 export default function ClaimsPage() {
@@ -110,7 +121,7 @@ export default function ClaimsPage() {
               Claim Rewards
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#707A8A]">
-              Only settled winning YES/NO positions for the connected wallet appear here.
+              Claim settled winning YES/NO positions directly from this page. Your connected wallet signs the real market settlement transaction.
             </p>
           </div>
           <WalletPill address={address} isConnected={walletReady} />
@@ -159,7 +170,11 @@ export default function ClaimsPage() {
             ) : (
               <div className="space-y-2">
                 {claimableMarkets.map((market) => (
-                  <ApiClaimRow key={`${market.id}-${market.address}`} market={market} />
+                  <ApiClaimRow
+                    key={`${market.id}-${market.address}`}
+                    market={market}
+                    onClaimed={() => loadClaimable(true)}
+                  />
                 ))}
               </div>
             )}
@@ -173,21 +188,83 @@ export default function ClaimsPage() {
             <StatusTile label="Reward token" value="Per-market collateral" />
             <StatusTile label="Settlement" value="UMA Optimistic Oracle V2" />
             <p className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
-              Claims redeem real winning YES/NO tokens for the collateral configured by each market. If you traded the losing side, nothing appears here.
+              Claims redeem real winning YES/NO tokens for the collateral configured by each market. The claim transaction is signed by your connected wallet and calls the market contract directly.
             </p>
           </div>
         </section>
       </section>
-
     </div>
   );
 }
 
-function ApiClaimRow({ market }: { market: ApiClaimMarket }) {
+function ApiClaimRow({
+  market,
+  onClaimed,
+}: {
+  market: ApiClaimMarket;
+  onClaimed: () => void | Promise<void>;
+}) {
   const payoutAmount = BigInt(market.payoutAmount);
+  const claimLongAmount = BigInt(market.claimLongAmount);
+  const claimShortAmount = BigInt(market.claimShortAmount);
   const collateralDecimals = market.collateralDecimals ?? 6;
   const outcomeDecimals = market.outcomeDecimals ?? collateralDecimals;
   const collateralSymbol = market.collateralSymbol ?? "USDC";
+  const canClaim = claimLongAmount > 0n || claimShortAmount > 0n;
+  const [localError, setLocalError] = useState("");
+  const [didRefresh, setDidRefresh] = useState(false);
+
+  const {
+    data: claimHash,
+    error: writeError,
+    isPending: isWaitingForWallet,
+    writeContract,
+  } = useWriteContract();
+
+  const {
+    error: receiptError,
+    isLoading: isConfirming,
+    isSuccess: isConfirmed,
+  } = useWaitForTransactionReceipt({
+    hash: claimHash,
+    query: {
+      enabled: Boolean(claimHash),
+    },
+  });
+
+  useEffect(() => {
+    const claimError = writeError ?? receiptError;
+    if (claimError) {
+      setLocalError(cleanClaimError(claimError));
+    }
+  }, [receiptError, writeError]);
+
+  useEffect(() => {
+    if (!isConfirmed || didRefresh) return;
+    setDidRefresh(true);
+    setLocalError("");
+    void onClaimed();
+  }, [didRefresh, isConfirmed, onClaimed]);
+
+  function claim() {
+    if (!canClaim || isWaitingForWallet || isConfirming) return;
+    setDidRefresh(false);
+    setLocalError("");
+    writeContract({
+      address: market.address,
+      abi: MARKET_ABI,
+      functionName: "settle",
+      args: [claimLongAmount, claimShortAmount],
+    });
+  }
+
+  const buttonLabel = isWaitingForWallet
+    ? "Confirm in wallet..."
+    : isConfirming
+      ? "Confirming..."
+      : isConfirmed
+        ? "Claimed"
+        : "Claim";
 
   return (
     <article className="terminal-card p-3">
@@ -219,13 +296,34 @@ function ApiClaimRow({ market }: { market: ApiClaimMarket }) {
               {formatTokenDisplayAmount(BigInt(market.noBalance), outcomeDecimals)}
             </span>
           </div>
+          {claimHash ? (
+            <p className="mt-2 break-all font-mono text-[11px] text-[#707A8A]">
+              Tx: {claimHash}
+            </p>
+          ) : null}
+          {localError ? (
+            <p className="mt-2 text-xs leading-5 text-[#FF9BA8]">{localError}</p>
+          ) : null}
+          {isConfirmed ? (
+            <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#0ECB81]">
+              <Check className="h-3.5 w-3.5" /> Claim confirmed. Refreshing rewards...
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-2 lg:items-end">
+          <Button
+            className="h-10 min-w-28 bg-[#FCD535] px-4 text-sm font-bold text-[#181A20] hover:bg-[#EBC62F]"
+            disabled={!canClaim || isWaitingForWallet || isConfirming || isConfirmed}
+            onClick={claim}
+            type="button"
+          >
+            {buttonLabel}
+          </Button>
           <Link
-            className="terminal-button focus-ring px-3 py-2 text-sm font-bold"
+            className="focus-ring inline-flex items-center gap-1 text-xs font-bold text-[#FCD535] hover:underline"
             href={`/market/${market.address}?tab=resolve`}
           >
-            Open Claim Flow
+            Open Resolve <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
       </div>
