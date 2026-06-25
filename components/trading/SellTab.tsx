@@ -149,7 +149,7 @@ export function SellTab({
               </span>
             </div>
             <div className="mt-2 grid grid-cols-4 gap-2">
-              {["10", "25", "50"].map((v) => (
+              {["0.01", "0.02", "0.05"].map((v) => (
                 <button
                   key={v}
                   onClick={() => onAmountChange(v)}
