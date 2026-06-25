@@ -6,7 +6,6 @@ import {
   ArrowDown,
   Check,
   ChevronDown,
-  CircleDot,
   ExternalLink,
   Info,
   LoaderCircle,
@@ -69,13 +68,7 @@ const SDK_CHAINS = [
   ArcTestnet,
 ];
 
-const PROGRESS_STEPS = [
-  "Approve",
-  "Burn",
-  "Attestation",
-  "Mint",
-  "Completed",
-] as const;
+const PROGRESS_STEPS = ["Approve", "Burn", "Forwarding", "Completed"] as const;
 type ProgressStep = (typeof PROGRESS_STEPS)[number];
 type StepState = "idle" | "active" | "done" | "error";
 
@@ -92,6 +85,86 @@ function validAmount(value: string) {
   return /^(?:0|[1-9]\d*)(?:\.\d{0,6})?$/.test(value) && Number(value) > 0;
 }
 
+
+const TX_EXPLORER_BY_CHAIN_ID: Record<number, string> = {
+  11155111: "https://sepolia.etherscan.io/tx/",
+  84532: "https://sepolia.basescan.org/tx/",
+  421614: "https://sepolia.arbiscan.io/tx/",
+  11155420: "https://sepolia-optimism.etherscan.io/tx/",
+  5042002: "https://testnet.arcscan.app/tx/",
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function collectTxHashes(value: unknown, seen = new Set<unknown>()): string[] {
+  const hashes: string[] = [];
+
+  if (typeof value === "string") {
+    return /^0x[a-fA-F0-9]{64}$/.test(value) ? [value] : [];
+  }
+
+  if (!isRecord(value) && !Array.isArray(value)) return hashes;
+  if (seen.has(value)) return hashes;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    for (const item of value) hashes.push(...collectTxHashes(item, seen));
+    return [...new Set(hashes)];
+  }
+
+  const entries = Object.entries(value);
+  const priority = entries.filter(([key]) => /tx|hash|transaction/i.test(key));
+  const rest = entries.filter(([key]) => !/tx|hash|transaction/i.test(key));
+
+  for (const [, nestedValue] of [...priority, ...rest]) {
+    hashes.push(...collectTxHashes(nestedValue, seen));
+  }
+
+  return [...new Set(hashes)];
+}
+
+function findTxHash(value: unknown) {
+  return collectTxHashes(value)[0] ?? null;
+}
+
+function txUrlFromHash(hash: string | null, chainId: number) {
+  const explorer = TX_EXPLORER_BY_CHAIN_ID[chainId];
+  return hash && explorer ? `${explorer}${hash}` : null;
+}
+
+async function findArcTxUrl(hashes: string[]) {
+  const explorer = TX_EXPLORER_BY_CHAIN_ID[arcTestnet.id];
+  const rpcUrl = arcTestnet.rpcUrls.default.http[0];
+  if (!explorer || !rpcUrl) return null;
+
+  for (const hash of [...new Set(hashes)]) {
+    try {
+      const response = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "eth_getTransactionByHash",
+          params: [hash],
+        }),
+      });
+      const payload = (await response.json()) as { result?: unknown };
+      if (payload.result) return `${explorer}${hash}`;
+    } catch {
+      // Some RPC endpoints may block browser requests. In that case, do not show a fake Arc TX.
+    }
+  }
+
+  return null;
+}
+
+function bridgeTxUrl(result: BridgeResult | null, sourceChainId: number) {
+  return result ? txUrlFromHash(findTxHash(result), sourceChainId) : null;
+}
+
 export function DepositBridge() {
   const [isMounted, setIsMounted] = useState(false);
   const { connector } = useAccount();
@@ -103,6 +176,8 @@ export function DepositBridge() {
   const [completedSteps, setCompletedSteps] = useState<ProgressStep[]>([]);
   const [error, setError] = useState("");
   const [result, setResult] = useState<BridgeResult | null>(null);
+  const [sourceTxUrl, setSourceTxUrl] = useState<string | null>(null);
+  const [arcTxUrl, setArcTxUrl] = useState<string | null>(null);
   const [isBridging, setIsBridging] = useState(false);
 
   useEffect(() => {
@@ -137,6 +212,8 @@ export function DepositBridge() {
 
     setError("");
     setResult(null);
+    setSourceTxUrl(null);
+    setArcTxUrl(null);
     setCompletedSteps([]);
     setActiveStep("Approve");
     setIsBridging(true);
@@ -157,27 +234,58 @@ export function DepositBridge() {
       });
       const kit = new BridgeKit({ disableErrorReporting: true });
 
-      kit.on("approve", () => advance("Approve", "Burn"));
-      kit.on("burn", () => advance("Burn", "Attestation"));
-      kit.on("fetchAttestation", () => advance("Attestation", "Mint"));
-      kit.on("mint", () => advance("Mint", "Completed"));
+      const txHashes = new Set<string>();
+      const rememberTx = (payload?: unknown, options?: { source?: boolean }) => {
+        const hashes = collectTxHashes(payload);
+        hashes.forEach((hash) => txHashes.add(hash));
 
-      const bridgeResult = await kit.bridge({
+        if (options?.source) {
+          const sourceHash = hashes[0];
+          if (sourceHash) setSourceTxUrl(txUrlFromHash(sourceHash, source.id));
+        }
+      };
+
+      kit.on("approve", (payload?: unknown) => {
+        rememberTx(payload, { source: true });
+        advance("Approve", "Burn");
+      });
+      kit.on("burn", (payload?: unknown) => {
+        rememberTx(payload, { source: true });
+        advance("Burn", "Forwarding");
+      });
+      kit.on("fetchAttestation", (payload?: unknown) => {
+        rememberTx(payload);
+        setActiveStep("Forwarding");
+      });
+
+      const bridgeRequest = {
         from: { adapter, chain: source.bridgeId },
         to: {
-          adapter,
           chain: "Arc_Testnet",
           recipientAddress: address,
+          useForwarder: true,
         },
         amount,
         token: "USDC",
         config: {
-          transferSpeed: "SLOW",
-          batchTransactions: false,
+          transferSpeed: "FAST",
+          batchTransactions: true,
         },
-      });
+      } as Parameters<typeof kit.bridge>[0];
+
+      const bridgeResult = await kit.bridge(bridgeRequest);
 
       setResult(bridgeResult);
+
+      const resultHashes = collectTxHashes(bridgeResult);
+      resultHashes.forEach((hash) => txHashes.add(hash));
+
+      const resultSourceTxUrl = bridgeTxUrl(bridgeResult, source.id);
+      if (resultSourceTxUrl) setSourceTxUrl((current) => current ?? resultSourceTxUrl);
+
+      const detectedArcTxUrl = await findArcTxUrl([...txHashes]);
+      if (detectedArcTxUrl) setArcTxUrl(detectedArcTxUrl);
+
       if (bridgeResult.state !== "success") {
         const failedStep = bridgeResult.steps.find(
           (step) => step.state === "error",
@@ -352,12 +460,12 @@ export function DepositBridge() {
               >
                 {isBridging ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CircleDot className="h-4 w-4" />
-                )}
+                ) : null}
                 {isBridging
-                  ? "Bridge in progress…"
-                  : `Bridge ${amountIsValid ? amount : ""} USDC to Arc`}
+                  ? "Bridging to Arc Testnet…"
+                  : amountIsValid
+                    ? "Bridge to Arc Testnet"
+                    : "Enter amount"}
               </Button>
             )}
 
@@ -375,9 +483,10 @@ export function DepositBridge() {
             ) : null}
             {error ? <Notice tone="error" text={error} /> : null}
             {result?.state === "success" ? (
-              <Notice
-                tone="success"
-                text={`${result.amount} USDC was minted to your wallet on Arc Testnet.`}
+              <BridgeSuccessNotice
+                amount={result.amount}
+                sourceTxUrl={sourceTxUrl ?? bridgeTxUrl(result, source.id)}
+                arcTxUrl={arcTxUrl}
               />
             ) : null}
           </div>
@@ -408,7 +517,7 @@ export function DepositBridge() {
                   : "Connect wallet"}
               </p>
               <p className="mt-2 text-xs leading-5 text-[#707A8A]">
-                ERC-20 USDC available to the connected wallet on Arc Testnet.
+                USDC available in your Arc Testnet wallet.
               </p>
             </div>
           </section>
@@ -434,9 +543,9 @@ export function DepositBridge() {
               Gateway is future advanced routing
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#848E9C]">
-              Gateway unified balance is not required to trade ARCM markets
-              today. This deposit sends ERC-20 USDC directly to your own Arc
-              Testnet wallet; no Gateway deposit action is exposed.
+              Gateway is not required for ARCM today. This deposit sends USDC
+              directly to your Arc Testnet wallet. Circle Forwarding Service
+              completes the Arc-side mint automatically.
             </p>
             <a
               href="https://developers.circle.com/bridge-kit"
@@ -590,6 +699,50 @@ function ProgressRow({
       )}
       <span className="font-semibold">{label}</span>
     </li>
+  );
+}
+
+function BridgeSuccessNotice({
+  amount,
+  sourceTxUrl,
+  arcTxUrl,
+}: {
+  amount: string;
+  sourceTxUrl: string | null;
+  arcTxUrl: string | null;
+}) {
+  return (
+    <div
+      role="status"
+      className="rounded-md border border-[#0ECB81]/40 bg-[#0ECB81]/5 px-3 py-3 text-xs leading-5 text-[#84DDB8]"
+    >
+      <p className="font-bold text-[#0ECB81]">Success</p>
+      <p className="mt-1 text-[#EAECEF]">
+        {amount} USDC bridged to Arc Testnet.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-3">
+        {sourceTxUrl ? (
+          <a
+            href={sourceTxUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="focus-ring inline-flex items-center gap-1 font-bold text-[#FCD535] hover:underline"
+          >
+            View source TX <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : null}
+        {arcTxUrl ? (
+          <a
+            href={arcTxUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="focus-ring inline-flex items-center gap-1 font-bold text-[#FCD535] hover:underline"
+          >
+            View Arc TX <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
