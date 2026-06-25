@@ -24,6 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatUnits, parseUnits } from "viem";
 import { useWallet } from "@/contexts/WalletContext";
+import { useMarketAddress } from "@/contexts/MarketAddressContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useMarketState,
@@ -70,14 +71,37 @@ function safeParseAmount(amount: string, decimals: number | null): bigint {
   }
 }
 
+type MarketMetadata = {
+  address?: string;
+  marketAddress?: string;
+  kickoffTime?: string;
+  startsAt?: string;
+  startTime?: string;
+};
+
+function parseMarketKickoffMs(market?: MarketMetadata) {
+  const raw = market?.kickoffTime ?? market?.startsAt ?? market?.startTime;
+  if (!raw) return null;
+
+  const parsed = new Date(raw).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sameAddress(a?: string, b?: string) {
+  return Boolean(a && b && a.toLowerCase() === b.toLowerCase());
+}
+
 export function TradingPanel() {
   const { isConnected } = useWallet();
+  const { marketAddress } = useMarketAddress();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<Tab>("buy");
   const [outcome, setOutcome] = useState<Outcome>("yes");
   const [amount, setAmount] = useState("");
+  const [clientNowMs, setClientNowMs] = useState<number | null>(null);
+  const [marketKickoffMs, setMarketKickoffMs] = useState<number | null>(null);
 
   const {
     priceRequested,
@@ -144,6 +168,51 @@ export function TradingPanel() {
   const { collateralOut: sellPreview } = useCalcSell(outcome, tab === "sell" ? amount : "", outcomeDecimals);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const updateNow = () => setClientNowMs(Date.now());
+
+    updateNow();
+    const interval = window.setInterval(updateNow, 15_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMarketKickoff() {
+      try {
+        const response = await fetch("/api/markets", { cache: "no-store" });
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        const markets = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.markets)
+            ? payload.markets
+            : [];
+        const market = markets.find((item: MarketMetadata) =>
+          sameAddress(item.marketAddress, marketAddress) || sameAddress(item.address, marketAddress),
+        );
+
+        if (!cancelled) {
+          setMarketKickoffMs(parseMarketKickoffMs(market));
+        }
+      } catch {
+        if (!cancelled) setMarketKickoffMs(null);
+      }
+    }
+
+    if (marketAddress === "0x0000000000000000000000000000000000000000") {
+      setMarketKickoffMs(null);
+      return;
+    }
+
+    loadMarketKickoff();
+    return () => {
+      cancelled = true;
+    };
+  }, [marketAddress]);
 
   // Auto-switch to resolve tab when market is settled
   useEffect(() => {
@@ -254,6 +323,12 @@ export function TradingPanel() {
   const showResolveTab = adminSettlementEnabled || receivedSettlementPrice;
   const visibleTabs = (showResolveTab ? ["buy", "sell", "resolve"] : ["buy", "sell"]) as Tab[];
   const marketSettled = Boolean(receivedSettlementPrice);
+  const marketClosedByKickoff =
+    !marketSettled &&
+    marketKickoffMs !== null &&
+    clientNowMs !== null &&
+    clientNowMs >= marketKickoffMs;
+  const tradingClosed = marketSettled || marketClosedByKickoff;
   const tradingEnabled =
     collateralEnabled && !collateralWarning && collateralAddress !== null && outcomeDecimals !== null;
   const isArctCollateral =
@@ -264,9 +339,13 @@ export function TradingPanel() {
       <div className="border-b border-[#2B3139] px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <span className="text-base font-black">{marketSettled ? "Market actions" : "Trade"}</span>
+            <span className="text-base font-black">{tradingClosed ? "Market actions" : "Trade"}</span>
             <p className="mt-0.5 text-xs text-[#707A8A]">
-              {marketSettled ? "Claim rewards from settled positions." : `Buy or sell YES / NO with ${collateralSymbol}.`}
+              {marketSettled
+                ? "Claim rewards from settled positions."
+                : marketClosedByKickoff
+                  ? "Betting closed at kickoff. Waiting for final result."
+                  : `Buy or sell YES / NO with ${collateralSymbol}.`}
             </p>
           </div>
           <span className="rounded-full border border-[#FCD535]/70 bg-[#FCD535]/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#FFF3AF]">
@@ -296,12 +375,19 @@ export function TradingPanel() {
             Trading is closed. Winning YES/NO shares can be redeemed from the Claim tab or Claims page.
           </p>
         </div>
+      ) : marketClosedByKickoff ? (
+        <div className="border-b border-[#2B3139] bg-[#F59E0B]/10 px-4 py-3">
+          <p className="text-xs font-bold text-[#FFF3AF]">Betting closed</p>
+          <p className="mt-1 text-xs leading-5 text-[#707A8A]">
+            This fixture has kicked off. The market is waiting for admin result entry and settlement.
+          </p>
+        </div>
       ) : null}
 
       <div className={`grid gap-1 border-b border-[#2B3139] bg-[#0B0E11] p-1.5 ${showResolveTab ? "grid-cols-3" : "grid-cols-2"}`}>
         {visibleTabs.map((t) => {
           const isTradingTab = t === "buy" || t === "sell";
-          const disabled = isTradingTab && (marketSettled || !tradingEnabled);
+          const disabled = isTradingTab && (tradingClosed || !tradingEnabled);
           const label =
             t === "resolve"
               ? adminSettlementEnabled && !marketSettled
@@ -337,7 +423,11 @@ export function TradingPanel() {
       </div>
 
       <div className="space-y-4 p-4">
-        {(tab === "buy" || tab === "sell") && !tradingEnabled ? (
+        {(tab === "buy" || tab === "sell") && marketClosedByKickoff ? (
+          <p className="rounded-xl border border-[#F59E0B]/35 bg-[#F59E0B]/10 p-4 text-sm leading-6 text-[#FFF3AF]">
+            Betting is closed because this fixture has already kicked off. Enter the final result from Admin Markets after the match ends.
+          </p>
+        ) : (tab === "buy" || tab === "sell") && !tradingEnabled ? (
           <p className="rounded-xl border border-[#F59E0B]/35 bg-[#F59E0B]/10 p-4 text-sm leading-6 text-[#FFF3AF]">
             Trading is unavailable because this market&apos;s collateral or outcome-token metadata is not enabled and valid.
           </p>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -444,6 +444,13 @@ function hasWorldCupFixtureStarted(kickoffTime: string, nowMs: number | null) {
   return kickoffMs !== null && kickoffMs <= nowMs;
 }
 
+function isWorldCupFixtureOpenForBetting(kickoffTime: string, nowMs: number | null) {
+  if (nowMs === null) return true;
+
+  const kickoffMs = getWorldCupKickoffMs(kickoffTime);
+  return kickoffMs === null || kickoffMs > nowMs;
+}
+
 function isWorldCupResultClosed(result?: WorldCupResultRecord) {
   return result?.status === "final" || result?.status === "cancelled";
 }
@@ -872,8 +879,11 @@ function HomeContent() {
     return acc;
   }, {});
 
+  const publicFixtureNowMs = clientNowMs;
   const deployedWorldCupFixtureCards = buildWorldCupFixtureCards(worldCupMarkets, worldCupResultsByFixture).filter(
-    (fixture) => !fixture.isCompleted,
+    (fixture) =>
+      !fixture.isCompleted &&
+      isWorldCupFixtureOpenForBetting(fixture.kickoffTime, publicFixtureNowMs),
   );
   const deployedWorldCupMarketAddresses = new Set(
     worldCupMarkets

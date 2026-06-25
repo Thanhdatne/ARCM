@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -23,6 +23,11 @@ interface WorldCupResultRecord {
   result?: OutcomeType | null;
   updatedAt: string;
   source?: string;
+  kickoffTime?: string;
+  startsAt?: string;
+  startTime?: string;
+  scheduledAt?: string;
+  updateAllowedAt?: string;
 }
 
 interface WorldCupDeployment {
@@ -136,6 +141,81 @@ const categoryCopy: Record<MarketTemplateCategory, { label: string; icon: string
   },
 };
 
+const WORLD_CUP_FIXTURE_DATE_BY_ID: Record<string, string> = {
+  "group-a-mexico-vs-south-africa": "2026-06-11",
+  "group-a-south-korea-vs-czechia": "2026-06-11",
+  "group-b-canada-vs-bosnia-and-herzegovina": "2026-06-12",
+  "group-d-united-states-vs-paraguay": "2026-06-12",
+  "group-b-qatar-vs-switzerland": "2026-06-13",
+  "group-c-brazil-vs-morocco": "2026-06-13",
+  "group-c-haiti-vs-scotland": "2026-06-13",
+  "group-d-australia-vs-turkey": "2026-06-14",
+  "group-e-germany-vs-curacao": "2026-06-14",
+  "group-f-netherlands-vs-japan": "2026-06-14",
+  "group-e-ivory-coast-vs-ecuador": "2026-06-14",
+  "group-f-sweden-vs-tunisia": "2026-06-14",
+  "group-h-spain-vs-cape-verde": "2026-06-15",
+  "group-g-belgium-vs-egypt": "2026-06-15",
+  "group-h-saudi-arabia-vs-uruguay": "2026-06-15",
+  "group-g-iran-vs-new-zealand": "2026-06-15",
+  "group-i-france-vs-senegal": "2026-06-16",
+  "group-i-iraq-vs-norway": "2026-06-16",
+  "group-j-argentina-vs-algeria": "2026-06-16",
+  "group-j-austria-vs-jordan": "2026-06-17",
+  "group-k-portugal-vs-dr-congo": "2026-06-17",
+  "group-l-england-vs-croatia": "2026-06-17",
+  "group-l-ghana-vs-panama": "2026-06-17",
+  "group-k-uzbekistan-vs-colombia": "2026-06-17",
+  "group-a-czechia-vs-south-africa": "2026-06-18",
+  "group-b-switzerland-vs-bosnia-and-herzegovina": "2026-06-18",
+  "group-b-canada-vs-qatar": "2026-06-18",
+  "group-a-mexico-vs-south-korea": "2026-06-18",
+  "group-d-united-states-vs-australia": "2026-06-19",
+  "group-c-scotland-vs-morocco": "2026-06-19",
+  "group-c-brazil-vs-haiti": "2026-06-19",
+  "group-d-turkey-vs-paraguay": "2026-06-19",
+  "group-f-netherlands-vs-sweden": "2026-06-20",
+  "group-e-germany-vs-ivory-coast": "2026-06-20",
+  "group-e-ecuador-vs-curacao": "2026-06-20",
+  "group-f-tunisia-vs-japan": "2026-06-21",
+  "group-h-spain-vs-saudi-arabia": "2026-06-21",
+  "group-g-belgium-vs-iran": "2026-06-21",
+  "group-h-uruguay-vs-cape-verde": "2026-06-21",
+  "group-g-new-zealand-vs-egypt": "2026-06-21",
+  "group-j-argentina-vs-austria": "2026-06-22",
+  "group-i-france-vs-iraq": "2026-06-22",
+  "group-i-norway-vs-senegal": "2026-06-22",
+  "group-j-jordan-vs-algeria": "2026-06-22",
+  "group-k-portugal-vs-uzbekistan": "2026-06-23",
+  "group-l-england-vs-ghana": "2026-06-23",
+  "group-l-panama-vs-croatia": "2026-06-23",
+  "group-k-colombia-vs-dr-congo": "2026-06-23",
+  "group-b-switzerland-vs-canada": "2026-06-24",
+  "group-b-bosnia-and-herzegovina-vs-qatar": "2026-06-24",
+  "group-c-scotland-vs-brazil": "2026-06-24",
+  "group-c-morocco-vs-haiti": "2026-06-24",
+  "group-a-czechia-vs-mexico": "2026-06-24",
+  "group-a-south-africa-vs-south-korea": "2026-06-24",
+  "group-e-ecuador-vs-germany": "2026-06-25",
+  "group-e-curacao-vs-ivory-coast": "2026-06-25",
+  "group-f-tunisia-vs-netherlands": "2026-06-25",
+  "group-f-japan-vs-sweden": "2026-06-25",
+  "group-d-turkey-vs-united-states": "2026-06-25",
+  "group-d-paraguay-vs-australia": "2026-06-25",
+  "group-i-norway-vs-france": "2026-06-26",
+  "group-i-senegal-vs-iraq": "2026-06-26",
+  "group-h-uruguay-vs-spain": "2026-06-26",
+  "group-h-cape-verde-vs-saudi-arabia": "2026-06-26",
+  "group-g-new-zealand-vs-belgium": "2026-06-26",
+  "group-g-egypt-vs-iran": "2026-06-26",
+  "group-l-panama-vs-england": "2026-06-27",
+  "group-l-croatia-vs-ghana": "2026-06-27",
+  "group-k-colombia-vs-portugal": "2026-06-27",
+  "group-k-dr-congo-vs-uzbekistan": "2026-06-27",
+  "group-j-jordan-vs-argentina": "2026-06-27",
+  "group-j-algeria-vs-austria": "2026-06-27",
+};
+
 export default function AdminMarketsPage() {
   const [activeCategory, setActiveCategory] =
     useState<"All" | MarketTemplateCategory>("All");
@@ -154,6 +234,7 @@ export default function AdminMarketsPage() {
     Record<string, FixtureResolverStatus>
   >({});
   const [statusesLoading, setStatusesLoading] = useState(true);
+  const todayDateKey = useMemo(() => getLocalDateKey(new Date()), []);
 
   useEffect(() => {
     setAdminKey(window.localStorage.getItem("ARCM-admin-key") ?? "");
@@ -303,11 +384,19 @@ export default function AdminMarketsPage() {
     ));
   }, [finalResults, resolverStatuses]);
 
-  const visibleFinalResults = useMemo(() => {
+  const unresolvedDeployedFinalResults = useMemo(() => {
     return deployedFinalResults.filter((result) => (
       resolverStatuses[result.fixtureId]?.status !== "settled"
     ));
   }, [deployedFinalResults, resolverStatuses]);
+
+  const visibleFinalResults = useMemo(() => {
+    return unresolvedDeployedFinalResults.filter((result) => (
+      isFixtureOnOrAfterDate(result, todayDateKey)
+    ));
+  }, [todayDateKey, unresolvedDeployedFinalResults]);
+
+  const hiddenPastFixtureCount = unresolvedDeployedFinalResults.length - visibleFinalResults.length;
 
   const deploymentsByFixture = useMemo(() => {
     const grouped: Record<string, WorldCupDeployment[]> = {};
@@ -331,7 +420,9 @@ export default function AdminMarketsPage() {
   }, [worldCupDeployments]);
 
   const hiddenNotDeployedCount = finalResults.length - deployedFinalResults.length;
-  const settledFixtureCount = deployedFinalResults.length - visibleFinalResults.length;
+  const settledFixtureCount = deployedFinalResults.filter((result) => (
+    resolverStatuses[result.fixtureId]?.status === "settled"
+  )).length;
   const readyToSettleCount = visibleFinalResults.filter((result) => (
     resolverStatuses[result.fixtureId]?.status === "readyToSettle"
   )).length;
@@ -386,6 +477,82 @@ export default function AdminMarketsPage() {
     }
   };
 
+  const runVisibleFastSettleBatch = async () => {
+    const key = adminKey.trim();
+
+    if (!key) {
+      setResolverError("Paste ADMIN_API_KEY first.");
+      return;
+    }
+
+    const fixturesToProcess = visibleFinalResults.slice(0, 12);
+
+    if (fixturesToProcess.length === 0) {
+      setResolverError("No visible fixtures from today onward to resolve.");
+      return;
+    }
+
+    setResolverBusy("resolveVisibleFastSettle");
+    setResolverError("");
+
+    const aggregate: ResolverResponse = {
+      success: true,
+      action: "resolveVisibleFastSettle",
+      scanned: 0,
+      proposed: 0,
+      timerAdvanced: 0,
+      settled: 0,
+      skipped: 0,
+      failed: 0,
+      items: [],
+    };
+
+    try {
+      for (const result of fixturesToProcess) {
+        const response = await fetch("/api/world-cup/manual-resolve", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": key,
+          },
+          body: JSON.stringify({
+            action: "resolveAndFastSettle",
+            fixtureId: result.fixtureId,
+            limit: 12,
+          }),
+        });
+
+        const data = (await response.json().catch(() => ({}))) as ResolverResponse;
+
+        if (!response.ok) {
+          throw new Error(data.error || `Resolver request failed for ${result.fixtureId}.`);
+        }
+
+        aggregate.scanned = (aggregate.scanned ?? 0) + (data.scanned ?? 0);
+        aggregate.proposed = (aggregate.proposed ?? 0) + (data.proposed ?? 0);
+        aggregate.timerAdvanced = (aggregate.timerAdvanced ?? 0) + (data.timerAdvanced ?? 0);
+        aggregate.settled = (aggregate.settled ?? 0) + (data.settled ?? 0);
+        aggregate.skipped = (aggregate.skipped ?? 0) + (data.skipped ?? 0);
+        aggregate.failed = (aggregate.failed ?? 0) + (data.failed ?? 0);
+        aggregate.items = [...(aggregate.items ?? []), ...(data.items ?? [])];
+      }
+
+      setResolverResponse(aggregate);
+      window.setTimeout(() => {
+        void loadResolverStatuses();
+      }, 1_500);
+      window.setTimeout(() => {
+        void loadResolverStatuses();
+      }, 7_000);
+    } catch (error) {
+      setResolverError(
+        error instanceof Error ? error.message : "Resolver request failed.",
+      );
+    } finally {
+      setResolverBusy("");
+    }
+  };
+
   if (!adminMarketCreateEnabled) {
     return (
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-5 sm:px-6 lg:px-8">
@@ -422,8 +589,8 @@ export default function AdminMarketsPage() {
                   Resolve finished fixtures
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-[#707A8A]">
-                  Resolve and settle all 3 binary markets for one finished fixture in a single
-                  protected server action.
+                  Resolve and settle visible finished fixtures only. Past fixtures before today are hidden
+                  from this admin queue so you can focus on current matches.
                 </p>
                 <p className="mt-2 text-xs font-bold text-[#FFF3AF]">
                   Testnet admin shortcut. Public settlement still uses UMA liveness.
@@ -447,12 +614,12 @@ export default function AdminMarketsPage() {
               <button
                 className="terminal-button focus-ring px-4 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!adminKey.trim() || !!resolverBusy || visibleFinalResults.length === 0}
-                onClick={() => void runResolver("resolveAndFastSettle")}
+                onClick={() => void runVisibleFastSettleBatch()}
                 type="button"
               >
-                {resolverBusy === "resolveAndFastSettle"
-                  ? "Resolving & settling..."
-                  : "Resolve & Fast Settle Finished"}
+                {resolverBusy === "resolveVisibleFastSettle"
+                  ? "Resolving visible fixtures..."
+                  : "Resolve & Fast Settle Visible"}
               </button>
 
               {readyToSettleCount > 0 ? (
@@ -471,6 +638,12 @@ export default function AdminMarketsPage() {
               {waitingFixtureCount > 0 ? (
                 <span className="rounded-lg border border-[#FCD535]/30 bg-[#FCD535]/10 px-3 py-2 text-xs font-bold text-[#FFF3AF]">
                   {waitingFixtureCount} fixture{waitingFixtureCount > 1 ? "s" : ""} eligible for fast settle
+                </span>
+              ) : null}
+
+              {hiddenPastFixtureCount > 0 ? (
+                <span className="rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 py-2 text-xs font-bold text-[#707A8A]">
+                  {hiddenPastFixtureCount} past fixture{hiddenPastFixtureCount > 1 ? "s" : ""} before today hidden
                 </span>
               ) : null}
 
@@ -508,7 +681,7 @@ export default function AdminMarketsPage() {
 
               {!resultsLoading && visibleFinalResults.length === 0 ? (
                 <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-sm font-bold text-[#707A8A]">
-                  No unresolved deployed final fixtures. Settled and undeployed fixtures are hidden.
+                  No unresolved deployed final fixtures from today onward. Past, settled, and undeployed fixtures are hidden.
                 </div>
               ) : null}
 
@@ -715,7 +888,7 @@ export default function AdminMarketsPage() {
               </>
             ) : (
               <p className="mt-3 text-sm leading-6 text-[#707A8A]">
-                Use Resolve & Fast Settle for one fixture, or process visible finished fixtures in a safe batch.
+                Use Resolve & Fast Settle for one fixture, or process only visible fixtures from today onward.
               </p>
             )}
           </div>
@@ -909,6 +1082,44 @@ export default function AdminMarketsPage() {
   );
 }
 
+
+function getLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value?: string | null) {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return getLocalDateKey(parsed);
+}
+
+function getFixtureDateKey(result: WorldCupResultRecord) {
+  return (
+    parseDateKey(result.kickoffTime) ??
+    parseDateKey(result.startsAt) ??
+    parseDateKey(result.startTime) ??
+    parseDateKey(result.scheduledAt) ??
+    parseDateKey(result.updateAllowedAt) ??
+    WORLD_CUP_FIXTURE_DATE_BY_ID[result.fixtureId] ??
+    null
+  );
+}
+
+function isFixtureOnOrAfterDate(result: WorldCupResultRecord, dateKey: string) {
+  const fixtureDateKey = getFixtureDateKey(result);
+
+  if (!fixtureDateKey) return true;
+
+  return fixtureDateKey >= dateKey;
+}
 
 function outcomeRank(outcomeType: string) {
   if (outcomeType === "home_win") return 0;
