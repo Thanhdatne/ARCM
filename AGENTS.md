@@ -16,18 +16,31 @@ Core stack:
 * Supabase cache
 * YES/NO market tokens
 * AMM trading
+* Circle BridgeKit / CCTP deposit flow
 
-Current working features:
+## Current confirmed app state
 
-* Wallet connect
-* ARCT faucet
-* YES/NO buy/sell
-* Approve / trade / settle / claim flow
-* UMA propose / liveness / settle flow
-* World Cup market deployments/results
-* Supabase seeded for World Cup deployments/results
-* Claims page uses API/cache pattern
-* Portfolio page uses API pattern
+* App builds successfully with `npm run build`.
+* Main branch is the active deployment branch.
+* Latest stable checkpoint:
+
+  * `0856ce9 Improve deposit forwarding and transaction links`
+* Deposit page supports Circle BridgeKit / Forwarding Service.
+* Deposit success can show:
+
+  * source chain TX
+  * Arc TX
+* Market V2 USDC creation API works locally through:
+
+  * `POST /api/create-market-v2`
+* A local V2 market creation test succeeded with:
+
+  * `contractVersion: 2`
+  * `collateralSymbol: USDC`
+  * `collateralDecimals: 6`
+* `/api/markets` can read V2 USDC metadata.
+* Market detail metadata fallback has been patched so V2 markets can show title + USDC metadata instead of ARCT fallback.
+* Admin template deploy is the current active task.
 
 ## Never modify unless explicitly requested
 
@@ -38,6 +51,8 @@ Current working features:
 * private keys
 * production env secrets
 * existing working buy/sell/claim contract calls
+* DepositBridge unless the task explicitly asks for deposit changes
+* market detail unless the task explicitly asks for detail changes
 
 ## Hard rules
 
@@ -58,16 +73,56 @@ Current working features:
 ## Always preserve
 
 * Arc Testnet chain ID: `5042002`
-* RPC: `https://rpc.testnet.arc.network`
-* existing `/api/create-market` flow unless the task explicitly changes it
+* RPC fallback: `https://rpc.testnet.arc.network`
 * real `marketAddress` + `ammAddress` mapping
 * real market detail routing
 * real Buy / Sell / Approve / Resolve / Settle / Claim flow
 * Supabase server-only access pattern
+* existing legacy `/api/create-market` flow unless the task explicitly changes legacy behavior
+
+## V2 USDC market rules
+
+New generic/admin template deployments should use Market V2 with Arc native USDC.
+
+Arc native USDC collateral:
+
+```txt
+0x3600000000000000000000000000000000000000
+```
+
+Market V2 server route:
+
+```txt
+POST /api/create-market-v2
+```
+
+Expected V2 result:
+
+* `contractVersion: 2`
+* `collateralSymbol: USDC`
+* `collateralDecimals: 6`
+* valid `marketAddress`
+* valid `ammAddress`
+
+## Admin deploy rules
+
+For generic Admin Markets templates:
+
+* Use `/api/create-market-v2`.
+* Use Arc native USDC collateral.
+* Do not open MetaMask.
+* Do not use RainbowKit for deployment.
+* Do not use `CreateMarketDialog` for V2 template deployment.
+* Do not deploy with ARCT.
+* Server route should deploy using `PRIVATE_KEY`.
+* Client must not expose `PRIVATE_KEY`, `ADMIN_API_KEY`, or Supabase service keys.
+* Use the existing admin auth/header pattern expected by `lib/adminGuard.ts`.
+
+Legacy `/api/create-market` is kept only for old ARCT flows and should not be used for new generic Admin template deployment unless explicitly requested.
 
 ## World Cup rules
 
-ARCM markets are binary YES/NO.
+ARCM football markets are binary YES/NO.
 
 Every football fixture must be split into 3 binary markets:
 
@@ -75,7 +130,7 @@ Every football fixture must be split into 3 binary markets:
 2. `draw`
 3. `away_win`
 
-Example: Brazil vs Morocco
+Example: Brazil vs Morocco:
 
 * `Will Brazil beat Morocco?`
 * `Will Brazil vs Morocco end in a draw?`
@@ -88,26 +143,15 @@ Main public grid only shows deployed/tradable markets:
 
 Non-deployed templates stay admin-only.
 
-## Admin deploy rules
-
-Use only:
-
-* existing `/api/create-market`
-* `data/world-cup-deployments.json`
-* Supabase deployment/result tables
-* `NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE=true`
-
-Do not run `scripts/deploy.ts` for new World Cup markets unless explicitly requested.
-
-## Circle / Arc final requirements
+## Circle / Arc requirements
 
 The final product must align with Circle/Arc prediction market positioning:
 
 * Arc Testnet prediction markets
 * UMA Optimistic Oracle V2 resolution
 * Arc fast deterministic transaction finality UX
-* native USDC/EURC collateral support where actually configured
-* CCTP/Gateway USDC deposit where actually configured
+* native USDC collateral where actually configured
+* CCTP / BridgeKit USDC deposit where actually configured
 * USDC-denominated gas onboarding
 * truthful public copy
 
@@ -118,13 +162,40 @@ Important truth:
 * Do not claim instant market outcome resolution.
 * Do not claim USDC/EURC/CCTP/Gateway is live unless real env/config/addresses and working implementation exist.
 
-Known Arc/Circle testnet references to verify before implementation:
+Known Arc/Circle testnet references:
 
-* Arc Testnet CCTP domain: `26`
-* Arc Testnet USDC token address: `0x3600000000000000000000000000000000000000`
-* Arc Testnet Gateway Wallet: `0x0077777d7EBA4688BDeF3E311b846F25870A19B9`
+* Arc Testnet USDC token address:
 
-Do not hardcode these into production behavior without env/config support and verification.
+  * `0x3600000000000000000000000000000000000000`
+* Arc Testnet CCTP domain:
+
+  * `26`
+* Arc Testnet Gateway Wallet:
+
+  * `0x0077777d7EBA4688BDeF3E311b846F25870A19B9`
+
+Do not hardcode production behavior without env/config support and verification.
+
+## CCTP / Gateway rules
+
+CCTP / BridgeKit deposit must be real or disabled.
+
+Do not create fake deposit success states.
+
+Current preferred implementation direction:
+
+* browser-wallet signed Circle BridgeKit flow
+* real USDC bridge to Arc Testnet
+* Circle Forwarding Service may complete the Arc-side mint
+* clear status steps:
+
+  * approve
+  * burn
+  * forwarding
+  * completed
+* success can show source TX and Arc TX when available
+
+Gateway unified balance is future advanced routing and should not be presented as required for current ARCM trading unless actually implemented and tested.
 
 ## Design rules
 
@@ -179,22 +250,6 @@ Never expose:
 * admin secrets
 
 Client code must never import server-only Supabase admin helpers.
-
-## CCTP/Gateway rules
-
-CCTP/Gateway must be real or disabled.
-
-Do not create fake deposit success states.
-
-Preferred implementation direction:
-
-* browser-wallet signed CCTP/App Kit or Bridge Kit flow
-* real USDC bridge to Arc Testnet
-* real Gateway Wallet `deposit(token, amount)` call
-* no direct ERC20 transfer to Gateway Wallet
-* clear status steps: source approval, bridge/burn, attestation, mint, gateway deposit, complete
-
-If dependencies/env/config are missing, return an audit and ask before coding.
 
 ## Credit optimization rules
 

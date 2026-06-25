@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CreateMarketDialog } from "@/components/CreateMarketDialog";
 import { Input } from "@/components/ui/input";
 import {
   MARKET_TEMPLATES,
@@ -12,6 +11,34 @@ import { CheckCircle2, KeyRound, Layers3, RefreshCw, Search, ShieldCheck, Trophy
 
 
 type OutcomeType = "home_win" | "draw" | "away_win";
+type MarketTemplate = (typeof MARKET_TEMPLATES)[number];
+
+type TemplateDeployState =
+  | { status: "idle" }
+  | { status: "deploying" }
+  | {
+      status: "success";
+      marketAddress: string;
+      transactionHash?: string;
+      collateralSymbol?: string;
+      contractVersion?: number;
+    }
+  | { status: "error"; message: string };
+
+interface CreateMarketV2Response {
+  success?: boolean;
+  error?: string;
+  market?: {
+    marketAddress?: string;
+    address?: string;
+    transactionHash?: string;
+    txHash?: string;
+    collateralSymbol?: string;
+    contractVersion?: number;
+  };
+  transactionHash?: string;
+  txHash?: string;
+}
 
 interface WorldCupResultRecord {
   fixtureId: string;
@@ -91,6 +118,8 @@ interface FixtureResolverStatus {
 
 const adminMarketCreateEnabled =
   process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
+
+const ARC_NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 const categories: ("All" | MarketTemplateCategory)[] = [
   "All",
@@ -234,6 +263,9 @@ export default function AdminMarketsPage() {
     Record<string, FixtureResolverStatus>
   >({});
   const [statusesLoading, setStatusesLoading] = useState(true);
+  const [templateDeployStates, setTemplateDeployStates] = useState<
+    Record<string, TemplateDeployState>
+  >({});
   const todayDateKey = useMemo(() => getLocalDateKey(new Date()), []);
 
   useEffect(() => {
@@ -370,6 +402,85 @@ export default function AdminMarketsPage() {
     window.localStorage.setItem("ARCM-admin-key", adminKey.trim());
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1_500);
+  };
+
+  const deployTemplate = async (template: MarketTemplate) => {
+    const key = adminKey.trim();
+
+    if (!key) {
+      setTemplateDeployStates((current) => ({
+        ...current,
+        [template.id]: { status: "error", message: "Paste ADMIN_API_KEY first." },
+      }));
+      return;
+    }
+
+    setTemplateDeployStates((current) => ({
+      ...current,
+      [template.id]: { status: "deploying" },
+    }));
+
+    try {
+      const worldCupMarketId = getTemplateWorldCupMarketId(template);
+      const response = await fetch("/api/create-market-v2", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": key,
+        },
+        body: JSON.stringify({
+          title: template.title,
+          category: template.category,
+          pairName: stablePairName(template.id),
+          collateralAddress: ARC_NATIVE_USDC_ADDRESS,
+          proposerReward: "1",
+          proposerBond: "1",
+          initialLiquidity: "1",
+          liveness: 7200,
+          feeBps: 200,
+          ...(worldCupMarketId ? { worldCupMarketId } : {}),
+        }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as CreateMarketV2Response;
+
+      if (!response.ok) {
+        throw new Error(data.error || "V2 USDC deployment failed.");
+      }
+
+      const marketAddress = data.market?.marketAddress ?? data.market?.address;
+      if (!marketAddress) throw new Error("Deployment returned no market address.");
+
+      setTemplateDeployStates((current) => ({
+        ...current,
+        [template.id]: {
+          status: "success",
+          marketAddress,
+          transactionHash:
+            data.market?.transactionHash ??
+            data.market?.txHash ??
+            data.transactionHash ??
+            data.txHash,
+          collateralSymbol: data.market?.collateralSymbol,
+          contractVersion: data.market?.contractVersion,
+        },
+      }));
+
+      if (worldCupMarketId) {
+        window.setTimeout(() => {
+          void loadWorldCupDeployments();
+        }, 1_500);
+      }
+    } catch (error) {
+      setTemplateDeployStates((current) => ({
+        ...current,
+        [template.id]: {
+          status: "error",
+          message:
+            error instanceof Error ? error.message : "V2 USDC deployment failed.",
+        },
+      }));
+    }
   };
 
   const finalResults = useMemo(() => {
@@ -909,8 +1020,9 @@ export default function AdminMarketsPage() {
               Deploy real Arc Testnet markets
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#707A8A]">
-              Templates stay hidden from public Home until deployed. Each card creates a real market
-              contract, initializes UMA settlement, deploys an AMM, and seeds configured collateral liquidity.
+              Templates stay hidden from public Home until deployed. Each card calls the protected
+              V2 server deployer, creates a real USDC market, initializes UMA settlement, deploys an AMM,
+              and seeds native USDC liquidity on Arc Testnet.
             </p>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -1009,6 +1121,8 @@ export default function AdminMarketsPage() {
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleTemplates.map((template) => {
           const copy = categoryCopy[template.category];
+          const deployState = templateDeployStates[template.id] ?? { status: "idle" };
+          const deploying = deployState.status === "deploying";
 
           return (
             <article
@@ -1055,16 +1169,43 @@ export default function AdminMarketsPage() {
                 </div>
               </div>
 
-              <CreateMarketDialog
-                adminKey={adminKey.trim()}
-                initialCategory={template.category}
-                initialSettlementRule={template.settlementRule}
-                initialTitle={template.title}
-                onCreated={() => undefined}
-                redirectOnCreated={false}
-                triggerClassName="terminal-button focus-ring mt-4 w-full px-3 py-2 text-sm font-bold"
-                triggerLabel="Deploy on Arc"
-              />
+              <div className="mt-4">
+                <button
+                  className="terminal-button focus-ring w-full px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={deploying}
+                  onClick={() => void deployTemplate(template)}
+                  type="button"
+                >
+                  {deploying ? "Deploying…" : deployState.status === "success" ? "Deployed" : "Deploy on Arc"}
+                </button>
+
+                {deployState.status === "success" ? (
+                  <div className="mt-3 rounded-lg border border-[#0ECB81]/40 bg-[#0ECB81]/10 p-3 text-xs">
+                    <p className="font-black text-[#BFFFE7]">
+                      V{deployState.contractVersion ?? 2} {deployState.collateralSymbol ?? "USDC"} market deployed
+                    </p>
+                    <p className="mt-1 font-mono text-[#EAECEF]">
+                      {shortAddress(deployState.marketAddress)}
+                    </p>
+                    {deployState.transactionHash ? (
+                      <a
+                        className="interactive-link mt-2 inline-block font-bold"
+                        href={arcTxUrl(deployState.transactionHash)}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        View tx
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {deployState.status === "error" ? (
+                  <p className="mt-3 rounded-lg border border-[#F6465D]/40 bg-[#F6465D]/10 px-3 py-2 text-xs font-bold text-[#FFD7DD]">
+                    {deployState.message}
+                  </p>
+                ) : null}
+              </div>
             </article>
           );
         })}
@@ -1089,6 +1230,38 @@ function getLocalDateKey(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function stablePairName(templateId: string) {
+  const slug = templateId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 58);
+
+  return `ARCM-${slug || "template"}`;
+}
+
+function getTemplateWorldCupMarketId(template: MarketTemplate) {
+  if (
+    "worldCupMarketId" in template &&
+    typeof template.worldCupMarketId === "string"
+  ) {
+    return template.worldCupMarketId.trim();
+  }
+
+  return "";
+}
+
+function shortAddress(address: string) {
+  return address.length > 12
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : address;
+}
+
+function arcTxUrl(transactionHash: string) {
+  return `https://explorer.testnet.arc.network/tx/${transactionHash}`;
 }
 
 function parseDateKey(value?: string | null) {
@@ -1226,4 +1399,3 @@ function riskClass(riskLevel: string) {
 
   return "border-[#FCD535]/40 bg-[#FCD535]/10 text-[#FFF3AF]";
 }
-
