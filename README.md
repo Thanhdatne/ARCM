@@ -5,7 +5,6 @@ The current product focuses on FIFA World Cup-style markets where users can trad
 
 The app is designed as a real onchain MVP: deployed contracts, wallet trading, market settlement, claimable rewards, portfolio tracking, and Circle CCTP-based USDC deposit flow.
 
----
 
 ## Live App
 
@@ -21,7 +20,7 @@ Repository:
 https://github.com/Thanhdatne/ARCM
 ```
 
----
+
 
 ## Core Idea
 
@@ -45,7 +44,7 @@ NO
 Users buy or sell outcome tokens with testnet USDC.
 After the match ends, the admin records the final result, resolves the market, and users can claim rewards if they hold the winning side.
 
----
+
 
 ## Current Status
 
@@ -76,7 +75,7 @@ Not production ready yet:
 * Full audit
 * Advanced risk controls
 
----
+
 
 ## Tech Stack
 
@@ -106,7 +105,7 @@ Data / app infrastructure:
 * Vercel deployment
 * Circle CCTP / BridgeKit for testnet USDC deposit flow
 
----
+
 
 ## Chain Configuration
 
@@ -126,7 +125,7 @@ USDC: 0x3600000000000000000000000000000000000000
 Decimals: 6
 ```
 
----
+
 
 ## Main Deployed Contracts
 
@@ -159,7 +158,7 @@ AMM:
 0x2375fb6A586bFaD303bDd4d78Cc762accAa1417f
 ```
 
----
+
 
 ## App Pages
 
@@ -221,7 +220,7 @@ Admin can:
 * Fast-settle markets on testnet
 * Keep old fixtures hidden from public pages while preserving claim and portfolio data
 
----
+
 
 ## Local Development
 
@@ -255,7 +254,7 @@ Deploy contracts:
 npm run deploy
 ```
 
----
+
 
 ## Environment Variables
 
@@ -290,7 +289,7 @@ Never use NEXT_PUBLIC_PRIVATE_KEY.
 PRIVATE_KEY must only be used in server-side routes or deployment scripts.
 ```
 
----
+
 
 ## Development Workflow
 
@@ -320,7 +319,7 @@ git commit -m "Describe the change"
 git push origin main
 ```
 
----
+
 
 ## Market Lifecycle
 
@@ -353,7 +352,7 @@ Admin resolves the market through the resolver / UMA settlement flow.
 
 Users who hold the winning outcome token can claim rewards from the Claims page.
 
----
+
 
 ## Safety Rules
 
@@ -368,7 +367,7 @@ The app follows these rules:
 * Prefer USDC V2 markets for public flows.
 * Keep ARCT legacy code isolated from public user experience.
 
----
+
 
 ## Project Direction
 
@@ -392,7 +391,7 @@ Future possible improvements:
 * Mainnet-ready risk controls
 * Contract audit and security review
 
----
+
 
 ## Disclaimer
 
