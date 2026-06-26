@@ -45,21 +45,6 @@
     "outcomeDecimals": 6
   },
   {
-    "id": "v2-1782446877087",
-    "address": "0xAfE362D22FB0cC78e83CFaaD35830F3459C6afBD",
-    "marketAddress": "0xAfE362D22FB0cC78e83CFaaD35830F3459C6afBD",
-    "ammAddress": "0x588AB297baf645e0fB5C2b413B4362A66c4e0737",
-    "title": "Will ETH close above $4,500 on July 31, 2026?",
-    "category": "Crypto",
-    "createdAt": "2026-06-26T04:07:57.087Z",
-    "transactionHash": "0x9cd47ae5ef8fd8fd8c5cfb2c6eff7e6fc2306b59a462bfd2db50f933207c2543",
-    "contractVersion": 2,
-    "collateralAddress": "0x3600000000000000000000000000000000000000",
-    "collateralSymbol": "USDC",
-    "collateralDecimals": 6,
-    "outcomeDecimals": 6
-  },
-  {
     "id": "worldcup-group-l-croatia-vs-ghana-away",
     "address": "0x2944224e066b454e3bf66eD259617c28796d52A4",
     "marketAddress": "0x2944224e066b454e3bf66eD259617c28796d52A4",
@@ -1432,14 +1417,6 @@
     "title": "Will SOL close above $250 on June 30, 2026?",
     "category": "Crypto",
     "createdAt": "2026-06-16T09:40:47.811Z"
-  },
-  {
-    "id": "user-1781602814617",
-    "address": "0x8d789816ba726e73bfee3ca29efe00eba8970d14",
-    "ammAddress": "0xb1cc6d72146e27ad55320c6fb2a0b651e93d14d8",
-    "title": "Will BTC close above $120,000 on June 30, 2026?",
-    "category": "Crypto",
-    "createdAt": "2026-06-16T09:40:14.617Z"
   },
   {
     "id": "user-1781602777661",
