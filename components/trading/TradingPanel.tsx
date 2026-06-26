@@ -23,6 +23,7 @@ import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatUnits, parseUnits } from "viem";
+import { useAccount, useSwitchChain } from "wagmi";
 import { useWallet } from "@/contexts/WalletContext";
 import { useMarketAddress } from "@/contexts/MarketAddressContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,6 +61,18 @@ import { ResolveTab } from "./ResolveTab";
 type Tab = "buy" | "sell" | "resolve";
 type Outcome = "yes" | "no";
 const adminSettlementEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN_MARKET_CREATE === "true";
+const ARC_TESTNET_CHAIN_ID = 5042002;
+const ARC_TESTNET_ADD_CHAIN_PARAMS = {
+  chainId: "0x4CEF52",
+  chainName: "Arc Network Testnet",
+  rpcUrls: ["https://rpc.testnet.arc.network"],
+  nativeCurrency: {
+    name: "USDC",
+    symbol: "USDC",
+    decimals: 18,
+  },
+  blockExplorerUrls: ["https://testnet.arcscan.app"],
+};
 
 function safeParseAmount(amount: string, decimals: number | null): bigint {
   if (!amount || decimals === null) return 0n;
@@ -93,6 +106,8 @@ function sameAddress(a?: string, b?: string) {
 
 export function TradingPanel() {
   const { isConnected } = useWallet();
+  const { chainId } = useAccount();
+  const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
   const { marketAddress } = useMarketAddress();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -102,6 +117,7 @@ export function TradingPanel() {
   const [amount, setAmount] = useState("");
   const [clientNowMs, setClientNowMs] = useState<number | null>(null);
   const [marketKickoffMs, setMarketKickoffMs] = useState<number | null>(null);
+  const [switchChainError, setSwitchChainError] = useState<string | null>(null);
 
   const {
     priceRequested,
@@ -288,6 +304,39 @@ export function TradingPanel() {
     oracleAllowance !== undefined && proposerBond !== undefined &&
     oracleAllowance < proposerBond;
 
+  const walletOnWrongTradingChain = mounted && isConnected && chainId !== ARC_TESTNET_CHAIN_ID;
+
+  const handleSwitchToArcTestnet = () => {
+    setSwitchChainError(null);
+
+    switchChain(
+      { chainId: ARC_TESTNET_CHAIN_ID },
+      {
+        onError: async () => {
+          const ethereum = (window as typeof window & {
+            ethereum?: {
+              request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+            };
+          }).ethereum;
+
+          if (!ethereum?.request) {
+            setSwitchChainError("Wallet network switching is unavailable in this browser.");
+            return;
+          }
+
+          try {
+            await ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [ARC_TESTNET_ADD_CHAIN_PARAMS],
+            });
+          } catch {
+            setSwitchChainError("Could not switch wallet to Arc Network Testnet.");
+          }
+        },
+      },
+    );
+  };
+
   if ((isMarketLoading || isAMMLoading || isBalancesLoading)) {
     return (
       <div className="sticky top-20 rounded-xl border border-[#2B3139] bg-[#1E2329]">
@@ -423,7 +472,24 @@ export function TradingPanel() {
       </div>
 
       <div className="space-y-4 p-4">
-        {(tab === "buy" || tab === "sell") && marketClosedByKickoff ? (
+        {(tab === "buy" || tab === "sell") && walletOnWrongTradingChain ? (
+          <div className="rounded-xl border border-[#FCD535]/35 bg-[#FCD535]/10 p-4">
+            <p className="text-sm font-bold text-[#FFF3AF]">
+              Switch to Arc Network Testnet to trade.
+            </p>
+            <button
+              type="button"
+              onClick={handleSwitchToArcTestnet}
+              disabled={isSwitchingChain}
+              className="focus-ring mt-3 w-full rounded-xl bg-[#FCD535] px-4 py-3 text-sm font-black text-[#181A20] transition hover:bg-[#FFE169] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSwitchingChain ? "Switching..." : "Switch to Arc Network Testnet"}
+            </button>
+            {switchChainError ? (
+              <p className="mt-3 text-xs leading-5 text-[#F6465D]">{switchChainError}</p>
+            ) : null}
+          </div>
+        ) : (tab === "buy" || tab === "sell") && marketClosedByKickoff ? (
           <p className="rounded-xl border border-[#F59E0B]/35 bg-[#F59E0B]/10 p-4 text-sm leading-6 text-[#FFF3AF]">
             Betting is closed because this fixture has already kicked off. Enter the final result from Admin Markets after the match ends.
           </p>

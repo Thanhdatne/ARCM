@@ -19,8 +19,10 @@ type TemplateDeployState =
   | {
       status: "success";
       marketAddress: string;
+      ammAddress: string;
       transactionHash?: string;
       collateralSymbol?: string;
+      collateralDecimals?: number;
       contractVersion?: number;
     }
   | { status: "error"; message: string };
@@ -31,9 +33,11 @@ interface CreateMarketV2Response {
   market?: {
     marketAddress?: string;
     address?: string;
+    ammAddress?: string;
     transactionHash?: string;
     txHash?: string;
     collateralSymbol?: string;
+    collateralDecimals?: number;
     contractVersion?: number;
   };
   transactionHash?: string;
@@ -450,18 +454,22 @@ export default function AdminMarketsPage() {
 
       const marketAddress = data.market?.marketAddress ?? data.market?.address;
       if (!marketAddress) throw new Error("Deployment returned no market address.");
+      const ammAddress = data.market?.ammAddress;
+      if (!ammAddress) throw new Error("Deployment returned no AMM address.");
 
       setTemplateDeployStates((current) => ({
         ...current,
         [template.id]: {
           status: "success",
           marketAddress,
+          ammAddress,
           transactionHash:
             data.market?.transactionHash ??
             data.market?.txHash ??
             data.transactionHash ??
             data.txHash,
           collateralSymbol: data.market?.collateralSymbol,
+          collateralDecimals: data.market?.collateralDecimals,
           contractVersion: data.market?.contractVersion,
         },
       }));
@@ -1182,21 +1190,30 @@ export default function AdminMarketsPage() {
                 {deployState.status === "success" ? (
                   <div className="mt-3 rounded-lg border border-[#0ECB81]/40 bg-[#0ECB81]/10 p-3 text-xs">
                     <p className="font-black text-[#BFFFE7]">
-                      V{deployState.contractVersion ?? 2} {deployState.collateralSymbol ?? "USDC"} market deployed
+                      V{deployState.contractVersion ?? 2} {deployState.collateralSymbol ?? "USDC"}
+                      {deployState.collateralDecimals ? ` / ${deployState.collateralDecimals} decimals` : ""} market deployed
                     </p>
                     <p className="mt-1 font-mono text-[#EAECEF]">
                       {shortAddress(deployState.marketAddress)}
                     </p>
-                    {deployState.transactionHash ? (
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      <Link
+                        className="interactive-link font-bold"
+                        href={`/market/${deployState.marketAddress}`}
+                      >
+                        Open market
+                      </Link>
+                      {deployState.transactionHash ? (
                       <a
-                        className="interactive-link mt-2 inline-block font-bold"
+                        className="interactive-link font-bold"
                         href={arcTxUrl(deployState.transactionHash)}
                         rel="noreferrer"
                         target="_blank"
                       >
                         View tx
                       </a>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
 
@@ -1261,7 +1278,7 @@ function shortAddress(address: string) {
 }
 
 function arcTxUrl(transactionHash: string) {
-  return `https://explorer.testnet.arc.network/tx/${transactionHash}`;
+  return `https://testnet.arcscan.app/tx/${transactionHash}`;
 }
 
 function parseDateKey(value?: string | null) {
