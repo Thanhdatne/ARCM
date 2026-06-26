@@ -215,45 +215,15 @@ function Thumbnail({
           src={imageSrc}
         />
       ) : shouldUseARCMLogo ? (
-        <ARCMLogoMark />
+        <img
+          alt="ARCM"
+          className="relative z-10 h-11 w-11 object-contain"
+          src="/brand/ARCM-logo-orange.png"
+        />
       ) : (
         <span className="relative z-10">{label.slice(0, 3)}</span>
       )}
     </div>
-  );
-}
-
-function ARCMLogoMark() {
-  return (
-    <svg
-      aria-label="ARCM logo"
-      className="relative z-10 h-11 w-11"
-      fill="none"
-      viewBox="0 0 56 56"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect width="56" height="56" rx="14" fill="#0B0E11" />
-      <path
-        d="M28 8L47 48H38.8L34.9 39.2H20.9L17 48H8.8L28 8Z"
-        fill="#FF8A00"
-      />
-      <path
-        d="M27.9 20.7L34 34.3H22L27.9 20.7Z"
-        fill="#0B0E11"
-      />
-      <path
-        d="M16.5 45.5C25.9 35.3 35.6 29.5 48 27.8"
-        stroke="#0B0E11"
-        strokeLinecap="round"
-        strokeWidth="5"
-      />
-      <path
-        d="M15.5 45C25.4 35.9 35.1 30.9 47.2 29.5"
-        stroke="#FF8A00"
-        strokeLinecap="round"
-        strokeWidth="3"
-      />
-    </svg>
   );
 }
 
