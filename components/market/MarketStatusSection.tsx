@@ -100,9 +100,9 @@ function toneClasses(tone: StatusTone) {
       };
     case "warning":
       return {
-        dot: "bg-[#FCD535]",
-        title: "text-[#FFF3AF]",
-        border: "border-[#FCD535]/40 bg-[#FCD535]/10",
+        dot: "bg-[#FF8A00]",
+        title: "text-[#FF9D2E]",
+        border: "border-[#FF8A00]/40 bg-[#FF8A00]/10",
       };
     case "danger":
       return {
@@ -178,11 +178,11 @@ export function MarketStatusSection({
         </div>
 
         {showCountdown ? (
-          <div className="shrink-0 rounded-lg border border-[#FCD535]/40 bg-[#0B0E11] px-3 py-2 text-right">
+          <div className="shrink-0 rounded-lg border border-[#FF8A00]/40 bg-[#0B0E11] px-3 py-2 text-right">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#707A8A]">
               Dispute window
             </p>
-            <p className="mt-0.5 font-mono text-sm font-black text-[#FCD535]">
+            <p className="mt-0.5 font-mono text-sm font-black text-[#FF8A00]">
               {Math.floor(expirationSeconds / 3600) > 0 ? `${Math.floor(expirationSeconds / 3600)}h ` : ""}
               {Math.floor((expirationSeconds % 3600) / 60)}m {expirationSeconds % 60}s
             </p>

@@ -36,9 +36,9 @@ export function TxStatus({
   hash,
 }: TxStatusProps) {
   if (isPending)
-    return <p className="rounded-xl border border-[#FCD535]/60 bg-[#FCD535]/15 px-3 py-2 text-xs font-bold text-[#FFF3AF]">Confirm in wallet...</p>;
+    return <p className="rounded-xl border border-[#FF8A00]/60 bg-[#FF8A00]/15 px-3 py-2 text-xs font-bold text-[#FF9D2E]">Confirm in wallet...</p>;
   if (isConfirming)
-    return <p className="rounded-xl border border-[#FCD535]/60 bg-[#FCD535]/15 px-3 py-2 text-xs font-bold text-[#FFF3AF]">Waiting for confirmation...</p>;
+    return <p className="rounded-xl border border-[#FF8A00]/60 bg-[#FF8A00]/15 px-3 py-2 text-xs font-bold text-[#FF9D2E]">Waiting for confirmation...</p>;
   if (isSuccess && hash) {
     return (
       <p className="rounded-xl border border-[#0ECB81]/60 bg-[#0ECB81]/15 px-3 py-2 text-xs font-bold text-[#BFFFE7]">

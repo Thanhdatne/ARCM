@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -60,10 +60,10 @@ export function Sidebar() {
           <Link
             href="/"
             aria-label="Go to ARCM home"
-            className="focus-ring flex h-16 w-16 items-center justify-center rounded-xl border border-[#2B3139] bg-[#0B0E11] transition hover:border-[#FCD535] hover:shadow-[0_0_0_1px_#FCD535,0_0_18px_rgba(252,213,53,0.16)]"
+            className="focus-ring flex h-16 w-16 items-center justify-center rounded-xl border border-[#2B3139] bg-[#0B0E11] transition hover:border-[#FF8A00] hover:shadow-[0_0_0_1px_#FF8A00,0_0_18px_rgba(255,138,0,0.16)]"
           >
             <Image
-              src="/brand/ARCM-logo.png"
+              src="/brand/ARCM-logo-orange.png"
               alt="ARCM"
               width={52}
               height={52}
@@ -104,7 +104,7 @@ export function Sidebar() {
                 <Link
                   className={`nav-item flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold ${
                     active
-                      ? "border border-[#FCD535] bg-[#FCD535] text-[#181A20]"
+                      ? "border border-[#FF8A00] bg-[#FF8A00] text-[#181A20]"
                       : "border border-transparent text-[#707A8A]"
                   }`}
                   href={item.href}
@@ -128,7 +128,7 @@ export function Sidebar() {
                     <Link
                       className={`nav-item flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold ${
                         active
-                          ? "border border-[#FCD535] bg-[#FCD535] text-[#181A20]"
+                          ? "border border-[#FF8A00] bg-[#FF8A00] text-[#181A20]"
                           : "border border-transparent text-[#707A8A]"
                       }`}
                       href={item.href}
@@ -176,7 +176,7 @@ export function Sidebar() {
         </div>
 
         <div className="mt-4 shrink-0 rounded-xl border border-[#2B3139] bg-[#1E2329] p-3 shadow-[0_-12px_30px_rgba(0,0,0,0.18)]">
-          <div className="flex items-center gap-2 text-sm font-bold text-[#FCD535]">
+          <div className="flex items-center gap-2 text-sm font-bold text-[#FF8A00]">
             <ShieldCheck className="h-4 w-4" />
             Arc Testnet App
           </div>
@@ -191,3 +191,4 @@ export function Sidebar() {
     </>
   );
 }
+

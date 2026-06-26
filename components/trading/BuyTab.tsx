@@ -165,7 +165,7 @@ export function BuyTab({
             <span className={priceImpact > 5 ? "font-bold text-[#F6465D]" : "text-[#707A8A]"}>
               Price impact
             </span>
-            <span className={`font-mono font-bold ${priceImpact > 5 ? "text-[#F6465D]" : "text-[#FCD535]"}`}>
+            <span className={`font-mono font-bold ${priceImpact > 5 ? "text-[#F6465D]" : "text-[#FF8A00]"}`}>
               {priceImpact.toFixed(2)}%
             </span>
           </div>
@@ -177,7 +177,7 @@ export function BuyTab({
       ) : needsApproval ? (
         <>
           <Button
-            className="focus-ring h-12 w-full rounded-xl border border-[#FCD535] bg-[#FCD535] text-base font-black text-[#181A20] hover:bg-[#F0B90B] active:translate-y-px disabled:cursor-not-allowed disabled:border-[#2B3139] disabled:bg-[#2B3139] disabled:text-[#707A8A]"
+            className="focus-ring h-12 w-full rounded-xl border border-[#FF8A00] bg-[#FF8A00] text-base font-black text-[#181A20] hover:bg-[#FF9D2E] active:translate-y-px disabled:cursor-not-allowed disabled:border-[#2B3139] disabled:bg-[#2B3139] disabled:text-[#707A8A]"
             variant="outline"
             onClick={() =>
               approveCollateral.approve(amountBigInt)

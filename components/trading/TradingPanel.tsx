@@ -397,7 +397,7 @@ export function TradingPanel() {
                   : `Buy or sell YES / NO with ${collateralSymbol}.`}
             </p>
           </div>
-          <span className="rounded-full border border-[#FCD535]/70 bg-[#FCD535]/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#FFF3AF]">
+          <span className="rounded-full border border-[#FF8A00]/70 bg-[#FF8A00]/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#FF9D2E]">
             Arc Testnet
           </span>
         </div>
@@ -425,8 +425,8 @@ export function TradingPanel() {
           </p>
         </div>
       ) : marketClosedByKickoff ? (
-        <div className="border-b border-[#2B3139] bg-[#F59E0B]/10 px-4 py-3">
-          <p className="text-xs font-bold text-[#FFF3AF]">Betting closed</p>
+        <div className="border-b border-[#2B3139] bg-[#FF8A00]/10 px-4 py-3">
+          <p className="text-xs font-bold text-[#FF9D2E]">Betting closed</p>
           <p className="mt-1 text-xs leading-5 text-[#707A8A]">
             This fixture has kicked off. The market is waiting for admin result entry and settlement.
           </p>
@@ -460,7 +460,7 @@ export function TradingPanel() {
                 disabled
                   ? "cursor-not-allowed text-[#4A525E]"
                   : tab === t
-                    ? "bg-[#FCD535] text-[#181A20]"
+                    ? "bg-[#FF8A00] text-[#181A20]"
                     : "text-[#707A8A] hover:bg-[#1E2329] hover:text-[#EAECEF]"
               }`}
               type="button"
@@ -473,15 +473,15 @@ export function TradingPanel() {
 
       <div className="space-y-4 p-4">
         {(tab === "buy" || tab === "sell") && walletOnWrongTradingChain ? (
-          <div className="rounded-xl border border-[#FCD535]/35 bg-[#FCD535]/10 p-4">
-            <p className="text-sm font-bold text-[#FFF3AF]">
+          <div className="rounded-xl border border-[#FF8A00]/35 bg-[#FF8A00]/10 p-4">
+            <p className="text-sm font-bold text-[#FF9D2E]">
               Switch to Arc Network Testnet to trade.
             </p>
             <button
               type="button"
               onClick={handleSwitchToArcTestnet}
               disabled={isSwitchingChain}
-              className="focus-ring mt-3 w-full rounded-xl bg-[#FCD535] px-4 py-3 text-sm font-black text-[#181A20] transition hover:bg-[#FFE169] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+              className="focus-ring mt-3 w-full rounded-xl bg-[#FF8A00] px-4 py-3 text-sm font-black text-[#181A20] transition hover:bg-[#FF9D2E] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isSwitchingChain ? "Switching..." : "Switch to Arc Network Testnet"}
             </button>
@@ -490,11 +490,11 @@ export function TradingPanel() {
             ) : null}
           </div>
         ) : (tab === "buy" || tab === "sell") && marketClosedByKickoff ? (
-          <p className="rounded-xl border border-[#F59E0B]/35 bg-[#F59E0B]/10 p-4 text-sm leading-6 text-[#FFF3AF]">
+          <p className="rounded-xl border border-[#FF8A00]/35 bg-[#FF8A00]/10 p-4 text-sm leading-6 text-[#FF9D2E]">
             Betting is closed because this fixture has already kicked off. Enter the final result from Admin Markets after the match ends.
           </p>
         ) : (tab === "buy" || tab === "sell") && !tradingEnabled ? (
-          <p className="rounded-xl border border-[#F59E0B]/35 bg-[#F59E0B]/10 p-4 text-sm leading-6 text-[#FFF3AF]">
+          <p className="rounded-xl border border-[#FF8A00]/35 bg-[#FF8A00]/10 p-4 text-sm leading-6 text-[#FF9D2E]">
             Trading is unavailable because this market&apos;s collateral or outcome-token metadata is not enabled and valid.
           </p>
         ) : !mounted || !isConnected ? (

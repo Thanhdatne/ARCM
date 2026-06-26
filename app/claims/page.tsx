@@ -260,11 +260,11 @@ function ApiClaimRow({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap gap-2">
-            <BadgeDollarSign className="h-4 w-4 text-[#FCD535]" />
+            <BadgeDollarSign className="h-4 w-4 text-[#FF8A00]" />
             <Badge variant="outline" className="border-[#0ECB81] bg-[#0ECB81]/15 text-[#BFFFE7]">
               Claimable
             </Badge>
-            <Badge variant="outline" className="border-[#FCD535] bg-[#FCD535]/15 text-[#FFF3AF]">
+            <Badge variant="outline" className="border-[#FF8A00] bg-[#FF8A00]/15 text-[#FF9D2E]">
               {market.winningSide} won
             </Badge>
             <Badge variant="outline" className="border-[#2B3139] bg-[#1E2329] text-[#EAECEF]">
@@ -275,7 +275,7 @@ function ApiClaimRow({
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#707A8A]">
             <span>
               Reward:{" "}
-              <span className="font-mono font-bold text-[#FCD535]">
+              <span className="font-mono font-bold text-[#FF8A00]">
                 {market.payoutAmountFormatted ?? formatTokenDisplayAmount(payoutAmount, collateralDecimals)}{" "}
                 {collateralSymbol}
               </span>
@@ -301,7 +301,7 @@ function ApiClaimRow({
         </div>
         <div className="flex flex-col gap-2 lg:items-end">
           <Button
-            className="h-10 min-w-28 bg-[#FCD535] px-4 text-sm font-bold text-[#181A20] hover:bg-[#EBC62F]"
+            className="h-10 min-w-28 bg-[#FF8A00] px-4 text-sm font-bold text-[#181A20] hover:bg-[#FF9D2E]"
             disabled={!canClaim || isWaitingForWallet || isConfirming || isConfirmed}
             onClick={claim}
             type="button"
@@ -309,7 +309,7 @@ function ApiClaimRow({
             {buttonLabel}
           </Button>
           <Link
-            className="focus-ring inline-flex items-center gap-1 text-xs font-bold text-[#FCD535] hover:underline"
+            className="focus-ring inline-flex items-center gap-1 text-xs font-bold text-[#FF8A00] hover:underline"
             href={`/market/${market.address}?tab=resolve`}
           >
             Open Resolve <ExternalLink className="h-3 w-3" />

@@ -33,7 +33,7 @@ export function ActionTxStatus({
   error: Error | null;
   hash: `0x${string}` | undefined;
 }) {
-  if (isPending) return <p className="text-sm text-yellow-500">Confirm in wallet...</p>;
+  if (isPending) return <p className="text-sm text-[#FF9D2E]">Confirm in wallet...</p>;
   if (isConfirming) return <p className="text-sm text-blue-500">Waiting for confirmation...</p>;
   if (isSuccess && hash) {
     return (

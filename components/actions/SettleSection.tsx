@@ -58,7 +58,7 @@ export function SettleSection() {
         )}
       </p>
       {!receivedSettlementPrice ? (
-        <p className="text-sm text-yellow-500">Market has not been resolved yet. Use the Resolve tab in the trading panel.</p>
+        <p className="text-sm text-[#FF9D2E]">Market has not been resolved yet. Use the Resolve tab in the trading panel.</p>
       ) : hasNoTokens ? (
         <p className="text-sm text-muted-foreground">Market resolved. You have no tokens to settle.</p>
       ) : !hasRedeemableTokens ? (

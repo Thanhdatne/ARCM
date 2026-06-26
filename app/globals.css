@@ -91,6 +91,12 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+  --brand-primary: #ff8a00;
+  --brand-primary-hover: #ff9d2e;
+  --brand-primary-deep: #e97800;
+  --brand-primary-soft-bg: rgba(255, 138, 0, 0.14);
+  --brand-primary-soft-border: rgba(255, 138, 0, 0.35);
+  --brand-primary-glow: rgba(255, 138, 0, 0.28);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -108,31 +114,37 @@
   --card-foreground: #eaecef;
   --popover: #1e2329;
   --popover-foreground: #eaecef;
-  --primary: #fcd535;
+  --primary: #ff8a00;
   --primary-foreground: #181a20;
   --secondary: #2b3139;
   --secondary-foreground: #eaecef;
   --muted: #1e2329;
   --muted-foreground: #707a8a;
-  --accent: #fcd535;
+  --accent: #ff8a00;
   --accent-foreground: #181a20;
   --destructive: #f6465d;
   --border: #2b3139;
   --input: #1e2329;
-  --ring: #fcd535;
+  --ring: #ff8a00;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --brand-primary: #ff8a00;
+  --brand-primary-hover: #ff9d2e;
+  --brand-primary-deep: #e97800;
+  --brand-primary-soft-bg: rgba(255, 138, 0, 0.14);
+  --brand-primary-soft-border: rgba(255, 138, 0, 0.35);
+  --brand-primary-glow: rgba(255, 138, 0, 0.28);
   --sidebar: #0b0e11;
   --sidebar-foreground: #eaecef;
-  --sidebar-primary: #fcd535;
+  --sidebar-primary: #ff8a00;
   --sidebar-primary-foreground: #181a20;
   --sidebar-accent: #1e2329;
   --sidebar-accent-foreground: #eaecef;
   --sidebar-border: #2b3139;
-  --sidebar-ring: #fcd535;
+  --sidebar-ring: #ff8a00;
 }
 
 @layer base {
@@ -177,7 +189,7 @@
 
   .exchange-card-hover:hover {
     background: #2b3139;
-    border-color: #fcd535;
+    border-color: #ff8a00;
     transform: translateY(-2px);
     box-shadow: 0 16px 36px rgb(0 0 0 / 0.22);
   }
@@ -192,7 +204,7 @@
 
   .interactive-card-clickable:hover {
     background: #2b3139;
-    border-color: rgb(252 213 53 / 0.72);
+    border-color: rgb(255 138 0 / 0.72);
     box-shadow: 0 14px 34px rgb(0 0 0 / 0.24);
     transform: translateY(-2px);
   }
@@ -213,11 +225,11 @@
 }
 
 .interactive-card.market-card-hover:hover {
-  border-color: rgba(252, 213, 53, 0.52);
+  border-color: rgba(255, 138, 0, 0.52);
   transform: translateY(-5px) scale(1.012) !important;
   box-shadow:
-    0 0 0 1px rgba(252, 213, 53, 0.28),
-    0 0 24px rgba(252, 213, 53, 0.24),
+    0 0 0 1px rgba(255, 138, 0, 0.28),
+    0 0 24px rgba(255, 138, 0, 0.24),
     0 18px 40px rgba(0, 0, 0, 0.42);
 }
 
@@ -268,16 +280,16 @@
   }
 
   .terminal-button {
-    border: 1px solid #fcd535;
-    background: #fcd535;
+    border: 1px solid #ff8a00;
+    background: #ff8a00;
     color: #181a20;
     box-shadow: none;
     transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
   }
 
   .terminal-button:hover {
-    border-color: #f0b90b;
-    background: #f0b90b;
+    border-color: #ff9d2e;
+    background: #ff9d2e;
     box-shadow: none;
   }
 
@@ -291,7 +303,7 @@
 
   .terminal-link,
   .interactive-link {
-    color: #fcd535;
+    color: #ff8a00;
     text-decoration: underline;
     text-underline-offset: 2px;
     font-weight: 700;
@@ -300,8 +312,8 @@
 
   .terminal-link:hover,
   .interactive-link:hover {
-    color: #f0b90b;
-    text-decoration-color: #f0b90b;
+    color: #ff9d2e;
+    text-decoration-color: #ff9d2e;
   }
 
   .terminal-button:active {
@@ -315,8 +327,8 @@
   }
 
   .market-chip-active {
-    border-color: #fcd535;
-    background: #fcd535;
+    border-color: #ff8a00;
+    background: #ff8a00;
     color: #181a20;
   }
 
@@ -366,7 +378,7 @@
   }
 
   .preset-button:hover {
-    border-color: #fcd535;
+    border-color: #ff8a00;
     background: #2b3139;
   }
 
@@ -389,7 +401,7 @@
   }
 
   .focus-ring:focus-visible {
-    outline: 2px solid #fcd535;
+    outline: 2px solid #ff8a00;
     outline-offset: 2px;
   }
 
@@ -414,7 +426,7 @@
   }
 }
 
-/* Final override: market card hover lift + Binance yellow glow */
+/* Final override: market card hover lift + orange brand glow */
 .market-card-hover {
   transform: translate3d(0, 0, 0) scale(1);
   transform-origin: center;
@@ -427,12 +439,12 @@
 }
 
 .market-card-hover:hover {
-  border-color: rgba(252, 213, 53, 0.48) !important;
+  border-color: rgba(255, 138, 0, 0.48) !important;
   background-color: #20262d !important;
   transform: translate3d(0, -9px, 0) scale(1.018) !important;
   box-shadow:
-    0 0 0 1px rgba(252, 213, 53, 0.22),
-    0 0 26px rgba(252, 213, 53, 0.26),
+    0 0 0 1px rgba(255, 138, 0, 0.22),
+    0 0 26px rgba(255, 138, 0, 0.26),
     0 22px 46px rgba(0, 0, 0, 0.48) !important;
 }
 

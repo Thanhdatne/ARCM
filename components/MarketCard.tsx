@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -137,7 +137,7 @@ function SettledResult({ outcome }: { outcome: string }) {
     ? "border-[#0ECB81] bg-[#0ECB81]/15 text-[#BFFFE7]"
     : isNo
       ? "border-[#F6465D] bg-[#F6465D]/15 text-[#FFD7DD]"
-      : "border-[#FCD535] bg-[#FCD535]/15 text-[#FFF3AF]";
+      : "border-[#FF8A00] bg-[#FF8A00]/15 text-[#FF9D2E]";
 
   return (
     <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
@@ -198,12 +198,12 @@ function Thumbnail({
     <div
       className={`relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border text-xs font-black shadow-[inset_0_0_22px_rgba(255,255,255,0.04)] ${
         tone === "onchain"
-          ? "border-[#3A424D] bg-[#0B0E11] text-[#FCD535]"
+          ? "border-[#3A424D] bg-[#0B0E11] text-[#FF8A00]"
           : "border-[#2B3139] bg-[#0B0E11] text-[#707A8A]"
       }`}
     >
       {!isArcLogo && (
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(252,213,53,0.16),transparent_46%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,138,0,0.16),transparent_46%)]" />
       )}
 
       {imageSrc ? (
@@ -235,7 +235,7 @@ function ARCMLogoMark() {
       <rect width="56" height="56" rx="14" fill="#0B0E11" />
       <path
         d="M28 8L47 48H38.8L34.9 39.2H20.9L17 48H8.8L28 8Z"
-        fill="#FCD535"
+        fill="#FF8A00"
       />
       <path
         d="M27.9 20.7L34 34.3H22L27.9 20.7Z"
@@ -249,10 +249,11 @@ function ARCMLogoMark() {
       />
       <path
         d="M15.5 45C25.4 35.9 35.1 30.9 47.2 29.5"
-        stroke="#FCD535"
+        stroke="#FF8A00"
         strokeLinecap="round"
         strokeWidth="3"
       />
     </svg>
   );
 }
+

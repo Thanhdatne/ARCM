@@ -219,7 +219,7 @@ function PositionRow({
               variant="outline"
               className={
                 settled
-                  ? "border-[#FCD535] bg-[#FCD535]/15 text-[#FFF3AF]"
+                  ? "border-[#FF8A00] bg-[#FF8A00]/15 text-[#FF9D2E]"
                   : "border-[#0ECB81] bg-[#0ECB81]/15 text-[#BFFFE7]"
               }
             >
@@ -256,7 +256,7 @@ function PositionRow({
             {settled && claimablePayout > 0n && (
               <span>
                 Claimable{" "}
-                <span className="font-mono font-bold text-[#FCD535]">
+                <span className="font-mono font-bold text-[#FF8A00]">
                   {formatCollateral(claimablePayout)} ARCT
                 </span>
               </span>

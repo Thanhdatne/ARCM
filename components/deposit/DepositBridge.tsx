@@ -369,7 +369,7 @@ export function DepositBridge() {
                       <button
                         key={chain.id}
                         type="button"
-                        className={`flex w-full items-center justify-between px-3 py-3 text-left text-sm font-semibold transition ${selected ? "bg-[#FCD535]/10 text-[#FCD535]" : "text-[#EAECEF] hover:bg-[#2B3139]"}`}
+                        className={`flex w-full items-center justify-between px-3 py-3 text-left text-sm font-semibold transition ${selected ? "bg-[#FF8A00]/10 text-[#FF8A00]" : "text-[#EAECEF] hover:bg-[#2B3139]"}`}
                         onClick={() => {
                           setSourceId(chain.id);
                           setSourceMenuOpen(false);
@@ -396,7 +396,7 @@ export function DepositBridge() {
               </span>
               <div className="flex h-12 items-center justify-between rounded-md border border-[#2B3139] bg-[#181A20] px-3">
                 <ChainIdentity chain={ARC_CHAIN_DISPLAY} />
-                <span className="text-xs font-bold text-[#FCD535]">Locked</span>
+                <span className="text-xs font-bold text-[#FF8A00]">Locked</span>
               </div>
             </div>
 
@@ -421,7 +421,7 @@ export function DepositBridge() {
               >
                 Amount
               </label>
-              <div className="flex h-12 items-center rounded-md border border-[#2B3139] bg-[#181A20] focus-within:border-[#FCD535]">
+              <div className="flex h-12 items-center rounded-md border border-[#2B3139] bg-[#181A20] focus-within:border-[#FF8A00]">
                 <input
                   id="bridge-amount"
                   inputMode="decimal"
@@ -433,7 +433,7 @@ export function DepositBridge() {
                   aria-describedby="amount-help"
                   className="h-full min-w-0 flex-1 bg-transparent px-3 text-base font-semibold text-[#EAECEF] outline-none placeholder:text-[#5E6673]"
                 />
-                <span className="border-l border-[#2B3139] px-3 text-sm font-bold text-[#FCD535]">
+                <span className="border-l border-[#2B3139] px-3 text-sm font-bold text-[#FF8A00]">
                   USDC
                 </span>
               </div>
@@ -446,7 +446,7 @@ export function DepositBridge() {
             {!browserWalletReady ? (
               <Button
                 type="button"
-                className="h-11 w-full bg-[#FCD535] font-bold text-[#181A20] hover:bg-[#EBC62F]"
+                className="h-11 w-full bg-[#FF8A00] font-bold text-[#181A20] hover:bg-[#FF9D2E]"
                 onClick={connectMetaMask}
               >
                 <WalletCards className="h-4 w-4" /> Connect browser wallet
@@ -454,7 +454,7 @@ export function DepositBridge() {
             ) : (
               <Button
                 type="button"
-                className="h-11 w-full bg-[#FCD535] font-bold text-[#181A20] hover:bg-[#EBC62F]"
+                className="h-11 w-full bg-[#FF8A00] font-bold text-[#181A20] hover:bg-[#FF9D2E]"
                 disabled={!amountIsValid || isBridging}
                 onClick={() => void bridge()}
               >
@@ -501,7 +501,7 @@ export function DepositBridge() {
                 aria-label="Refresh Arc USDC balance"
                 onClick={() => void arcBalance.refetch()}
                 disabled={!address || arcBalance.isFetching}
-                className="focus-ring rounded p-1 text-[#848E9C] hover:text-[#FCD535] disabled:opacity-40"
+                className="focus-ring rounded p-1 text-[#848E9C] hover:text-[#FF8A00] disabled:opacity-40"
               >
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${arcBalance.isFetching ? "animate-spin" : ""}`}
@@ -537,7 +537,7 @@ export function DepositBridge() {
 
       <section className="exchange-panel p-4 sm:p-5">
         <div className="flex items-start gap-3">
-          <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#FCD535]" />
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#FF8A00]" />
           <div>
             <h2 className="text-sm font-bold text-[#EAECEF]">
               Gateway is future advanced routing
@@ -551,7 +551,7 @@ export function DepositBridge() {
               href="https://developers.circle.com/bridge-kit"
               target="_blank"
               rel="noreferrer"
-              className="focus-ring mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#FCD535] hover:underline"
+              className="focus-ring mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#FF8A00] hover:underline"
             >
               Circle Bridge Kit documentation{" "}
               <ExternalLink className="h-3 w-3" />
@@ -635,7 +635,7 @@ function DepositBridgeSkeleton() {
             </div>
             <SkeletonBlock label="To" />
             <SkeletonBlock label="Amount" />
-            <div className="h-11 w-full rounded-md bg-[#FCD535]/70" />
+            <div className="h-11 w-full rounded-md bg-[#FF8A00]/70" />
           </div>
         </section>
 
@@ -686,12 +686,12 @@ function ProgressRow({
 }) {
   return (
     <li
-      className={`flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm ${state === "active" ? "border-[#FCD535] bg-[#FCD535]/5 text-[#EAECEF]" : state === "error" ? "border-[#F6465D]/50 bg-[#F6465D]/5 text-[#F6465D]" : "border-transparent text-[#707A8A]"}`}
+      className={`flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm ${state === "active" ? "border-[#FF8A00] bg-[#FF8A00]/5 text-[#EAECEF]" : state === "error" ? "border-[#F6465D]/50 bg-[#F6465D]/5 text-[#F6465D]" : "border-transparent text-[#707A8A]"}`}
     >
       {state === "done" ? (
         <Check className="h-4 w-4 text-[#0ECB81]" />
       ) : state === "active" ? (
-        <LoaderCircle className="h-4 w-4 animate-spin text-[#FCD535]" />
+        <LoaderCircle className="h-4 w-4 animate-spin text-[#FF8A00]" />
       ) : state === "error" ? (
         <AlertCircle className="h-4 w-4" />
       ) : (
@@ -726,7 +726,7 @@ function BridgeSuccessNotice({
             href={sourceTxUrl}
             target="_blank"
             rel="noreferrer"
-            className="focus-ring inline-flex items-center gap-1 font-bold text-[#FCD535] hover:underline"
+            className="focus-ring inline-flex items-center gap-1 font-bold text-[#FF8A00] hover:underline"
           >
             View source TX <ExternalLink className="h-3 w-3" />
           </a>
@@ -736,7 +736,7 @@ function BridgeSuccessNotice({
             href={arcTxUrl}
             target="_blank"
             rel="noreferrer"
-            className="focus-ring inline-flex items-center gap-1 font-bold text-[#FCD535] hover:underline"
+            className="focus-ring inline-flex items-center gap-1 font-bold text-[#FF8A00] hover:underline"
           >
             View Arc TX <ExternalLink className="h-3 w-3" />
           </a>
@@ -758,7 +758,7 @@ function Notice({
       ? "border-[#0ECB81]/40 bg-[#0ECB81]/5 text-[#84DDB8]"
       : tone === "error"
         ? "border-[#F6465D]/40 bg-[#F6465D]/5 text-[#FF9BA8]"
-        : "border-[#FCD535]/30 bg-[#FCD535]/5 text-[#D6C36B]";
+        : "border-[#FF8A00]/30 bg-[#FF8A00]/5 text-[#FF9D2E]";
   return (
     <div
       role={tone === "error" ? "alert" : "status"}

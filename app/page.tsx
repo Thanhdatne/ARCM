@@ -731,7 +731,7 @@ function WorldCupMatchupHeader({
     <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3">
       <div className="flex items-center gap-2">
         <WorldCupTeamLabel team={homeTeam} />
-        <span className="shrink-0 rounded-md border border-[#2B3139] bg-[#1E2329] px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FCD535]">
+        <span className="shrink-0 rounded-md border border-[#2B3139] bg-[#1E2329] px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FF8A00]">
           vs
         </span>
         <WorldCupTeamLabel align="right" team={awayTeam} />
@@ -1126,7 +1126,7 @@ function HomeContent() {
               className={
                 activeCategory === category
                   ? "focus-ring market-chip-active shrink-0 px-3 py-1.5 text-xs font-bold"
-                  : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"
+                  : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FF8A00] hover:text-[#EAECEF]"
               }
               key={category}
               onClick={() => setActiveCategory(category)}
@@ -1143,7 +1143,7 @@ function HomeContent() {
               className={
                 activeMarketFilter === filter
                   ? "focus-ring market-chip-active shrink-0 px-2.5 py-1 text-[11px] font-bold"
-                  : "focus-ring market-chip shrink-0 px-2.5 py-1 text-[11px] font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"
+                  : "focus-ring market-chip shrink-0 px-2.5 py-1 text-[11px] font-bold transition hover:border-[#FF8A00] hover:text-[#EAECEF]"
               }
               key={filter}
               onClick={() => setActiveMarketFilter(filter)}
@@ -1233,7 +1233,7 @@ function HomeContent() {
                   className={
                     selectedWorldCupGroup === group
                       ? "focus-ring market-chip-active shrink-0 px-3 py-1.5 text-xs font-bold"
-                      : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"
+                      : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FF8A00] hover:text-[#EAECEF]"
                   }
                   key={group}
                   onClick={() => {
@@ -1248,7 +1248,7 @@ function HomeContent() {
             </div>
           </div>
           <div className="rounded-xl border border-[#2B3139] bg-[#1E2329] p-2">
-            <p className="mb-2 text-[11px] font-semibold text-[#FCD535]">
+            <p className="mb-2 text-[11px] font-semibold text-[#FF8A00]">
               Admin only: safe deploy is limited to one fixture / 3 markets at a time to avoid Arc RPC 429.
               <span className={adminKey.trim() ? "ml-2 text-[#0ECB81]" : "ml-2 text-[#F6465D]"}>
                 {adminKey.trim() ? "Admin key ready" : "Admin key missing"}
@@ -1318,7 +1318,7 @@ function HomeContent() {
                   className={
                     selectedSettlementFilter === filter
                       ? "focus-ring market-chip-active shrink-0 px-3 py-1.5 text-xs font-bold"
-                      : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"
+                      : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FF8A00] hover:text-[#EAECEF]"
                   }
                   key={filter}
                   onClick={() => setSelectedSettlementFilter(filter)}
@@ -1329,7 +1329,7 @@ function HomeContent() {
               ))}
             </div>
           </div>
-          <div className="rounded-xl border border-[#2B3139] bg-[#1E2329] p-3 text-xs leading-5 text-[#FCD535]">
+          <div className="rounded-xl border border-[#2B3139] bg-[#1E2329] p-3 text-xs leading-5 text-[#FF8A00]">
             External football scores must never trigger payout automatically. Use the market detail Resolve tab for proposals,
             liveness, settlement, and Claim Reward.
           </div>
@@ -1418,7 +1418,7 @@ function WorldCupDateSections({
             <div>
               <div className="flex items-center gap-2">
                 {index === 0 ? (
-                  <span className="rounded-full border border-[#FCD535]/50 bg-[#FCD535]/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FCD535]">
+                  <span className="rounded-full border border-[#FF8A00]/50 bg-[#FF8A00]/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FF8A00]">
                     Nearest
                   </span>
                 ) : null}
@@ -1458,12 +1458,12 @@ function WorldCupFixtureCard({
       <div className="mt-3 flex flex-1 flex-col gap-2">
         {fixture.options.map((option) => (
           <Link
-            className="focus-ring group flex min-h-[40px] items-center justify-between rounded-lg border border-[#2B3139] bg-[#0B0E11] px-3 py-2 text-sm font-bold text-[#EAECEF] transition hover:border-[#FCD535] hover:bg-[#20262D]"
+            className="focus-ring group flex min-h-[40px] items-center justify-between rounded-lg border border-[#2B3139] bg-[#0B0E11] px-3 py-2 text-sm font-bold text-[#EAECEF] transition hover:border-[#FF8A00] hover:bg-[#20262D]"
             href={`/market/${option.marketAddress}`}
             key={option.outcomeType}
           >
             <span className="min-w-0 truncate pr-3">{option.label}</span>
-            <span className="font-mono text-base font-black text-[#FCD535] transition group-hover:text-[#FFF3AF]">
+            <span className="font-mono text-base font-black text-[#FF8A00] transition group-hover:text-[#FF9D2E]">
               {formatFixtureProbability(option.probability)}
             </span>
           </Link>
@@ -1598,10 +1598,10 @@ function WorldCupSignalCard({
           </p>
         </div>
         {adminCreateEnabled && !isTradable && !deployBlockReason && (
-          <label className="focus-ring flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-[#2B3139] bg-[#2B3139] px-2 text-[10px] font-bold text-[#707A8A] hover:border-[#FCD535] hover:text-[#EAECEF]">
+          <label className="focus-ring flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-[#2B3139] bg-[#2B3139] px-2 text-[10px] font-bold text-[#707A8A] hover:border-[#FF8A00] hover:text-[#EAECEF]">
               <input
                 checked={selected}
-                className="accent-[#FCD535]"
+                className="accent-[#FF8A00]"
                 onChange={(event) => onSelectedChange(market.id, event.target.checked)}
                 type="checkbox"
               />
@@ -1789,7 +1789,7 @@ function WorldCupResultUpdateCard({
       </div>
 
       {!updateAllowed && (
-        <p className="rounded-lg border border-[#FCD535] bg-[#FCD535]/15 px-3 py-2 text-xs font-bold text-[#FFF3AF]">
+        <p className="rounded-lg border border-[#FF8A00] bg-[#FF8A00]/15 px-3 py-2 text-xs font-bold text-[#FF9D2E]">
           Final result updates unlock after the scheduled result update time.
         </p>
       )}
@@ -2001,9 +2001,9 @@ function statusBadgeClass(status: Exclude<SettlementFilter, "All">) {
     case "Claimable":
       return `${base} border-[#0ECB81] bg-[#0ECB81]/15 text-[#BFFFE7]`;
     case "Settled":
-      return `${base} border-[#FCD535] bg-[#FCD535]/15 text-[#FFF3AF]`;
+      return `${base} border-[#FF8A00] bg-[#FF8A00]/15 text-[#FF9D2E]`;
     case "Resolved":
-      return `${base} border-[#FCD535] bg-[#FCD535]/15 text-[#FFF3AF]`;
+      return `${base} border-[#FF8A00] bg-[#FF8A00]/15 text-[#FF9D2E]`;
     case "Open":
       return `${base} border-[#2B3139] bg-[#0B0E11] text-[#707A8A]`;
   }
@@ -2065,11 +2065,11 @@ function CardAction({
   onDeploy: (markets: WorldCupMarket[]) => void | Promise<void>;
 }) {
   if (isTradable) {
-    return <span className="shrink-0 font-bold text-[#FCD535]">Open Market</span>;
+    return <span className="shrink-0 font-bold text-[#FF8A00]">Open Market</span>;
   }
 
   if (bulkStatus?.state === "pending") {
-    return <span className="shrink-0 text-[#FCD535]">Pending</span>;
+    return <span className="shrink-0 text-[#FF8A00]">Pending</span>;
   }
 
   if (bulkStatus?.state === "success") {
@@ -2198,7 +2198,7 @@ function FilteredMarketEmptyState({
 }) {
   return (
     <section className="rounded-xl border border-[#2B3139] bg-[#1E2329] p-8 text-center">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-[#2B3139] bg-[#0B0E11] text-sm font-black text-[#FCD535]">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-[#2B3139] bg-[#0B0E11] text-sm font-black text-[#FF8A00]">
         0
       </div>
       <h3 className="text-lg font-bold text-[#EAECEF]">No markets found</h3>
@@ -2223,7 +2223,7 @@ function EmptyMarketState({
 }) {
   return (
     <section className="exchange-panel p-8 text-center sm:p-12">
-      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#FCD535] bg-[#FCD535] text-[#181A20]">
+      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#FF8A00] bg-[#FF8A00] text-[#181A20]">
         <PlusCircle className="h-6 w-6" />
       </div>
       <h2 className="text-2xl font-bold text-[#EAECEF]">No onchain markets found yet.</h2>
@@ -2231,7 +2231,7 @@ function EmptyMarketState({
         V2 markets will appear here after the factory, allowlist, and verified USDC collateral flow pass end-to-end checks.
       </p>
       {isClientMounted && !isConnected && (
-        <p className="mx-auto mt-4 max-w-lg rounded-lg border border-[#FCD535] bg-[#FCD535]/15 px-4 py-3 text-sm font-bold text-[#FFF3AF]">
+        <p className="mx-auto mt-4 max-w-lg rounded-lg border border-[#FF8A00] bg-[#FF8A00]/15 px-4 py-3 text-sm font-bold text-[#FF9D2E]">
           Connect wallet to trade on Arc Testnet.
         </p>
       )}

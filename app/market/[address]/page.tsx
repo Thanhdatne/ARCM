@@ -97,7 +97,7 @@ export default function MarketPage({
         </div>
       ) : !resolved ? (
         <div className="exchange-panel p-6 text-center">
-          <p className="font-bold text-[#F59E0B]">Market not found</p>
+          <p className="font-bold text-[#FF9D2E]">Market not found</p>
           <p className="mt-2 text-sm text-[#707A8A]">
             This market address does not match any configured contract.
           </p>

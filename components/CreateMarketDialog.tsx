@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -223,9 +223,9 @@ export function CreateMarketDialog({
 
         <div className="space-y-4 py-2 text-[#EAECEF]">
           {!isConnected && (
-            <div className="rounded-lg border border-[#FCD535] bg-[#FCD535]/15 p-3">
+            <div className="rounded-lg border border-[#FF8A00] bg-[#FF8A00]/15 p-3">
               <div className="mb-3 flex items-start gap-2">
-                <TriangleAlert className="mt-0.5 h-4 w-4 text-[#FCD535]" />
+                <TriangleAlert className="mt-0.5 h-4 w-4 text-[#FF8A00]" />
                 <div>
                   <p className="text-sm font-bold">Connect wallet first</p>
                   <p className="mt-1 text-xs text-[#707A8A]">
@@ -287,7 +287,7 @@ export function CreateMarketDialog({
           <CreateProgress state={createState} step={step} />
 
           {step && (
-            <div className="flex items-center gap-2 text-sm font-bold text-[#FCD535]">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#FF8A00]">
               {createState === "confirmed" ? (
                 <CheckCircle2 className="h-4 w-4 text-[#16C784]" />
               ) : (
@@ -345,7 +345,7 @@ function CreateProgress({
         return (
           <div
             className={`flex items-center justify-between px-3 py-2 ${
-              active ? "bg-[#FCD535] text-[#181A20]" : complete ? "bg-[#0ECB81]/15 text-[#BFFFE7]" : "bg-[#1E2329]"
+              active ? "bg-[#FF8A00] text-[#181A20]" : complete ? "bg-[#0ECB81]/15 text-[#BFFFE7]" : "bg-[#1E2329]"
             } ${failed ? "bg-[#F6465D]/15 text-[#F6465D]" : "text-[#EAECEF]"}`}
             key={label}
           >

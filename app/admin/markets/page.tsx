@@ -688,7 +688,7 @@ export default function AdminMarketsPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
 
-      <section className="exchange-panel overflow-hidden border border-[#FCD535]/20">
+      <section className="exchange-panel overflow-hidden border border-[#FF8A00]/20">
         <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
           <span>World Cup Results & Resolver</span>
           <span className="rounded-full border border-[#0ECB81]/50 bg-[#0ECB81]/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#BFFFE7]">
@@ -699,7 +699,7 @@ export default function AdminMarketsPage() {
         <div className="grid gap-4 p-4 xl:grid-cols-[1fr_380px]">
           <div>
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FCD535] text-[#181A20]">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FF8A00] text-[#181A20]">
                 <Trophy className="h-5 w-5" />
               </div>
 
@@ -711,7 +711,7 @@ export default function AdminMarketsPage() {
                   Resolve and settle visible finished fixtures only. Past fixtures before today are hidden
                   from this admin queue so you can focus on current matches.
                 </p>
-                <p className="mt-2 text-xs font-bold text-[#FFF3AF]">
+                <p className="mt-2 text-xs font-bold text-[#FF9D2E]">
                   Testnet admin shortcut. Public settlement still uses UMA liveness.
                 </p>
               </div>
@@ -719,7 +719,7 @@ export default function AdminMarketsPage() {
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button
-                className="focus-ring rounded-lg border border-[#2B3139] bg-[#0B0E11] px-4 py-2 text-sm font-black text-[#EAECEF] transition hover:border-[#FCD535]"
+                className="focus-ring rounded-lg border border-[#2B3139] bg-[#0B0E11] px-4 py-2 text-sm font-black text-[#EAECEF] transition hover:border-[#FF8A00]"
                 onClick={() => {
                   void loadWorldCupResults();
                   void loadWorldCupDeployments();
@@ -755,7 +755,7 @@ export default function AdminMarketsPage() {
               ) : null}
 
               {waitingFixtureCount > 0 ? (
-                <span className="rounded-lg border border-[#FCD535]/30 bg-[#FCD535]/10 px-3 py-2 text-xs font-bold text-[#FFF3AF]">
+                <span className="rounded-lg border border-[#FF8A00]/30 bg-[#FF8A00]/10 px-3 py-2 text-xs font-bold text-[#FF9D2E]">
                   {waitingFixtureCount} fixture{waitingFixtureCount > 1 ? "s" : ""} eligible for fast settle
                 </span>
               ) : null}
@@ -780,7 +780,7 @@ export default function AdminMarketsPage() {
             </div>
 
             {!adminKey.trim() ? (
-              <p className="mt-3 rounded-lg border border-[#FCD535]/40 bg-[#FCD535]/10 px-3 py-2 text-xs font-bold text-[#FFF3AF]">
+              <p className="mt-3 rounded-lg border border-[#FF8A00]/40 bg-[#FF8A00]/10 px-3 py-2 text-xs font-bold text-[#FF9D2E]">
                 Paste and save ADMIN_API_KEY above before resolving.
               </p>
             ) : null}
@@ -839,7 +839,7 @@ export default function AdminMarketsPage() {
                     </div>
 
                     <div className="mt-3 rounded-lg border border-[#1E2329] bg-[#181A20] px-3 py-2 text-xs leading-5 text-[#AEB4BC]">
-                      <span className="font-black uppercase tracking-[0.12em] text-[#FCD535]">
+                      <span className="font-black uppercase tracking-[0.12em] text-[#FF8A00]">
                         {statusLabel(statusKey)}
                       </span>
                       <span className="ml-2">
@@ -852,7 +852,7 @@ export default function AdminMarketsPage() {
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#707A8A]">
                           Deployed V2 markets
                         </p>
-                        <span className="font-mono text-[11px] font-black text-[#FCD535]">
+                        <span className="font-mono text-[11px] font-black text-[#FF8A00]">
                           {deploymentsLoading ? "..." : `${deployedCount}/3`}
                         </span>
                       </div>
@@ -872,7 +872,7 @@ export default function AdminMarketsPage() {
 
                             return (
                               <Link
-                                className="focus-ring flex items-center justify-between gap-3 rounded-lg border border-[#2B3139] bg-[#181A20] px-3 py-2 text-xs transition hover:border-[#FCD535]/70"
+                                className="focus-ring flex items-center justify-between gap-3 rounded-lg border border-[#2B3139] bg-[#181A20] px-3 py-2 text-xs transition hover:border-[#FF8A00]/70"
                                 href={`/market/${deployment.marketAddress}?tab=resolve`}
                                 key={`${deployment.fixtureId}-${deployment.outcomeType}-${deployment.marketAddress}`}
                               >
@@ -995,7 +995,7 @@ export default function AdminMarketsPage() {
                           {item.outcomeType}
                           {item.proposedSide ? ` → ${item.proposedSide}` : ""}
                         </span>
-                        <span className="font-mono text-[#FCD535]">{item.action}</span>
+                        <span className="font-mono text-[#FF8A00]">{item.action}</span>
                       </div>
                       <p className="mt-1 text-[#707A8A]">{item.reason}</p>
                       {item.txHash ? (
@@ -1017,7 +1017,7 @@ export default function AdminMarketsPage() {
       <section className="exchange-panel overflow-hidden">
         <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
           <span>Admin Market Catalog</span>
-          <span className="rounded-full border border-[#FCD535]/50 bg-[#FCD535]/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FCD535]">
+          <span className="rounded-full border border-[#FF8A00]/50 bg-[#FF8A00]/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FF8A00]">
             Protected deploy
           </span>
         </div>
@@ -1054,7 +1054,7 @@ export default function AdminMarketsPage() {
 
           <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FCD535] text-[#181A20]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF8A00] text-[#181A20]">
                 <KeyRound className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -1105,7 +1105,7 @@ export default function AdminMarketsPage() {
                   className={
                     activeCategory === category
                       ? "focus-ring market-chip-active shrink-0 px-3 py-1.5 text-xs font-bold"
-                      : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FCD535] hover:text-[#EAECEF]"
+                      : "focus-ring market-chip shrink-0 px-3 py-1.5 text-xs font-bold transition hover:border-[#FF8A00] hover:text-[#EAECEF]"
                   }
                   key={category}
                   onClick={() => setActiveCategory(category)}
@@ -1134,13 +1134,13 @@ export default function AdminMarketsPage() {
 
           return (
             <article
-              className="group flex min-h-[320px] flex-col justify-between rounded-xl border border-[#2B3139] bg-[#1E2329] p-4 transition hover:-translate-y-0.5 hover:border-[#FCD535]/70 hover:shadow-[0_14px_40px_rgba(252,213,53,0.08)]"
+              className="group flex min-h-[320px] flex-col justify-between rounded-xl border border-[#2B3139] bg-[#1E2329] p-4 transition hover:-translate-y-0.5 hover:border-[#FF8A00]/70 hover:shadow-[0_14px_40px_rgba(255,138,0,0.08)]"
               key={template.id}
             >
               <div>
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#3A424D] bg-[#0B0E11] font-mono text-sm font-black text-[#FCD535]">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#3A424D] bg-[#0B0E11] font-mono text-sm font-black text-[#FF8A00]">
                       {copy.icon}
                     </div>
                     <div>
@@ -1367,7 +1367,7 @@ function ResolveMetric({ label, value }: { label: string; value: number }) {
       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#707A8A]">
         {label}
       </p>
-      <p className="mt-1 font-mono text-lg font-black text-[#FCD535]">{value}</p>
+      <p className="mt-1 font-mono text-lg font-black text-[#FF8A00]">{value}</p>
     </div>
   );
 }
@@ -1383,7 +1383,7 @@ function AdminMetric({
 }) {
   return (
     <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3">
-      <div className="flex items-center gap-2 text-[#FCD535]">
+      <div className="flex items-center gap-2 text-[#FF8A00]">
         {icon}
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#707A8A]">
           {label}
@@ -1414,5 +1414,5 @@ function riskClass(riskLevel: string) {
     return "border-[#F6465D]/40 bg-[#F6465D]/10 text-[#FFD7DD]";
   }
 
-  return "border-[#FCD535]/40 bg-[#FCD535]/10 text-[#FFF3AF]";
+  return "border-[#FF8A00]/40 bg-[#FF8A00]/10 text-[#FF9D2E]";
 }

@@ -266,7 +266,7 @@ export function ResolveTab({
               by {proposer ? `${proposer.slice(0, 6)}...${proposer.slice(-4)}` : "..."}
             </p>
             {expirationDisplay && (
-              <p className="font-mono text-xs font-bold text-[#F59E0B]">
+              <p className="font-mono text-xs font-bold text-[#FF9D2E]">
                 Dispute window: {expirationDisplay}
               </p>
             )}
@@ -302,7 +302,7 @@ export function ResolveTab({
               </Button>
               <TxStatus {...settleOracleWithTimer} />
               {isOracleSettlementRefreshing && (
-                <p className="text-xs font-bold text-[#FCD535]">
+                <p className="text-xs font-bold text-[#FF8A00]">
                   Refreshing oracle state until settlement is fully reflected in the UI...
                 </p>
               )}
@@ -322,7 +322,7 @@ export function ResolveTab({
               </Button>
               <TxStatus {...settleOracleWithTimer} />
               {isOracleSettlementRefreshing && (
-                <p className="text-xs font-bold text-[#FCD535]">
+                <p className="text-xs font-bold text-[#FF8A00]">
                   Refreshing oracle state until settlement is fully reflected in the UI...
                 </p>
               )}
@@ -361,7 +361,7 @@ export function ResolveTab({
           </Button>
           <TxStatus {...settleOracle} />
           {isOracleSettlementRefreshing && (
-            <p className="text-xs font-bold text-[#FCD535]">
+            <p className="text-xs font-bold text-[#FF8A00]">
               Refreshing oracle state until settlement is fully reflected in the UI...
             </p>
           )}
@@ -439,7 +439,7 @@ export function ResolveTab({
 
                 {!isClaimed && (
                   <button
-                    className="text-[11px] font-bold text-[#707A8A] underline underline-offset-2 hover:text-[#FCD535]"
+                    className="text-[11px] font-bold text-[#707A8A] underline underline-offset-2 hover:text-[#FF8A00]"
                     onClick={() => setAdvancedClaimOpen((value) => !value)}
                     type="button"
                   >

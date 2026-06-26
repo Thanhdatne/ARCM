@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,7 +78,7 @@ const countryFlagCode: Record<string, string> = {
   "iraq": "iq",
   "ivory coast": "ci",
   "cote divoire": "ci",
-  "cÃ´te divoire": "ci",
+  "côte divoire": "ci",
   "japan": "jp",
   "jordan": "jo",
   "mexico": "mx",
@@ -119,7 +119,7 @@ function normalizeKey(value: string) {
   return normalizeTeamName(value)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[â€™']/g, "")
+    .replace(/[’']/g, "")
     .toLowerCase();
 }
 
@@ -294,8 +294,8 @@ export function MarketHeader({
   const statusColor = receivedSettlementPrice
     ? "text-[#0ECB81]"
     : priceRequested
-      ? "text-[#FCD535]"
-      : "text-[#FCD535]";
+      ? "text-[#FF8A00]"
+      : "text-[#FF8A00]";
 
   let outcomeText: string | undefined;
   if (receivedSettlementPrice && settlementPrice !== undefined) {
@@ -337,11 +337,11 @@ export function MarketHeader({
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[#707A8A]">
               <span className="market-chip inline-flex items-center gap-1.5 px-3 py-1.5">
-                <Database className="h-3.5 w-3.5 text-[#FCD535]" />
+                <Database className="h-3.5 w-3.5 text-[#FF8A00]" />
                 Arc Testnet market
               </span>
               <span className="market-chip inline-flex items-center gap-1.5 px-3 py-1.5">
-                <ShieldCheck className="h-3.5 w-3.5 text-[#FCD535]" />
+                <ShieldCheck className="h-3.5 w-3.5 text-[#FF8A00]" />
                 Positions public today
               </span>
               <span className="market-chip inline-flex items-center gap-1.5 px-3 py-1.5 font-mono">
@@ -352,7 +352,7 @@ export function MarketHeader({
               </span>
             </div>
             {collateralWarning ? (
-              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-[#F59E0B]">
+              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-[#FF9D2E]">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 {collateralAddress && !collateralEnabled
                   ? "Trading is not enabled for this collateral."
@@ -398,7 +398,7 @@ function FixtureVisual({ visual }: { visual: FixtureVisual }) {
     <div className="flex h-24 w-full shrink-0 items-center justify-center rounded-2xl border border-[#3A424D] bg-[#0B0E11] p-3 shadow-[inset_0_0_24px_rgba(255,255,255,0.04)] sm:w-36">
       <div className="flex items-center gap-2">
         <FlagAvatar team={visual.homeTeam} flagCode={visual.homeFlagCode} />
-        <span className="rounded-md border border-[#2B3139] bg-[#1E2329] px-1.5 py-1 text-[10px] font-black uppercase text-[#FCD535]">
+        <span className="rounded-md border border-[#2B3139] bg-[#1E2329] px-1.5 py-1 text-[10px] font-black uppercase text-[#FF8A00]">
           vs
         </span>
         <FlagAvatar team={visual.awayTeam} flagCode={visual.awayFlagCode} />
@@ -447,7 +447,7 @@ function AssetMarketVisual({ visual }: { visual: AssetVisual }) {
         ? "stroke-[#5B8DEF]"
         : visual.accent === "red"
           ? "stroke-[#F6465D]"
-          : "stroke-[#FCD535]";
+          : "stroke-[#FF8A00]";
 
   if (isArcLogo) {
     return (
@@ -516,7 +516,7 @@ function ARCMLogoMark({ className = "h-12 w-12" }: { className?: string }) {
       <rect width="56" height="56" rx="14" fill="#0B0E11" />
       <path
         d="M28 8L47 48H38.8L34.9 39.2H20.9L17 48H8.8L28 8Z"
-        fill="#FCD535"
+        fill="#FF8A00"
       />
       <path d="M27.9 20.7L34 34.3H22L27.9 20.7Z" fill="#0B0E11" />
       <path
@@ -527,10 +527,11 @@ function ARCMLogoMark({ className = "h-12 w-12" }: { className?: string }) {
       />
       <path
         d="M15.5 45C25.4 35.9 35.1 30.9 47.2 29.5"
-        stroke="#FCD535"
+        stroke="#FF8A00"
         strokeLinecap="round"
         strokeWidth="3"
       />
     </svg>
   );
 }
+

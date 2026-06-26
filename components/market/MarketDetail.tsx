@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -346,7 +346,7 @@ function MarketStatsPanel({
           return (
             <div key={stat.label} className="terminal-card p-3">
               <div className="mb-2 flex items-center gap-2 text-xs text-[#707A8A]">
-                <Icon className="h-3.5 w-3.5 text-[#FCD535]" />
+                <Icon className="h-3.5 w-3.5 text-[#FF8A00]" />
                 {stat.label}
               </div>
               <p className="text-sm font-bold text-[#EAECEF]">{stat.value}</p>
@@ -369,7 +369,7 @@ function SettlementRulesPanel({ collateralSymbol }: { collateralSymbol: string }
   return (
     <section className="rounded-xl border border-[#2B3139] bg-[#1E2329]">
       <div className="flex items-center gap-2 border-b border-[#2B3139] px-3 py-2">
-        <ShieldCheck className="h-4 w-4 text-[#FCD535]" />
+        <ShieldCheck className="h-4 w-4 text-[#FF8A00]" />
         <h2 className="text-sm font-bold text-[#EAECEF]">
           Settlement rules
         </h2>
@@ -432,7 +432,7 @@ function LifecyclePanel({
           <div
             key={step.label}
             className={`p-3 text-center ${step.active
-                ? "terminal-card text-[#FCD535]"
+                ? "terminal-card text-[#FF8A00]"
                 : "terminal-surface text-[#707A8A]"
               }`}
           >

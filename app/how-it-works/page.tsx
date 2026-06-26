@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import {
@@ -99,7 +99,7 @@ export default function HowItWorksPage() {
                 Explore markets
               </Link>
               <Link
-                className="focus-ring rounded-lg border border-[#2B3139] bg-[#1E2329] px-4 py-2 text-sm font-bold text-[#EAECEF] transition hover:border-[#FCD535]"
+                className="focus-ring rounded-lg border border-[#2B3139] bg-[#1E2329] px-4 py-2 text-sm font-bold text-[#EAECEF] transition hover:border-[#FF8A00]"
                 href="/claims"
               >
                 View claims
@@ -108,7 +108,7 @@ export default function HowItWorksPage() {
           </div>
 
           <div className="rounded-xl border border-[#2B3139] bg-[#1E2329] p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black text-[#FCD535]">
+            <div className="mb-3 flex items-center gap-2 text-sm font-black text-[#FF8A00]">
               <CircleHelp className="h-4 w-4" />
               MVP rule
             </div>
@@ -122,7 +122,7 @@ export default function HowItWorksPage() {
       <section className="grid gap-3 lg:grid-cols-5">
         {steps.map((step, index) => (
           <article className="terminal-surface p-3" key={step.title}>
-            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-[#2B3139] bg-[#0B0E11] font-mono text-sm font-black text-[#FCD535]">
+            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-[#2B3139] bg-[#0B0E11] font-mono text-sm font-black text-[#FF8A00]">
               {index + 1}
             </div>
             <h2 className="text-sm font-black text-[#EAECEF]">{step.title}</h2>
@@ -145,7 +145,7 @@ export default function HowItWorksPage() {
                 New categories can be added, but they should only appear as tradable when deployed and settlement rules are clear.
               </p>
             </div>
-            <span className="w-fit rounded-full border border-[#FCD535] bg-[#FCD535]/15 px-3 py-1 text-xs font-black text-[#FFF3AF]">
+            <span className="w-fit rounded-full border border-[#FF8A00] bg-[#FF8A00]/15 px-3 py-1 text-xs font-black text-[#FF9D2E]">
               No fake markets
             </span>
           </div>
@@ -162,7 +162,7 @@ export default function HowItWorksPage() {
                 <ul className="mt-3 space-y-2">
                   {category.examples.map((example) => (
                     <li className="flex items-center gap-2 text-xs text-[#A7B1C2]" key={example}>
-                      <ArrowRight className="h-3.5 w-3.5 text-[#FCD535]" />
+                      <ArrowRight className="h-3.5 w-3.5 text-[#FF8A00]" />
                       {example}
                     </li>
                   ))}
@@ -230,7 +230,7 @@ function MiniTile({
 }) {
   return (
     <div className="terminal-card p-3">
-      <Icon className="mb-2 h-4 w-4 text-[#FCD535]" />
+      <Icon className="mb-2 h-4 w-4 text-[#FF8A00]" />
       <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#A7B1C2]">{label}</p>
       <p className="mt-1 text-xs font-bold text-[#EAECEF]">{value}</p>
     </div>

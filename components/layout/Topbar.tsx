@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,7 +54,7 @@ function shortAddress(address?: string) {
 function MarketSearchFallback() {
   return (
     <div className="relative z-10 w-full max-w-[420px]">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#FCD535]" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#FF8A00]" />
       <div className="h-10 w-full rounded-lg border border-[#2B3139] bg-[#1E2329] pl-10 pr-10 text-sm font-medium text-[#707A8A]">
         <span className="flex h-full items-center">Search ARCM markets</span>
       </div>
@@ -139,12 +139,12 @@ function MarketSearch() {
       onSubmit={submitSearch}
       role="search"
     >
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#FCD535]" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#FF8A00]" />
 
       <input
         aria-label="Search ARCM markets"
         autoComplete="off"
-        className="focus-ring h-10 w-full rounded-lg border border-[#2B3139] bg-[#1E2329] pl-10 pr-10 text-sm font-medium text-[#EAECEF] outline-none transition placeholder:text-[#707A8A] hover:border-[#3A424D] focus:border-[#FCD535]"
+        className="focus-ring h-10 w-full rounded-lg border border-[#2B3139] bg-[#1E2329] pl-10 pr-10 text-sm font-medium text-[#EAECEF] outline-none transition placeholder:text-[#707A8A] hover:border-[#3A424D] focus:border-[#FF8A00]"
         onChange={(event) => setValue(event.target.value)}
         placeholder="Search ARCM markets"
         type="text"
@@ -251,8 +251,8 @@ function ClaimNotificationBell() {
         aria-label={hasRewards ? `${markets.length} rewards ready to claim` : "Open reward notifications"}
         className={`focus-ring relative flex h-10 w-10 items-center justify-center rounded-xl border text-sm transition ${
           hasRewards
-            ? "border-[#FCD535]/70 bg-[#2A2511] text-[#FCD535] shadow-[0_0_0_1px_rgba(252,213,53,0.12),0_10px_30px_rgba(252,213,53,0.08)]"
-            : "border-[#2B3139] bg-[#1E2329] text-[#A7B1C2] hover:border-[#FCD535]/70 hover:text-[#FCD535]"
+            ? "border-[#FF8A00]/70 bg-[#FF8A00]/10 text-[#FF8A00] shadow-[0_0_0_1px_rgba(255,138,0,0.12),0_10px_30px_rgba(255,138,0,0.08)]"
+            : "border-[#2B3139] bg-[#1E2329] text-[#A7B1C2] hover:border-[#FF8A00]/70 hover:text-[#FF8A00]"
         } disabled:cursor-not-allowed disabled:opacity-50`}
         disabled={!isMounted || !isConnected || !address}
         onClick={toggleMenu}
@@ -261,7 +261,7 @@ function ClaimNotificationBell() {
       >
         <Bell className="h-[18px] w-[18px]" strokeWidth={2.3} />
         {hasRewards ? (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#0B0E11] bg-[#FCD535] px-1 text-[10px] font-black leading-none text-[#181A20]">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#0B0E11] bg-[#FF8A00] px-1 text-[10px] font-black leading-none text-[#181A20]">
             {badgeCount}
           </span>
         ) : null}
@@ -279,7 +279,7 @@ function ClaimNotificationBell() {
                   {hasRewards ? `${markets.length} market${markets.length > 1 ? "s" : ""} won` : "No rewards yet"}
                 </h2>
               </div>
-              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#FCD535]/30 bg-[#FCD535]/10 text-[#FCD535]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#FF8A00]/30 bg-[#FF8A00]/10 text-[#FF8A00]">
                 {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
               </span>
             </div>
@@ -295,7 +295,7 @@ function ClaimNotificationBell() {
                 {markets.slice(0, 5).map((market) => (
                   <Link
                     key={`${market.id}-${market.address}`}
-                    className="group block rounded-xl border border-[#2B3139] bg-[#0B0E11] px-3 py-3 transition hover:border-[#FCD535]/70 hover:bg-[#12161D]"
+                    className="group block rounded-xl border border-[#2B3139] bg-[#0B0E11] px-3 py-3 transition hover:border-[#FF8A00]/70 hover:bg-[#12161D]"
                     href="/claims"
                     onClick={() => setIsOpen(false)}
                   >
@@ -305,7 +305,7 @@ function ClaimNotificationBell() {
                           <span className="rounded-full border border-[#0ECB81]/50 bg-[#0ECB81]/10 px-2 py-0.5 text-[10px] font-bold text-[#84DDB8]">
                             {market.winningSide} won
                           </span>
-                          <span className="rounded-full border border-[#FCD535]/30 bg-[#FCD535]/10 px-2 py-0.5 text-[10px] font-bold text-[#FCD535]">
+                          <span className="rounded-full border border-[#FF8A00]/30 bg-[#FF8A00]/10 px-2 py-0.5 text-[10px] font-bold text-[#FF8A00]">
                             Claimable
                           </span>
                         </div>
@@ -314,12 +314,12 @@ function ClaimNotificationBell() {
                         </p>
                         <p className="mt-1 text-xs text-[#A7B1C2]">
                           Reward:{" "}
-                          <span className="font-mono font-bold text-[#FCD535]">
+                          <span className="font-mono font-bold text-[#FF8A00]">
                             {market.payoutAmountFormatted ?? "Ready"} {market.collateralSymbol ?? "USDC"}
                           </span>
                         </p>
                       </div>
-                      <ChevronRight className="mt-7 h-4 w-4 shrink-0 text-[#707A8A] transition group-hover:translate-x-0.5 group-hover:text-[#FCD535]" />
+                      <ChevronRight className="mt-7 h-4 w-4 shrink-0 text-[#707A8A] transition group-hover:translate-x-0.5 group-hover:text-[#FF8A00]" />
                     </div>
                   </Link>
                 ))}
@@ -344,7 +344,7 @@ function ClaimNotificationBell() {
               Refresh
             </button>
             <Link
-              className="focus-ring rounded-lg bg-[#FCD535] px-3 py-1.5 text-xs font-black text-[#181A20] transition hover:bg-[#EBC62F]"
+              className="focus-ring rounded-lg bg-[#FF8A00] px-3 py-1.5 text-xs font-black text-[#181A20] transition hover:bg-[#FF9D2E]"
               href="/claims"
               onClick={() => setIsOpen(false)}
             >
@@ -361,7 +361,7 @@ function WalletAvatar() {
   return (
     <span
       aria-hidden="true"
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#FCD535]/40 bg-[#FCD535] text-[#181A20] shadow-[0_0_0_2px_rgba(252,213,53,0.12)]"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#FF8A00]/40 bg-[#FF8A00] text-[#181A20] shadow-[0_0_0_2px_rgba(255,138,0,0.12)]"
     >
       <Wallet className="h-3.5 w-3.5" strokeWidth={2.6} />
     </span>
@@ -430,7 +430,7 @@ export function Topbar() {
 
             return (
               <button
-                className="focus-ring flex h-10 items-center gap-2 rounded-xl border border-[#2B3139] bg-[#1E2329] px-3 text-sm font-bold text-[#EAECEF] transition hover:border-[#FCD535] hover:bg-[#252B33]"
+                className="focus-ring flex h-10 items-center gap-2 rounded-xl border border-[#2B3139] bg-[#1E2329] px-3 text-sm font-bold text-[#EAECEF] transition hover:border-[#FF8A00] hover:bg-[#252B33]"
                 onClick={openAccountModal}
                 type="button"
               >

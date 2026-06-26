@@ -42,7 +42,7 @@ export default function PrivacyPage() {
           <article key={title} className="terminal-surface p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-sm font-bold text-[#EAECEF]">{title}</h2>
-              <Icon className="h-4 w-4 text-[#FCD535]" />
+              <Icon className="h-4 w-4 text-[#FF8A00]" />
             </div>
             <p className="text-xs leading-5 text-[#A7B1C2]">{copy}</p>
           </article>
@@ -61,7 +61,7 @@ export default function PrivacyPage() {
             <div key={field} className="grid grid-cols-[0.85fr_1.2fr_1.2fr] border-b border-[#2B3139] text-sm last:border-b-0">
               <div className="p-3 font-semibold text-[#EAECEF]">{field}</div>
               <div className="p-3 text-[#A7B1C2]">{today}</div>
-              <div className="p-3 text-[#FCD535]">{preview}</div>
+              <div className="p-3 text-[#FF8A00]">{preview}</div>
             </div>
           ))}
         </div>

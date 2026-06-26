@@ -56,7 +56,7 @@ export function CreateSection() {
         </Button>
       </div>
       {!priceRequested && (
-        <p className="text-sm text-yellow-500">Market must be initialized first.</p>
+        <p className="text-sm text-[#FF9D2E]">Market must be initialized first.</p>
       )}
       <ActionTxStatus isPending={isPending} isConfirming={isConfirming} isSuccess={isSuccess} error={error} hash={hash} />
     </div>
