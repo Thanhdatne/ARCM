@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright 2026 Circle Internet Group, Inc.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -55,20 +55,20 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-[#2B3139] bg-[#0B0E11] px-3 py-4 text-[#EAECEF] lg:flex">
-        <div className="mb-5 flex shrink-0 items-center justify-center">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-[#1A212B] bg-[#05080D] px-3 py-4 text-[#EAECEF] lg:flex">
+        <div className="mb-4 flex shrink-0 items-center justify-center">
           <Link
             href="/"
             aria-label="Go to ARCM home"
-            className="focus-ring flex h-16 w-16 items-center justify-center rounded-xl border border-[#2B3139] bg-[#0B0E11] transition hover:border-[#FF8A00] hover:shadow-[0_0_0_1px_#FF8A00,0_0_18px_rgba(255,138,0,0.16)]"
+            className="focus-ring group flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-2xl border border-transparent bg-[#030507] shadow-none transition hover:border-[#FF8A00]/45 hover:bg-[#05080D]"
           >
             <Image
               src="/brand/ARCM-logo-orange.png"
               alt="ARCM"
-              width={52}
-              height={52}
+              width={64}
+              height={64}
               priority
-              className="h-[52px] w-[52px] object-contain"
+              className="h-[64px] w-[64px] scale-[1.2] object-contain"
             />
           </Link>
         </div>
@@ -118,7 +118,7 @@ export function Sidebar() {
 
             {adminMarketCreateEnabled ? (
               <>
-                <div className="my-3 border-t border-[#2B3139]" />
+                <div className="my-3 border-t border-[#1B222C]" />
 
                 {adminNavItems.map((item) => {
                   const active =
@@ -158,7 +158,7 @@ export function Sidebar() {
               {comingSoonItems.map((item) => (
                 <div
                   aria-disabled="true"
-                  className="flex cursor-not-allowed items-center justify-between gap-3 rounded-lg border border-[#2B3139] bg-[#1E2329] px-3 py-1.5 text-xs font-medium text-[#707A8A]"
+                  className="flex cursor-not-allowed items-center justify-between gap-3 rounded-lg border border-[#1B222C] bg-[#111720] px-3 py-1.5 text-xs font-medium text-[#707A8A]"
                   key={item.label}
                 >
                   <span className="flex items-center gap-3">
@@ -166,7 +166,7 @@ export function Sidebar() {
                     {item.label}
                   </span>
 
-                  <span className="rounded border border-[#2B3139] px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]">
+                  <span className="rounded border border-[#1B222C] px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]">
                     Soon
                   </span>
                 </div>
@@ -175,7 +175,7 @@ export function Sidebar() {
           </details>
         </div>
 
-        <div className="mt-4 shrink-0 rounded-xl border border-[#2B3139] bg-[#1E2329] p-3 shadow-[0_-12px_30px_rgba(0,0,0,0.18)]">
+        <div className="mt-4 shrink-0 rounded-xl border border-[#1B222C] bg-[#111720] p-3 shadow-[0_-12px_30px_rgba(0,0,0,0.18)]">
           <div className="flex items-center gap-2 text-sm font-bold text-[#FF8A00]">
             <ShieldCheck className="h-4 w-4" />
             Arc Testnet App
@@ -191,4 +191,3 @@ export function Sidebar() {
     </>
   );
 }
-
