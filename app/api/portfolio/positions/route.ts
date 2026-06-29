@@ -19,7 +19,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const scan = await scanWalletPositions(wallet as Address, url.searchParams.get("refresh") === "1");
+    const debug = url.searchParams.get("debug") === "1";
+    const scan = await scanWalletPositions(
+      wallet as Address,
+      url.searchParams.get("refresh") === "1",
+      debug,
+    );
     const positions = [...scan.openPositions, ...scan.settledPositions];
     const sideCount = positions.reduce(
       (total, position) => total + (BigInt(position.yesBalance) > 0n ? 1 : 0) + (BigInt(position.noBalance) > 0n ? 1 : 0),
@@ -40,6 +45,7 @@ export async function GET(request: Request) {
           settledPositions: scan.settledPositions.length,
           sideCount,
         },
+        ...(debug && scan.debug ? { debug: scan.debug } : {}),
       },
       { headers: { "Cache-Control": "no-store" } },
     );

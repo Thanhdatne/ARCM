@@ -12,6 +12,7 @@ import { CheckCircle2, KeyRound, Layers3, RefreshCw, Search, ShieldCheck, Trophy
 
 type OutcomeType = "home_win" | "draw" | "away_win";
 type MarketTemplate = (typeof MARKET_TEMPLATES)[number];
+type AdminCatalogCategory = MarketTemplateCategory | "World Cup";
 
 type TemplateDeployState =
   | { status: "idle" }
@@ -125,8 +126,9 @@ const adminMarketCreateEnabled =
 
 const ARC_NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
-const categories: ("All" | MarketTemplateCategory)[] = [
+const categories: ("All" | AdminCatalogCategory)[] = [
   "All",
+  "World Cup",
   "Arc",
   "Crypto",
   "Stablecoins",
@@ -136,7 +138,12 @@ const categories: ("All" | MarketTemplateCategory)[] = [
   "Privacy",
 ];
 
-const categoryCopy: Record<MarketTemplateCategory, { label: string; icon: string; description: string }> = {
+const categoryCopy: Record<AdminCatalogCategory, { label: string; icon: string; description: string }> = {
+  "World Cup": {
+    label: "World Cup",
+    icon: "WC",
+    description: "Round of 32 binary knockout markets.",
+  },
   Arc: {
     label: "Arc",
     icon: "ARC",
@@ -251,7 +258,7 @@ const WORLD_CUP_FIXTURE_DATE_BY_ID: Record<string, string> = {
 
 export default function AdminMarketsPage() {
   const [activeCategory, setActiveCategory] =
-    useState<"All" | MarketTemplateCategory>("All");
+    useState<"All" | AdminCatalogCategory>("All");
   const [query, setQuery] = useState("");
   const [adminKey, setAdminKey] = useState("");
   const [saved, setSaved] = useState(false);
@@ -363,12 +370,13 @@ export default function AdminMarketsPage() {
   }, []);
 
   const categoryCounts = useMemo(() => {
-    return MARKET_TEMPLATES.reduce<Record<MarketTemplateCategory, number>>(
+    return MARKET_TEMPLATES.reduce<Record<AdminCatalogCategory, number>>(
       (acc, template) => {
-        acc[template.category] += 1;
+        acc[template.category as AdminCatalogCategory] += 1;
         return acc;
       },
       {
+        "World Cup": 0,
         Arc: 0,
         Crypto: 0,
         Stablecoins: 0,
@@ -1128,7 +1136,7 @@ export default function AdminMarketsPage() {
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleTemplates.map((template) => {
-          const copy = categoryCopy[template.category];
+          const copy = categoryCopy[template.category as AdminCatalogCategory];
           const deployState = templateDeployStates[template.id] ?? { status: "idle" };
           const deploying = deployState.status === "deploying";
 

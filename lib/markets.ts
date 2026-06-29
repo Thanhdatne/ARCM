@@ -23,6 +23,12 @@ export interface MarketCardData {
   isReal?: boolean;
   imageSrc?: string;
   imageAlt?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  stage?: string;
+  kickoffTime?: string;
+  homeCountryCode?: string;
+  awayCountryCode?: string;
 }
 
 export interface DynamicMarket {
@@ -32,6 +38,12 @@ export interface DynamicMarket {
   title: string;
   category: string;
   createdAt: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  stage?: string;
+  kickoffTime?: string;
+  homeCountryCode?: string;
+  awayCountryCode?: string;
 }
 
 type VisualAsset = {
@@ -153,6 +165,12 @@ export function dynamicToCardData(market: DynamicMarket): MarketCardData {
     isReal: true,
     imageSrc: visual.imageSrc,
     imageAlt: visual.imageAlt,
+    homeTeam: market.homeTeam,
+    awayTeam: market.awayTeam,
+    stage: market.stage,
+    kickoffTime: market.kickoffTime,
+    homeCountryCode: market.homeCountryCode,
+    awayCountryCode: market.awayCountryCode,
   };
 }
 
@@ -213,4 +231,3 @@ export const PREVIEW_MARKETS: MarketCardData[] = [
     imageAlt: "Arc ecosystem market preview",
   },
 ];
-

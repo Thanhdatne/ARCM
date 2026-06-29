@@ -30,6 +30,7 @@ type FixtureVisual = {
   type: "fixture";
   homeTeam: string;
   awayTeam: string;
+  stage?: string;
   homeFlagCode?: string;
   awayFlagCode?: string;
 };
@@ -155,6 +156,21 @@ function extractFixtureVisual(question?: string): FixtureVisual | null {
       type: "fixture",
       homeTeam,
       awayTeam,
+      homeFlagCode: getFlagCode(homeTeam),
+      awayFlagCode: getFlagCode(awayTeam),
+    };
+  }
+
+  const knockoutMatch = cleanQuestion.match(/^Will\s+(.+?)\s+eliminate\s+(.+?)\s+in\s+the\s+(Round of 32)\??$/i);
+  if (knockoutMatch) {
+    const homeTeam = normalizeTeamName(knockoutMatch[1]);
+    const awayTeam = normalizeTeamName(knockoutMatch[2]);
+
+    return {
+      type: "fixture",
+      homeTeam,
+      awayTeam,
+      stage: knockoutMatch[3],
       homeFlagCode: getFlagCode(homeTeam),
       awayFlagCode: getFlagCode(awayTeam),
     };
@@ -307,6 +323,10 @@ export function MarketHeader({
   }
 
   const visual = getMarketVisual(question, pairName);
+  const isKnockoutFixture = visual.type === "fixture" && Boolean(visual.stage);
+  const displayTitle = isKnockoutFixture
+    ? `${visual.homeTeam} vs ${visual.awayTeam}`
+    : question ?? pairName ?? "Market";
   const shortCollateralAddress = collateralAddress
     ? `${collateralAddress.slice(0, 6)}...${collateralAddress.slice(-4)}`
     : "Unavailable";
@@ -333,8 +353,18 @@ export function MarketHeader({
               </Badge>
             </div>
             <h1 className="max-w-4xl text-2xl font-bold leading-tight tracking-tight text-[#EAECEF] sm:text-3xl">
-              {question ?? pairName ?? "Market"}
+              {displayTitle}
             </h1>
+            {isKnockoutFixture ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-sm font-bold text-[#707A8A]">
+                  {visual.stage} · World Cup
+                </p>
+                <p className="rounded-xl border border-[#2B3139] bg-[#0B0E11] px-3 py-2 text-xs font-bold text-[#EAECEF]">
+                  YES = {visual.homeTeam} advances · NO = {visual.awayTeam} advances
+                </p>
+              </div>
+            ) : null}
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[#707A8A]">
               <span className="market-chip inline-flex items-center gap-1.5 px-3 py-1.5">
                 <Database className="h-3.5 w-3.5 text-[#FF8A00]" />

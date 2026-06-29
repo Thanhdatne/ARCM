@@ -251,6 +251,38 @@ function marketMatchesSearch(market: MarketCardData, rawQuery: string) {
   return searchableText.includes(query);
 }
 
+function isWorldCupKnockoutMarket(market: MarketCardData) {
+  return (
+    normalizeMarketText(market.category) === "world cup" &&
+    /^Will .+? eliminate .+? in the Round of 32\??$/i.test(market.title)
+  );
+}
+
+function getMarketKickoffScore(market: MarketCardData) {
+  const kickoffTime = market.kickoffTime;
+  if (!kickoffTime) return Number.POSITIVE_INFINITY;
+
+  const parsed = new Date(kickoffTime).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+function isWorldCupKnockoutOpenForBetting(market: MarketCardData, nowMs: number | null) {
+  if (!isWorldCupKnockoutMarket(market)) return true;
+  if (nowMs === null) return true;
+
+  const kickoffScore = getMarketKickoffScore(market);
+  if (!Number.isFinite(kickoffScore)) return true;
+
+  return kickoffScore > nowMs;
+}
+
+function sortMarketsByKickoff(a: MarketCardData, b: MarketCardData) {
+  const kickoffDiff = getMarketKickoffScore(a) - getMarketKickoffScore(b);
+  if (kickoffDiff !== 0) return kickoffDiff;
+
+  return a.title.localeCompare(b.title);
+}
+
 function getWorldCupOutcomeLabel(market: WorldCupMarket) {
   switch (market.outcomeType) {
     case "home_win":
@@ -893,19 +925,31 @@ function HomeContent() {
   const regularTradableMarkets = onchainMarkets.filter(
     (market) => !deployedWorldCupMarketAddresses.has(market.address.toLowerCase()),
   );
-  const homeMarketCount = regularTradableMarkets.length + deployedWorldCupFixtureCards.length;
+  const activeRegularTradableMarkets = regularTradableMarkets.filter((market) =>
+    isWorldCupKnockoutOpenForBetting(market, publicFixtureNowMs),
+  );
+  const homeMarketCount = activeRegularTradableMarkets.length + deployedWorldCupFixtureCards.length;
 
-  const categoryFilteredRegularMarkets = regularTradableMarkets.filter((market) =>
+  const categoryFilteredRegularMarkets = activeRegularTradableMarkets.filter((market) =>
     marketMatchesCategory(market, activeCategory),
   );
   const baseFilteredRegularMarkets = marketSearchQuery
-    ? regularTradableMarkets.filter((market) => marketMatchesSearch(market, marketSearchQuery))
+    ? activeRegularTradableMarkets.filter((market) => marketMatchesSearch(market, marketSearchQuery))
     : categoryFilteredRegularMarkets.filter((market) =>
         marketMatchesViewFilter(market, activeMarketFilter, categoryFilteredRegularMarkets),
       );
   const filteredRegularMarkets = [...baseFilteredRegularMarkets].sort((a, b) =>
     sortMarketsByViewFilter(a, b, activeMarketFilter),
   );
+  const showWorldCupDateSections = activeCategory === "World Cup" && !marketSearchQuery;
+  const filteredWorldCupKnockoutMarkets =
+    showWorldCupDateSections
+      ? filteredRegularMarkets.filter(isWorldCupKnockoutMarket).sort(sortMarketsByKickoff)
+      : [];
+  const filteredOtherRegularMarkets =
+    showWorldCupDateSections
+      ? filteredRegularMarkets.filter((market) => !isWorldCupKnockoutMarket(market))
+      : filteredRegularMarkets;
 
   const categoryFilteredFixtureCards = deployedWorldCupFixtureCards.filter((fixture) =>
     fixtureMatchesCategory(fixture, activeCategory),
@@ -915,7 +959,6 @@ function HomeContent() {
       ? deployedWorldCupFixtureCards.filter((fixture) => fixtureMatchesSearch(fixture, marketSearchQuery))
       : categoryFilteredFixtureCards.filter(() => fixtureMatchesViewFilter(activeMarketFilter)),
   );
-  const showWorldCupDateSections = activeCategory === "World Cup" && !marketSearchQuery;
   const hasVisibleHomeMarkets = filteredWorldCupFixtureCards.length > 0 || filteredRegularMarkets.length > 0;
 
   const visibleWorldCupMarkets = worldCupMarkets.filter(
@@ -1176,20 +1219,38 @@ function HomeContent() {
           {hasVisibleHomeMarkets ? (
             showWorldCupDateSections ? (
               <div className="space-y-5">
+                {filteredWorldCupKnockoutMarkets.length > 0 ? (
+                  <section className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-xs font-black uppercase tracking-[0.14em] text-[#707A8A]">
+                        World Cup knockout markets
+                      </h3>
+                      <span className="text-xs font-semibold text-[#707A8A]">
+                        {filteredWorldCupKnockoutMarkets.length} markets
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 min-[1720px]:grid-cols-4">
+                      {filteredWorldCupKnockoutMarkets.map((market) => (
+                        <LifecycleOpenMarketCard key={market.id} market={market} />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
                 <WorldCupDateSections fixtures={filteredWorldCupFixtureCards} />
 
-                {filteredRegularMarkets.length > 0 ? (
+                {filteredOtherRegularMarkets.length > 0 ? (
                   <section className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-xs font-black uppercase tracking-[0.14em] text-[#707A8A]">
                         Other World Cup markets
                       </h3>
                       <span className="text-xs font-semibold text-[#707A8A]">
-                        {filteredRegularMarkets.length} markets
+                        {filteredOtherRegularMarkets.length} markets
                       </span>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 min-[1720px]:grid-cols-4">
-                      {filteredRegularMarkets.map((market) => (
+                      {filteredOtherRegularMarkets.map((market) => (
                         <LifecycleOpenMarketCard key={market.id} market={market} />
                       ))}
                     </div>

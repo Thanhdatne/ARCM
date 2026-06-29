@@ -24,6 +24,103 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useMarketCardData } from "@/hooks/useMarket";
 import { type Address } from "viem";
 
+function parseKnockoutMatchTitle(title: string) {
+  const match = title.match(/^Will (.+?) eliminate (.+?) in the (Round of 32)\??$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, teamA, teamB, stage] = match;
+
+  return { teamA, teamB, stage };
+}
+
+const ROUND_OF_32_MATCH_METADATA: Record<
+  string,
+  {
+    kickoffTime: string;
+    teamACountryCode: string;
+    teamBCountryCode: string;
+  }
+> = {
+  "Will Brazil eliminate Japan in the Round of 32?": {
+    kickoffTime: "2026-06-29T17:00:00Z",
+    teamACountryCode: "br",
+    teamBCountryCode: "jp",
+  },
+  "Will Germany eliminate Paraguay in the Round of 32?": {
+    kickoffTime: "2026-06-29T20:30:00Z",
+    teamACountryCode: "de",
+    teamBCountryCode: "py",
+  },
+  "Will Netherlands eliminate Morocco in the Round of 32?": {
+    kickoffTime: "2026-06-30T01:00:00Z",
+    teamACountryCode: "nl",
+    teamBCountryCode: "ma",
+  },
+  "Will Ivory Coast eliminate Norway in the Round of 32?": {
+    kickoffTime: "2026-06-30T17:00:00Z",
+    teamACountryCode: "ci",
+    teamBCountryCode: "no",
+  },
+  "Will France eliminate Sweden in the Round of 32?": {
+    kickoffTime: "2026-06-30T21:00:00Z",
+    teamACountryCode: "fr",
+    teamBCountryCode: "se",
+  },
+  "Will Mexico eliminate Ecuador in the Round of 32?": {
+    kickoffTime: "2026-07-01T01:00:00Z",
+    teamACountryCode: "mx",
+    teamBCountryCode: "ec",
+  },
+  "Will England eliminate DR Congo in the Round of 32?": {
+    kickoffTime: "2026-07-01T16:00:00Z",
+    teamACountryCode: "gb-eng",
+    teamBCountryCode: "cd",
+  },
+  "Will Belgium eliminate Senegal in the Round of 32?": {
+    kickoffTime: "2026-07-01T20:00:00Z",
+    teamACountryCode: "be",
+    teamBCountryCode: "sn",
+  },
+  "Will United States eliminate Bosnia and Herzegovina in the Round of 32?": {
+    kickoffTime: "2026-07-02T00:00:00Z",
+    teamACountryCode: "us",
+    teamBCountryCode: "ba",
+  },
+  "Will Spain eliminate Austria in the Round of 32?": {
+    kickoffTime: "2026-07-02T19:00:00Z",
+    teamACountryCode: "es",
+    teamBCountryCode: "at",
+  },
+  "Will Portugal eliminate Croatia in the Round of 32?": {
+    kickoffTime: "2026-07-02T23:00:00Z",
+    teamACountryCode: "pt",
+    teamBCountryCode: "hr",
+  },
+  "Will Switzerland eliminate Algeria in the Round of 32?": {
+    kickoffTime: "2026-07-03T03:00:00Z",
+    teamACountryCode: "ch",
+    teamBCountryCode: "dz",
+  },
+  "Will Australia eliminate Egypt in the Round of 32?": {
+    kickoffTime: "2026-07-03T18:00:00Z",
+    teamACountryCode: "au",
+    teamBCountryCode: "eg",
+  },
+  "Will Argentina eliminate Cape Verde in the Round of 32?": {
+    kickoffTime: "2026-07-03T22:00:00Z",
+    teamACountryCode: "ar",
+    teamBCountryCode: "cv",
+  },
+  "Will Colombia eliminate Ghana in the Round of 32?": {
+    kickoffTime: "2026-07-04T01:30:00Z",
+    teamACountryCode: "co",
+    teamBCountryCode: "gh",
+  },
+};
+
 export function MarketCard({
   market,
 }: {
@@ -46,6 +143,8 @@ export function MarketCard({
   const noPercent = yesPercent !== null ? 100 - yesPercent : null;
   const displayVolume = market.isReal ? (volume ?? "-") : "Preview";
   const oracleLabel = isSettled ? "Settled" : status === "Active" ? "UMA live" : "Pending";
+  const knockoutMatch =
+    market.category === "World Cup" ? getKnockoutMatchPresentation(market) : null;
 
   if (market.isReal && isLoading) {
     return (
@@ -59,28 +158,44 @@ export function MarketCard({
   if (!market.isReal) {
     return (
       <article className="interactive-card interactive-card-static market-card-hover flex min-h-[156px] flex-col justify-between rounded-xl border border-[#2B3139] bg-[#1E2329] p-3 text-[#EAECEF] opacity-80">
-        <div className="flex min-h-[56px] gap-3">
-          <Thumbnail
-            alt={market.imageAlt}
-            imageSrc={market.imageSrc}
-            label={market.icon}
-            tone="preview"
-          />
-          <div className="min-w-0 flex-1">
-            <h3 className="line-clamp-2 pt-0.5 text-[15px] font-bold leading-snug text-[#EAECEF]">
-              {market.title}
-            </h3>
+        {knockoutMatch ? (
+          <MatchupHeader match={knockoutMatch} />
+        ) : (
+          <div className="flex min-h-[56px] gap-3">
+            <Thumbnail
+              alt={market.imageAlt}
+              imageSrc={market.imageSrc}
+              label={market.icon}
+              tone="preview"
+            />
+            <div className="min-w-0 flex-1">
+              <h3 className="line-clamp-2 pt-0.5 text-[15px] font-bold leading-snug text-[#EAECEF]">
+                {market.title}
+              </h3>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <OddsBlock label="YES" value={yesPercent} tone="yes" interactive={false} />
-          <OddsBlock label="NO" value={noPercent} tone="no" interactive={false} />
+          <OddsBlock
+            label={knockoutMatch ? knockoutMatch.teamA : "YES"}
+            value={yesPercent}
+            tone="yes"
+            interactive={false}
+          />
+          <OddsBlock
+            label={knockoutMatch ? knockoutMatch.teamB : "NO"}
+            value={noPercent}
+            tone="no"
+            interactive={false}
+          />
         </div>
 
-        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#EAECEF]">
+      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#EAECEF]">
           <span className="truncate font-semibold">{market.category}</span>
-          <span className="shrink-0 text-[#707A8A]">Preview</span>
+          <span className="shrink-0 text-[#707A8A]">
+            {knockoutMatch?.kickoffLabel ?? "Preview"}
+          </span>
         </div>
       </article>
     );
@@ -90,25 +205,39 @@ export function MarketCard({
     <article
       className="interactive-card interactive-card-clickable market-card-hover group flex min-h-[156px] flex-col justify-between rounded-xl border border-[#2B3139] bg-[#1E2329] p-3 text-[#EAECEF]"
     >
-      <div className="flex min-h-[56px] gap-3">
-        <Thumbnail
-          alt={market.imageAlt}
-          imageSrc={market.imageSrc}
-          label={market.icon}
-          tone="onchain"
-        />
-        <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 pt-0.5 text-[15px] font-bold leading-snug text-[#EAECEF]">{market.title}</h3>
+      {knockoutMatch ? (
+        <MatchupHeader match={knockoutMatch} />
+      ) : (
+        <div className="flex min-h-[56px] gap-3">
+          <Thumbnail
+            alt={market.imageAlt}
+            imageSrc={market.imageSrc}
+            label={market.icon}
+            tone="onchain"
+          />
+          <div className="min-w-0 flex-1">
+            <h3 className="line-clamp-2 pt-0.5 text-[15px] font-bold leading-snug text-[#EAECEF]">{market.title}</h3>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="mt-3">
         {isSettled && settlementOutcome ? (
           <SettledResult outcome={settlementOutcome} />
         ) : (
           <div className="grid grid-cols-2 gap-2">
-            <OddsBlock label="YES" value={yesPercent} tone="yes" interactive />
-            <OddsBlock label="NO" value={noPercent} tone="no" interactive />
+            <OddsBlock
+              label={knockoutMatch ? knockoutMatch.teamA : "YES"}
+              value={yesPercent}
+              tone="yes"
+              interactive
+            />
+            <OddsBlock
+              label={knockoutMatch ? knockoutMatch.teamB : "NO"}
+              value={noPercent}
+              tone="no"
+              interactive
+            />
           </div>
         )}
       </div>
@@ -116,7 +245,7 @@ export function MarketCard({
       <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#EAECEF]">
         <span className="truncate font-semibold">{market.category}</span>
         <span className="shrink-0 text-[#707A8A]">
-          {isSettled ? "Settled" : `${displayVolume} / ${oracleLabel}`}
+          {knockoutMatch?.kickoffLabel ?? (isSettled ? "Settled" : `${displayVolume} / ${oracleLabel}`)}
         </span>
       </div>
     </article>
@@ -127,6 +256,126 @@ export function MarketCard({
       {content}
     </Link>
   );
+}
+
+function MatchupHeader({
+  match,
+}: {
+  match: {
+    teamA: string;
+    teamB: string;
+    stage: string;
+    teamAFlagCode?: string;
+    teamBFlagCode?: string;
+  };
+}) {
+  return (
+    <div className="min-h-[60px] px-1 pt-0.5">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 text-[16px] font-black leading-snug text-[#EAECEF]">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <FlagAvatar flagCode={match.teamAFlagCode} team={match.teamA} />
+          <span className="truncate">{match.teamA}</span>
+        </div>
+        <div className="px-0.5 text-center">
+          <div className="text-[10px] font-black uppercase text-[#707A8A]">vs</div>
+          <div className="mt-1 whitespace-nowrap text-[11px] font-semibold normal-case text-[#707A8A]">
+            {match.stage}
+          </div>
+        </div>
+        <div className="flex min-w-0 items-center justify-end gap-2.5">
+          <span className="truncate text-right">{match.teamB}</span>
+          <FlagAvatar flagCode={match.teamBFlagCode} team={match.teamB} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getKnockoutMatchPresentation(market: MarketCardData) {
+  const match = parseKnockoutMatchTitle(market.title);
+
+  if (!match) {
+    return null;
+  }
+
+  const metadata = ROUND_OF_32_MATCH_METADATA[market.title];
+  const storedMetadata = market as MarketCardData & {
+    kickoffTime?: string;
+    homeCountryCode?: string;
+    awayCountryCode?: string;
+  };
+  const kickoffTime = storedMetadata.kickoffTime ?? metadata?.kickoffTime;
+  const teamACountryCode =
+    storedMetadata.homeCountryCode ?? metadata?.teamACountryCode;
+  const teamBCountryCode =
+    storedMetadata.awayCountryCode ?? metadata?.teamBCountryCode;
+
+  return {
+    ...match,
+    teamAFlagCode: normalizeFlagCode(teamACountryCode),
+    teamBFlagCode: normalizeFlagCode(teamBCountryCode),
+    kickoffLabel: formatUtcKickoff(kickoffTime),
+  };
+}
+
+function normalizeFlagCode(countryCode?: string) {
+  return countryCode?.trim().toLowerCase() || undefined;
+}
+
+function FlagAvatar({
+  flagCode,
+  team,
+}: {
+  flagCode?: string;
+  team: string;
+}) {
+  const fallback = team
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#2B3139] bg-[#0B0E11]">
+      {flagCode ? (
+        <img
+          alt={`${team} flag`}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          src={`https://flagcdn.com/${flagCode}.svg`}
+        />
+      ) : (
+        <span className="text-[10px] font-black text-[#EAECEF]">{fallback}</span>
+      )}
+    </span>
+  );
+}
+
+function formatUtcKickoff(kickoffTime?: string) {
+  if (!kickoffTime) {
+    return "";
+  }
+
+  const date = new Date(kickoffTime);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const monthDay = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+  const time = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(date);
+
+  return `${monthDay} \u00b7 ${time} UTC`;
 }
 
 function SettledResult({ outcome }: { outcome: string }) {
@@ -153,7 +402,7 @@ function OddsBlock({
   tone,
   interactive,
 }: {
-  label: "YES" | "NO";
+  label: string;
   value: number | null;
   tone: "yes" | "no";
   interactive: boolean;
@@ -166,7 +415,7 @@ function OddsBlock({
         interactive ? "market-action-interactive" : "market-action-display"
       }`}
     >
-      <div className="text-xs font-black">{label === "YES" ? "Yes" : "No"}</div>
+      <div className="truncate text-xs font-black">{label === "YES" ? "Yes" : label === "NO" ? "No" : label}</div>
       <div className="mt-0.5 font-mono text-xl font-black leading-none">
         {value !== null ? `${value}%` : "--"}
       </div>
