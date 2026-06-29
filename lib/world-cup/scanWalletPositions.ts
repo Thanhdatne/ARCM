@@ -1,11 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import {
-  createPublicClient,
-  http,
-  isAddress,
-  type Address,
-} from "viem";
+import { createPublicClient, http, isAddress, type Address } from "viem";
 import { arcTestnet } from "@/lib/chain";
 import {
   formatTokenAmount,
@@ -119,6 +114,7 @@ export interface RoundOf32PositionDebug {
   marketAddress: string;
   ammAddress: string;
   balanceReadsSucceeded: boolean;
+  partialReadSucceeded?: boolean;
   yesBalance: string;
   noBalance: string;
   outcomeDecimals: number | null;
@@ -153,7 +149,12 @@ type ReadContractClient = {
   multicall: (args: {
     allowFailure: boolean;
     contracts: ContractRead[];
-  }) => Promise<Array<{ status: "success"; result: unknown } | { status: "failure"; error?: unknown }>>;
+  }) => Promise<
+    Array<
+      | { status: "success"; result: unknown }
+      | { status: "failure"; error?: unknown }
+    >
+  >;
   readContract: (call: ContractRead) => Promise<unknown>;
 };
 
@@ -174,7 +175,10 @@ const scanCache =
 
 const scansInFlight =
   serverState.__arcmWalletPositionScansInFlight ??
-  (serverState.__arcmWalletPositionScansInFlight = new Map<string, Promise<WalletPositionScan>>());
+  (serverState.__arcmWalletPositionScansInFlight = new Map<
+    string,
+    Promise<WalletPositionScan>
+  >());
 
 function dataPath(fileName: string) {
   return path.resolve(process.cwd(), "data", fileName);
@@ -182,7 +186,9 @@ function dataPath(fileName: string) {
 
 function readJsonFile<T>(fileName: string, fallback: T): T {
   try {
-    const raw = fs.readFileSync(dataPath(fileName), "utf-8").replace(/^\uFEFF/, "");
+    const raw = fs
+      .readFileSync(dataPath(fileName), "utf-8")
+      .replace(/^\uFEFF/, "");
     return JSON.parse(raw) as T;
   } catch {
     return fallback;
@@ -194,10 +200,14 @@ function text(value: unknown, fallback = "") {
 }
 
 function optionalNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
-function normalizeDeployment(item: Record<string, unknown>): WorldCupDeployment {
+function normalizeDeployment(
+  item: Record<string, unknown>,
+): WorldCupDeployment {
   return {
     worldCupMarketId: text(item.worldCupMarketId ?? item.world_cup_market_id),
     fixtureId: text(item.fixtureId ?? item.fixture_id),
@@ -206,17 +216,26 @@ function normalizeDeployment(item: Record<string, unknown>): WorldCupDeployment 
     outcomeType: text(item.outcomeType ?? item.outcome_type),
     marketAddress: text(item.marketAddress ?? item.market_address),
     ammAddress: text(item.ammAddress ?? item.amm_address),
-    contractVersion: optionalNumber(item.contractVersion ?? item.contract_version) ?? 1,
-    collateralAddress: text(item.collateralAddress ?? item.collateral_address) || undefined,
-    collateralSymbol: text(item.collateralSymbol ?? item.collateral_symbol) || undefined,
-    collateralDecimals: optionalNumber(item.collateralDecimals ?? item.collateral_decimals),
-    outcomeDecimals: optionalNumber(item.outcomeDecimals ?? item.outcome_decimals),
+    contractVersion:
+      optionalNumber(item.contractVersion ?? item.contract_version) ?? 1,
+    collateralAddress:
+      text(item.collateralAddress ?? item.collateral_address) || undefined,
+    collateralSymbol:
+      text(item.collateralSymbol ?? item.collateral_symbol) || undefined,
+    collateralDecimals: optionalNumber(
+      item.collateralDecimals ?? item.collateral_decimals,
+    ),
+    outcomeDecimals: optionalNumber(
+      item.outcomeDecimals ?? item.outcome_decimals,
+    ),
     homeTeam: text(item.homeTeam ?? item.home_team) || undefined,
     awayTeam: text(item.awayTeam ?? item.away_team) || undefined,
     stage: text(item.stage) || undefined,
     kickoffTime: text(item.kickoffTime ?? item.kickoff_time) || undefined,
-    homeCountryCode: text(item.homeCountryCode ?? item.home_country_code) || undefined,
-    awayCountryCode: text(item.awayCountryCode ?? item.away_country_code) || undefined,
+    homeCountryCode:
+      text(item.homeCountryCode ?? item.home_country_code) || undefined,
+    awayCountryCode:
+      text(item.awayCountryCode ?? item.away_country_code) || undefined,
   };
 }
 
@@ -228,7 +247,9 @@ function slugify(value: string) {
 }
 
 function parseRoundOf32Title(title: string) {
-  const match = title.match(/^Will (.+?) eliminate (.+?) in the (Round of 32)\??$/i);
+  const match = title.match(
+    /^Will (.+?) eliminate (.+?) in the (Round of 32)\??$/i,
+  );
   if (!match) return null;
 
   return {
@@ -238,15 +259,25 @@ function parseRoundOf32Title(title: string) {
   };
 }
 
-function roundOf32MarketToDeployment(item: Record<string, unknown>): WorldCupDeployment | null {
+function roundOf32MarketToDeployment(
+  item: Record<string, unknown>,
+): WorldCupDeployment | null {
   const title = text(item.title);
   const parsedTitle = parseRoundOf32Title(title);
   const category = text(item.category).toLowerCase();
-  const marketAddress = text(item.marketAddress ?? item.market_address ?? item.address);
+  const marketAddress = text(
+    item.marketAddress ?? item.market_address ?? item.address,
+  );
   const ammAddress = text(item.ammAddress ?? item.amm_address);
-  const contractVersion = optionalNumber(item.contractVersion ?? item.contract_version);
-  const collateralSymbol = text(item.collateralSymbol ?? item.collateral_symbol);
-  const collateralDecimals = optionalNumber(item.collateralDecimals ?? item.collateral_decimals);
+  const contractVersion = optionalNumber(
+    item.contractVersion ?? item.contract_version,
+  );
+  const collateralSymbol = text(
+    item.collateralSymbol ?? item.collateral_symbol,
+  );
+  const collateralDecimals = optionalNumber(
+    item.collateralDecimals ?? item.collateral_decimals,
+  );
 
   if (
     !parsedTitle ||
@@ -260,10 +291,13 @@ function roundOf32MarketToDeployment(item: Record<string, unknown>): WorldCupDep
     return null;
   }
 
-  const homeTeam = text(item.homeTeam ?? item.home_team) || parsedTitle.homeTeam;
-  const awayTeam = text(item.awayTeam ?? item.away_team) || parsedTitle.awayTeam;
+  const homeTeam =
+    text(item.homeTeam ?? item.home_team) || parsedTitle.homeTeam;
+  const awayTeam =
+    text(item.awayTeam ?? item.away_team) || parsedTitle.awayTeam;
   const stage = text(item.stage) || parsedTitle.stage;
-  const id = text(item.id) || `round-of-32-${slugify(homeTeam)}-${slugify(awayTeam)}`;
+  const id =
+    text(item.id) || `round-of-32-${slugify(homeTeam)}-${slugify(awayTeam)}`;
 
   return {
     worldCupMarketId: id,
@@ -274,24 +308,28 @@ function roundOf32MarketToDeployment(item: Record<string, unknown>): WorldCupDep
     marketAddress,
     ammAddress,
     contractVersion,
-    collateralAddress: text(item.collateralAddress ?? item.collateral_address) || undefined,
+    collateralAddress:
+      text(item.collateralAddress ?? item.collateral_address) || undefined,
     collateralSymbol: collateralSymbol || undefined,
     collateralDecimals,
-    outcomeDecimals: optionalNumber(item.outcomeDecimals ?? item.outcome_decimals),
+    outcomeDecimals: optionalNumber(
+      item.outcomeDecimals ?? item.outcome_decimals,
+    ),
     homeTeam,
     awayTeam,
     stage,
     kickoffTime: text(item.kickoffTime ?? item.kickoff_time) || undefined,
-    homeCountryCode: text(item.homeCountryCode ?? item.home_country_code) || undefined,
-    awayCountryCode: text(item.awayCountryCode ?? item.away_country_code) || undefined,
+    homeCountryCode:
+      text(item.homeCountryCode ?? item.home_country_code) || undefined,
+    awayCountryCode:
+      text(item.awayCountryCode ?? item.away_country_code) || undefined,
   };
 }
 
 function readRoundOf32MarketDeployments() {
-  const parsed = readJsonFile<Record<string, unknown>[] | Record<string, Record<string, unknown>>>(
-    "markets.json",
-    [],
-  );
+  const parsed = readJsonFile<
+    Record<string, unknown>[] | Record<string, Record<string, unknown>>
+  >("markets.json", []);
   const markets = Array.isArray(parsed) ? parsed : Object.values(parsed);
 
   return markets.flatMap((item) => {
@@ -305,7 +343,8 @@ function mergeDeployments(items: WorldCupDeployment[]) {
 
   for (const item of items) {
     const marketKey = normalizeAddress(item.marketAddress);
-    const fallbackKey = item.worldCupMarketId || `${item.fixtureId}:${item.outcomeType}`;
+    const fallbackKey =
+      item.worldCupMarketId || `${item.fixtureId}:${item.outcomeType}`;
     const key = marketKey || fallbackKey;
     if (!key) continue;
 
@@ -315,7 +354,8 @@ function mergeDeployments(items: WorldCupDeployment[]) {
       ...item,
       collateralAddress: item.collateralAddress ?? existing?.collateralAddress,
       collateralSymbol: item.collateralSymbol ?? existing?.collateralSymbol,
-      collateralDecimals: item.collateralDecimals ?? existing?.collateralDecimals,
+      collateralDecimals:
+        item.collateralDecimals ?? existing?.collateralDecimals,
       outcomeDecimals: item.outcomeDecimals ?? existing?.outcomeDecimals,
       homeTeam: item.homeTeam ?? existing?.homeTeam,
       awayTeam: item.awayTeam ?? existing?.awayTeam,
@@ -330,11 +370,12 @@ function mergeDeployments(items: WorldCupDeployment[]) {
 }
 
 async function readDeployments() {
-  const parsed = readJsonFile<Record<string, unknown>[] | Record<string, Record<string, unknown>>>(
-    "world-cup-deployments.json",
-    [],
-  );
-  const deployments = (Array.isArray(parsed) ? parsed : Object.values(parsed)).map(normalizeDeployment);
+  const parsed = readJsonFile<
+    Record<string, unknown>[] | Record<string, Record<string, unknown>>
+  >("world-cup-deployments.json", []);
+  const deployments = (
+    Array.isArray(parsed) ? parsed : Object.values(parsed)
+  ).map(normalizeDeployment);
   deployments.push(...readRoundOf32MarketDeployments());
   const supabase = getSupabaseAdmin();
 
@@ -345,13 +386,26 @@ async function readDeployments() {
       .order("fixture_id", { ascending: true });
 
     if (!error && data) {
-      deployments.push(...data.map((item) => normalizeDeployment(item as Record<string, unknown>)));
+      deployments.push(
+        ...data.map((item) =>
+          normalizeDeployment(item as Record<string, unknown>),
+        ),
+      );
     }
   }
 
   return mergeDeployments(deployments)
-    .filter((item) => isAddress(item.marketAddress) && isAddress(item.ammAddress) && item.contractVersion === 2)
-    .sort((a, b) => `${a.fixtureId}-${a.outcomeType}`.localeCompare(`${b.fixtureId}-${b.outcomeType}`));
+    .filter(
+      (item) =>
+        isAddress(item.marketAddress) &&
+        isAddress(item.ammAddress) &&
+        item.contractVersion === 2,
+    )
+    .sort((a, b) =>
+      `${a.fixtureId}-${a.outcomeType}`.localeCompare(
+        `${b.fixtureId}-${b.outcomeType}`,
+      ),
+    );
 }
 
 function tokenText(value: unknown, fallback: string, maxLength: number) {
@@ -361,7 +415,10 @@ function tokenText(value: unknown, fallback: string, maxLength: number) {
 }
 
 function validDecimals(value: unknown, fallback: number) {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 255
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 255
     ? value
     : fallback;
 }
@@ -377,30 +434,122 @@ function errorText(error: unknown) {
   return typeof error === "string" ? error : "Contract read failed";
 }
 
-async function readContractsDetailed(publicClient: ReadContractClient, calls: ContractRead[]) {
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientRpcError(error: unknown) {
+  const message = errorText(error).toLowerCase();
+  return [
+    "http request failed",
+    "request failed",
+    "network",
+    "timeout",
+    "timed out",
+    "rate limit",
+    "too many requests",
+    "fetch failed",
+    "transport",
+    "connection",
+    "econnreset",
+    "socket",
+    "rpc",
+  ].some((part) => message.includes(part));
+}
+
+async function withRpcRetry<T>(
+  task: () => Promise<T>,
+  maxRetries = 2,
+): Promise<T> {
+  const delays = [250, 600];
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxRetries || !isTransientRpcError(error)) break;
+      await sleep(delays[attempt] ?? delays[delays.length - 1]);
+    }
+  }
+
+  throw lastError;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function run() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => run()),
+  );
+
+  return results;
+}
+
+async function readContractsDetailed(
+  publicClient: ReadContractClient,
+  calls: ContractRead[],
+) {
   if (calls.length === 0) return [];
 
   try {
-    const results = await publicClient.multicall({
-      allowFailure: true,
-      contracts: calls,
-    });
+    const results = await withRpcRetry(() =>
+      publicClient.multicall({
+        allowFailure: true,
+        contracts: calls,
+      }),
+    );
 
-    return results.map((result): ContractReadResult =>
+    const detailed = results.map((result): ContractReadResult =>
       result.status === "success"
         ? { status: "success", result: result.result }
         : { status: "failure", error: errorText(result.error) },
     );
-  } catch (error) {
-    const results = await Promise.allSettled(
-      calls.map((call) => publicClient.readContract(call)),
+
+    const retried = await Promise.all(
+      detailed.map(async (result, index): Promise<ContractReadResult> => {
+        if (result.status === "success" || !isTransientRpcError(result.error))
+          return result;
+
+        try {
+          const value = await withRpcRetry(() =>
+            publicClient.readContract(calls[index]),
+          );
+          return { status: "success", result: value };
+        } catch (error) {
+          return { status: "failure", error: errorText(error) };
+        }
+      }),
     );
 
-    return results.map((result): ContractReadResult =>
-      result.status === "fulfilled"
-        ? { status: "success", result: result.value }
-        : { status: "failure", error: errorText(result.reason) },
-    );
+    return retried;
+  } catch {
+    const results: ContractReadResult[] = [];
+
+    for (const call of calls) {
+      try {
+        const value = await withRpcRetry(() => publicClient.readContract(call));
+        results.push({ status: "success", result: value });
+      } catch (error) {
+        results.push({ status: "failure", error: errorText(error) });
+      }
+    }
+
+    return results;
   }
 }
 
@@ -416,7 +565,10 @@ function isRoundOf32Deployment(deployment: WorldCupDeployment) {
   return Boolean(parseRoundOf32Title(deployment.question));
 }
 
-async function performScan(wallet: Address, includeDebug = false): Promise<WalletPositionScan> {
+async function performScan(
+  wallet: Address,
+  includeDebug = false,
+): Promise<WalletPositionScan> {
   const rpcUrl =
     process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL?.trim() ||
     "https://rpc.testnet.arc.network";
@@ -432,116 +584,148 @@ async function performScan(wallet: Address, includeDebug = false): Promise<Walle
 
   if (includeDebug) {
     for (const deployment of roundOf32Deployments) {
-      roundOf32BalanceReads.set(normalizeAddress(deployment.marketAddress) ?? deployment.marketAddress, {
-        title: deployment.question,
-        marketAddress: deployment.marketAddress,
-        ammAddress: deployment.ammAddress,
-        balanceReadsSucceeded: false,
-        yesBalance: "0",
-        noBalance: "0",
-        outcomeDecimals: null,
-        contractVersion: deployment.contractVersion,
-      });
+      roundOf32BalanceReads.set(
+        normalizeAddress(deployment.marketAddress) ?? deployment.marketAddress,
+        {
+          title: deployment.question,
+          marketAddress: deployment.marketAddress,
+          ammAddress: deployment.ammAddress,
+          balanceReadsSucceeded: false,
+          yesBalance: "0",
+          noBalance: "0",
+          outcomeDecimals: null,
+          contractVersion: deployment.contractVersion,
+        },
+      );
     }
   }
 
-  const marketCalls: ContractRead[] = deployments.flatMap((deployment) => {
-    const address = deployment.marketAddress as Address;
-    return [
-      "collateralToken",
-      "receivedSettlementPrice",
-      "settlementPrice",
-      "longToken",
-      "shortToken",
-    ].map((functionName) => ({
-      address,
-      abi: MARKET_ABI,
-      functionName,
-    }));
-  });
-
-  const marketResults = await readContractsDetailed(publicClient, marketCalls);
   let failed = 0;
   let settledMarketCount = 0;
 
-  const marketMetadata = deployments.flatMap((deployment, index) => {
-    const [collateralTokenResult, receivedSettlementPriceResult, settlementPriceResult, longTokenResult, shortTokenResult] =
-      marketResults.slice(index * 5, index * 5 + 5);
+  type MarketMetadata = {
+    deployment: WorldCupDeployment;
+    collateralAddress: string;
+    isSettled: boolean;
+    settlementPrice: bigint;
+    longToken: string;
+    shortToken: string;
+  };
+
+  async function readMarketMetadata(
+    deployment: WorldCupDeployment,
+  ): Promise<MarketMetadata | null> {
+    const address = deployment.marketAddress as Address;
+    const roundOf32Key =
+      normalizeAddress(deployment.marketAddress) ?? deployment.marketAddress;
+    const roundOf32Debug = roundOf32BalanceReads.get(roundOf32Key);
+
+    const [
+      collateralTokenResult,
+      receivedSettlementPriceResult,
+      settlementPriceResult,
+      longTokenResult,
+      shortTokenResult,
+    ] = await readContractsDetailed(publicClient, [
+      { address, abi: MARKET_ABI, functionName: "collateralToken" },
+      { address, abi: MARKET_ABI, functionName: "receivedSettlementPrice" },
+      { address, abi: MARKET_ABI, functionName: "settlementPrice" },
+      { address, abi: MARKET_ABI, functionName: "longToken" },
+      { address, abi: MARKET_ABI, functionName: "shortToken" },
+    ]);
+
     const collateralToken = readResultValue(collateralTokenResult);
-    const receivedSettlementPrice = readResultValue(receivedSettlementPriceResult);
+    const receivedSettlementPrice = readResultValue(
+      receivedSettlementPriceResult,
+    );
     const settlementPrice = readResultValue(settlementPriceResult);
     const longToken = readResultValue(longTokenResult);
     const shortToken = readResultValue(shortTokenResult);
-    const roundOf32Key = normalizeAddress(deployment.marketAddress) ?? deployment.marketAddress;
-    const roundOf32Debug = roundOf32BalanceReads.get(roundOf32Key);
 
-    if (
-      typeof collateralToken !== "string" ||
-      typeof receivedSettlementPrice !== "boolean" ||
-      typeof longToken !== "string" ||
+    const missingRequired = [
+      typeof collateralToken !== "string"
+        ? `collateralToken: ${readResultError(collateralTokenResult) ?? "invalid value"}`
+        : "",
+      typeof longToken !== "string"
+        ? `longToken: ${readResultError(longTokenResult) ?? "invalid value"}`
+        : "",
       typeof shortToken !== "string"
-    ) {
+        ? `shortToken: ${readResultError(shortTokenResult) ?? "invalid value"}`
+        : "",
+    ].filter(Boolean);
+
+    if (missingRequired.length > 0) {
       failed += 1;
       if (roundOf32Debug) {
-        roundOf32Debug.failureReason = [
-          readResultError(collateralTokenResult) ? `collateralToken: ${readResultError(collateralTokenResult)}` : "",
-          readResultError(receivedSettlementPriceResult) ? `receivedSettlementPrice: ${readResultError(receivedSettlementPriceResult)}` : "",
-          readResultError(longTokenResult) ? `longToken: ${readResultError(longTokenResult)}` : "",
-          readResultError(shortTokenResult) ? `shortToken: ${readResultError(shortTokenResult)}` : "",
-        ].filter(Boolean).join("; ") || "Required market metadata read returned an invalid value";
+        roundOf32Debug.failureReason = missingRequired.join("; ");
       }
-      return [];
+      return null;
     }
 
-    if (receivedSettlementPrice && typeof settlementPrice !== "bigint") {
+    const isSettled =
+      typeof receivedSettlementPrice === "boolean"
+        ? receivedSettlementPrice
+        : false;
+
+    if (isSettled && typeof settlementPrice !== "bigint") {
       failed += 1;
       if (roundOf32Debug) {
         roundOf32Debug.failureReason =
-          readResultError(settlementPriceResult) || "Settled market settlementPrice read returned an invalid value";
+          readResultError(settlementPriceResult) ||
+          "Settled market settlementPrice read returned an invalid value";
       }
-      return [];
+      return null;
     }
 
-    const collateralAddress = normalizeAddress(collateralToken);
+    const collateralTokenAddress = collateralToken as string;
+    const longTokenAddress = longToken as string;
+    const shortTokenAddress = shortToken as string;
+
+    const collateralAddress = normalizeAddress(collateralTokenAddress);
     if (
       !collateralAddress ||
-      longToken === ZERO_ADDRESS ||
-      shortToken === ZERO_ADDRESS ||
-      !isAddress(longToken) ||
-      !isAddress(shortToken)
+      longTokenAddress === ZERO_ADDRESS ||
+      shortTokenAddress === ZERO_ADDRESS ||
+      !isAddress(longTokenAddress) ||
+      !isAddress(shortTokenAddress)
     ) {
       failed += 1;
       if (roundOf32Debug) {
-        roundOf32Debug.failureReason = "Market returned an invalid collateral, long token, or short token address";
+        roundOf32Debug.failureReason =
+          "Market returned an invalid collateral, long token, or short token address";
       }
-      return [];
+      return null;
     }
 
-    if (receivedSettlementPrice) settledMarketCount += 1;
+    if (isSettled) settledMarketCount += 1;
 
-    return [{
+    if (
+      roundOf32Debug &&
+      typeof receivedSettlementPrice !== "boolean" &&
+      readResultError(receivedSettlementPriceResult)
+    ) {
+      roundOf32Debug.failureReason = `Settlement status unavailable, treated as open: ${readResultError(receivedSettlementPriceResult)}`;
+    }
+
+    return {
       deployment,
       collateralAddress,
-      isSettled: receivedSettlementPrice,
-      settlementPrice: typeof settlementPrice === "bigint" ? settlementPrice : 0n,
-      longToken,
-      shortToken,
-    }];
-  });
+      isSettled,
+      settlementPrice:
+        typeof settlementPrice === "bigint" ? settlementPrice : 0n,
+      longToken: longTokenAddress,
+      shortToken: shortTokenAddress,
+    };
+  }
 
-  const tokenCalls: ContractRead[] = marketMetadata.flatMap((market) => [
-    { address: market.longToken as Address, abi: ERC20_ABI, functionName: "balanceOf", args: [wallet] },
-    { address: market.shortToken as Address, abi: ERC20_ABI, functionName: "balanceOf", args: [wallet] },
-    { address: market.collateralAddress as Address, abi: ERC20_ABI, functionName: "balanceOf", args: [wallet] },
-    { address: market.collateralAddress as Address, abi: ERC20_ABI, functionName: "symbol" },
-    { address: market.collateralAddress as Address, abi: ERC20_ABI, functionName: "name" },
-    { address: market.collateralAddress as Address, abi: ERC20_ABI, functionName: "decimals" },
-    { address: market.longToken as Address, abi: ERC20_ABI, functionName: "decimals" },
-  ]);
+  async function readPosition(
+    market: MarketMetadata,
+  ): Promise<WalletPosition | null> {
+    const roundOf32Key =
+      normalizeAddress(market.deployment.marketAddress) ??
+      market.deployment.marketAddress;
+    const roundOf32Debug = roundOf32BalanceReads.get(roundOf32Key);
 
-  const tokenResults = await readContractsDetailed(publicClient, tokenCalls);
-
-  const positions = marketMetadata.flatMap((market, index): WalletPosition[] => {
     const [
       yesBalanceResult,
       noBalanceResult,
@@ -550,7 +734,47 @@ async function performScan(wallet: Address, includeDebug = false): Promise<Walle
       nameResult,
       decimalsResult,
       outcomeDecimalsResult,
-    ] = tokenResults.slice(index * 7, index * 7 + 7);
+    ] = await readContractsDetailed(publicClient, [
+      {
+        address: market.longToken as Address,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [wallet],
+      },
+      {
+        address: market.shortToken as Address,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [wallet],
+      },
+      {
+        address: market.collateralAddress as Address,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [wallet],
+      },
+      {
+        address: market.collateralAddress as Address,
+        abi: ERC20_ABI,
+        functionName: "symbol",
+      },
+      {
+        address: market.collateralAddress as Address,
+        abi: ERC20_ABI,
+        functionName: "name",
+      },
+      {
+        address: market.collateralAddress as Address,
+        abi: ERC20_ABI,
+        functionName: "decimals",
+      },
+      {
+        address: market.longToken as Address,
+        abi: ERC20_ABI,
+        functionName: "decimals",
+      },
+    ]);
+
     const yesBalanceRaw = readResultValue(yesBalanceResult);
     const noBalanceRaw = readResultValue(noBalanceResult);
     const collateralBalanceRaw = readResultValue(collateralBalanceResult);
@@ -558,56 +782,87 @@ async function performScan(wallet: Address, includeDebug = false): Promise<Walle
     const nameRaw = readResultValue(nameResult);
     const decimalsRaw = readResultValue(decimalsResult);
     const outcomeDecimalsRaw = readResultValue(outcomeDecimalsResult);
-    const roundOf32Key = normalizeAddress(market.deployment.marketAddress) ?? market.deployment.marketAddress;
-    const roundOf32Debug = roundOf32BalanceReads.get(roundOf32Key);
 
-    if (typeof yesBalanceRaw !== "bigint" || typeof noBalanceRaw !== "bigint") {
+    const yesReadSucceeded = typeof yesBalanceRaw === "bigint";
+    const noReadSucceeded = typeof noBalanceRaw === "bigint";
+    const yesBalance = yesReadSucceeded ? yesBalanceRaw : 0n;
+    const noBalance = noReadSucceeded ? noBalanceRaw : 0n;
+    const partialReadSucceeded = yesReadSucceeded || noReadSucceeded;
+
+    if (!partialReadSucceeded) {
       failed += 1;
       if (roundOf32Debug) {
         roundOf32Debug.failureReason = [
-          readResultError(yesBalanceResult) ? `YES balance: ${readResultError(yesBalanceResult)}` : "",
-          readResultError(noBalanceResult) ? `NO balance: ${readResultError(noBalanceResult)}` : "",
-        ].filter(Boolean).join("; ") || "YES or NO balance read returned an invalid value";
+          `YES balance: ${readResultError(yesBalanceResult) ?? "invalid value"}`,
+          `NO balance: ${readResultError(noBalanceResult) ?? "invalid value"}`,
+        ].join("; ");
       }
-      return [];
+      return null;
     }
 
-    const configuredCollateral = getCollateralMetadataByAddress(market.collateralAddress);
-    const collateralDecimals = validDecimals(decimalsRaw, configuredCollateral.decimals);
+    const configuredCollateral = getCollateralMetadataByAddress(
+      market.collateralAddress,
+    );
+    const collateralDecimals = validDecimals(
+      decimalsRaw,
+      configuredCollateral.decimals,
+    );
     const outcomeDecimals = validDecimals(
       outcomeDecimalsRaw,
       market.deployment.outcomeDecimals ?? collateralDecimals,
     );
-    const collateralBalance = typeof collateralBalanceRaw === "bigint" ? collateralBalanceRaw : 0n;
-    const collateralSymbol = tokenText(symbolRaw, configuredCollateral.symbol, 16);
+    const collateralBalance =
+      typeof collateralBalanceRaw === "bigint" ? collateralBalanceRaw : 0n;
+    const collateralSymbol = tokenText(
+      symbolRaw,
+      configuredCollateral.symbol,
+      16,
+    );
     const collateralName = tokenText(nameRaw, configuredCollateral.name, 64);
 
     if (roundOf32Debug) {
-      roundOf32Debug.balanceReadsSucceeded = true;
-      roundOf32Debug.yesBalance = yesBalanceRaw.toString();
-      roundOf32Debug.noBalance = noBalanceRaw.toString();
+      roundOf32Debug.balanceReadsSucceeded =
+        yesReadSucceeded && noReadSucceeded;
+      roundOf32Debug.partialReadSucceeded = partialReadSucceeded;
+      roundOf32Debug.yesBalance = yesBalance.toString();
+      roundOf32Debug.noBalance = noBalance.toString();
       roundOf32Debug.outcomeDecimals = outcomeDecimals;
-      if (yesBalanceRaw <= 0n && noBalanceRaw <= 0n) {
-        roundOf32Debug.failureReason = "Wallet has zero YES and NO balance";
-      }
+      roundOf32Debug.failureReason =
+        [
+          !yesReadSucceeded
+            ? `YES balance: ${readResultError(yesBalanceResult) ?? "invalid value after retries"}`
+            : "",
+          !noReadSucceeded
+            ? `NO balance: ${readResultError(noBalanceResult) ?? "invalid value after retries"}`
+            : "",
+          yesBalance <= 0n && noBalance <= 0n
+            ? "Wallet has zero YES and NO balance"
+            : "",
+        ]
+          .filter(Boolean)
+          .join("; ") || undefined;
     }
 
-    if (yesBalanceRaw <= 0n && noBalanceRaw <= 0n) return [];
+    if (yesBalance <= 0n && noBalance <= 0n) return null;
 
-    const claimLongAmount = market.isSettled && market.settlementPrice > 0n ? yesBalanceRaw : 0n;
-    const claimShortAmount = market.isSettled && market.settlementPrice < ONE ? noBalanceRaw : 0n;
+    const claimLongAmount =
+      market.isSettled && market.settlementPrice > 0n ? yesBalance : 0n;
+    const claimShortAmount =
+      market.isSettled && market.settlementPrice < ONE ? noBalance : 0n;
     const claimablePayout =
-      (claimLongAmount * market.settlementPrice + claimShortAmount * (ONE - market.settlementPrice)) / ONE;
+      (claimLongAmount * market.settlementPrice +
+        claimShortAmount * (ONE - market.settlementPrice)) /
+      ONE;
 
-    return [{
+    return {
       id: market.deployment.worldCupMarketId || market.deployment.marketAddress,
       fixtureId: market.deployment.fixtureId,
       group: market.deployment.group,
       title: market.deployment.question,
       address: market.deployment.marketAddress,
       ammAddress: market.deployment.ammAddress,
-      yesBalance: yesBalanceRaw.toString(),
-      noBalance: noBalanceRaw.toString(),
+      yesBalance: yesBalance.toString(),
+      noBalance: noBalance.toString(),
       isSettled: market.isSettled,
       winningSide: market.isSettled
         ? market.settlementPrice === ONE
@@ -619,25 +874,42 @@ async function performScan(wallet: Address, includeDebug = false): Promise<Walle
       claimLongAmount: claimLongAmount.toString(),
       claimShortAmount: claimShortAmount.toString(),
       claimablePayout: claimablePayout.toString(),
-      claimablePayoutFormatted: formatTokenAmount(claimablePayout, collateralDecimals),
+      claimablePayoutFormatted: formatTokenAmount(
+        claimablePayout,
+        collateralDecimals,
+      ),
       collateralAddress: market.collateralAddress,
       collateralSymbol,
       collateralName,
       collateralDecimals,
       collateralBalance: collateralBalance.toString(),
-      collateralBalanceFormatted: formatTokenAmount(collateralBalance, collateralDecimals),
+      collateralBalanceFormatted: formatTokenAmount(
+        collateralBalance,
+        collateralDecimals,
+      ),
       collateralWarning: configuredCollateral.warning,
       contractVersion: market.deployment.contractVersion,
       outcomeDecimals,
-    }];
-  }).sort((a, b) => {
-    if (a.isSettled !== b.isSettled) return Number(a.isSettled) - Number(b.isSettled);
-    return a.title.localeCompare(b.title);
-  });
+    };
+  }
+
+  const marketMetadata = (
+    await mapWithConcurrency(deployments, 3, readMarketMetadata)
+  ).filter((market): market is MarketMetadata => Boolean(market));
+
+  const positions = (await mapWithConcurrency(marketMetadata, 3, readPosition))
+    .filter((position): position is WalletPosition => Boolean(position))
+    .sort((a, b) => {
+      if (a.isSettled !== b.isSettled)
+        return Number(a.isSettled) - Number(b.isSettled);
+      return a.title.localeCompare(b.title);
+    });
 
   const openPositions = positions.filter((position) => !position.isSettled);
   const settledPositions = positions.filter((position) => position.isSettled);
-  const claimablePositions = settledPositions.filter((position) => BigInt(position.claimablePayout) > 0n);
+  const claimablePositions = settledPositions.filter(
+    (position) => BigInt(position.claimablePayout) > 0n,
+  );
 
   return {
     openPositions,
@@ -648,15 +920,15 @@ async function performScan(wallet: Address, includeDebug = false): Promise<Walle
     failed,
     debug: includeDebug
       ? {
-        totalScannedMarkets: deployments.length,
-        totalRoundOf32MarketsIncluded: roundOf32Deployments.length,
-        roundOf32Markets: roundOf32Deployments.map((deployment) => ({
-          title: deployment.question,
-          marketAddress: deployment.marketAddress,
-          ammAddress: deployment.ammAddress,
-        })),
-        roundOf32BalanceReads: Array.from(roundOf32BalanceReads.values()),
-      }
+          totalScannedMarkets: deployments.length,
+          totalRoundOf32MarketsIncluded: roundOf32Deployments.length,
+          roundOf32Markets: roundOf32Deployments.map((deployment) => ({
+            title: deployment.question,
+            marketAddress: deployment.marketAddress,
+            ammAddress: deployment.ammAddress,
+          })),
+          roundOf32BalanceReads: Array.from(roundOf32BalanceReads.values()),
+        }
       : undefined,
   };
 }
@@ -669,7 +941,12 @@ export async function scanWalletPositions(
   const key = wallet.toLowerCase();
   const cached = scanCache.get(key);
 
-  if (!includeDebug && !forceRefresh && cached && cached.expiresAt > Date.now()) {
+  if (
+    !includeDebug &&
+    !forceRefresh &&
+    cached &&
+    cached.expiresAt > Date.now()
+  ) {
     return cached.value;
   }
 
