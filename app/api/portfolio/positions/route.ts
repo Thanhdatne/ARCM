@@ -24,6 +24,7 @@ export async function GET(request: Request) {
       wallet as Address,
       url.searchParams.get("refresh") === "1",
       debug,
+      { mode: url.searchParams.get("full") === "1" ? "full" : "fast" },
     );
     const positions = [...scan.openPositions, ...scan.settledPositions];
     const sideCount = positions.reduce(

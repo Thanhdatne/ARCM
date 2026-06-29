@@ -12,7 +12,8 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ONE = 1000000000000000000n;
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 60_000;
+const DEFAULT_FAST_SCAN_LIMIT = 55;
 
 const MARKET_ABI = [
   {
@@ -131,6 +132,9 @@ export interface WalletPositionScanDebug {
     ammAddress: string;
   }>;
   roundOf32BalanceReads: RoundOf32PositionDebug[];
+  totalAvailableMarkets?: number;
+  skippedByFastMode?: number;
+  scanMode?: WalletPositionScanMode;
 }
 
 interface CacheEntry {
@@ -162,6 +166,13 @@ interface ContractReadResult {
   status: "success" | "failure";
   result?: unknown;
   error?: string;
+}
+
+export type WalletPositionScanMode = "fast" | "full";
+
+export interface WalletPositionScanOptions {
+  mode?: WalletPositionScanMode;
+  maxMarkets?: number;
 }
 
 const serverState = globalThis as typeof globalThis & {
@@ -565,9 +576,63 @@ function isRoundOf32Deployment(deployment: WorldCupDeployment) {
   return Boolean(parseRoundOf32Title(deployment.question));
 }
 
+function parseTimeMs(value?: string) {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function prioritizeDeployments(
+  deployments: WorldCupDeployment[],
+  mode: WalletPositionScanMode,
+  maxMarkets = DEFAULT_FAST_SCAN_LIMIT,
+) {
+  if (mode === "full" || deployments.length <= maxMarkets) return deployments;
+
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const byKey = new Map<string, WorldCupDeployment>();
+  const add = (deployment: WorldCupDeployment) => {
+    const key =
+      normalizeAddress(deployment.marketAddress) ||
+      deployment.worldCupMarketId ||
+      `${deployment.fixtureId}:${deployment.outcomeType}`;
+    if (key && !byKey.has(key)) byKey.set(key, deployment);
+  };
+
+  const roundOf32 = deployments.filter(isRoundOf32Deployment);
+  roundOf32.forEach(add);
+
+  const scored = deployments
+    .filter((deployment) => !isRoundOf32Deployment(deployment))
+    .map((deployment) => {
+      const kickoffMs = parseTimeMs(deployment.kickoffTime);
+      const isV2 = deployment.contractVersion === 2;
+      const isUpcoming = kickoffMs !== null && kickoffMs >= now;
+      const isRecent =
+        kickoffMs !== null && kickoffMs < now && now - kickoffMs <= sevenDaysMs;
+      const hasKickoff = kickoffMs !== null;
+      const score =
+        (isUpcoming ? 1000 : 0) +
+        (isRecent ? 800 : 0) +
+        (isV2 ? 200 : 0) +
+        (hasKickoff ? 50 : 0);
+      return { deployment, kickoffMs: kickoffMs ?? Number.MAX_SAFE_INTEGER, score };
+    })
+    .sort((a, b) => b.score - a.score || a.kickoffMs - b.kickoffMs);
+
+  for (const { deployment } of scored) {
+    if (byKey.size >= maxMarkets) break;
+    add(deployment);
+  }
+
+  return Array.from(byKey.values());
+}
+
 async function performScan(
   wallet: Address,
   includeDebug = false,
+  options: WalletPositionScanOptions = {},
 ): Promise<WalletPositionScan> {
   const rpcUrl =
     process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL?.trim() ||
@@ -578,7 +643,13 @@ async function performScan(
     transport: http(rpcUrl),
   }) as unknown as ReadContractClient;
 
-  const deployments = await readDeployments();
+  const allDeployments = await readDeployments();
+  const scanMode = options.mode ?? "fast";
+  const deployments = prioritizeDeployments(
+    allDeployments,
+    includeDebug ? "full" : scanMode,
+    options.maxMarkets,
+  );
   const roundOf32Deployments = deployments.filter(isRoundOf32Deployment);
   const roundOf32BalanceReads = new Map<string, RoundOf32PositionDebug>();
 
@@ -928,6 +999,9 @@ async function performScan(
             ammAddress: deployment.ammAddress,
           })),
           roundOf32BalanceReads: Array.from(roundOf32BalanceReads.values()),
+          totalAvailableMarkets: allDeployments.length,
+          skippedByFastMode: Math.max(allDeployments.length - deployments.length, 0),
+          scanMode: includeDebug ? "full" : scanMode,
         }
       : undefined,
   };
@@ -937,8 +1011,10 @@ export async function scanWalletPositions(
   wallet: Address,
   forceRefresh = false,
   includeDebug = false,
+  options: WalletPositionScanOptions = {},
 ): Promise<WalletPositionScan> {
-  const key = wallet.toLowerCase();
+  const mode = options.mode ?? "fast";
+  const key = `${wallet.toLowerCase()}:${mode}:${options.maxMarkets ?? "default"}`;
   const cached = scanCache.get(key);
 
   if (
@@ -955,7 +1031,7 @@ export async function scanWalletPositions(
     if (inFlight) return inFlight;
   }
 
-  const scan = performScan(wallet, includeDebug);
+  const scan = performScan(wallet, includeDebug, { ...options, mode });
   scansInFlight.set(key, scan);
 
   try {

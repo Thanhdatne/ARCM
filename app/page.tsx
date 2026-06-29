@@ -227,6 +227,40 @@ function sortMarketsByViewFilter(a: MarketCardData, b: MarketCardData, activeFil
   return 0;
 }
 
+function shouldPrioritizeKickoffSort(activeCategory: CategoryFilter, activeFilter: MarketViewFilter) {
+  return (
+    (activeCategory === "All" || activeCategory === "World Cup") &&
+    (activeFilter === "Featured" || activeFilter === "Open")
+  );
+}
+
+function sortMarketsForBoard(
+  markets: MarketCardData[],
+  activeCategory: CategoryFilter,
+  activeFilter: MarketViewFilter,
+) {
+  const sortedByActiveFilter = [...markets].sort((a, b) => sortMarketsByViewFilter(a, b, activeFilter));
+
+  if (!shouldPrioritizeKickoffSort(activeCategory, activeFilter)) {
+    return sortedByActiveFilter;
+  }
+
+  return sortedByActiveFilter.sort((a, b) => {
+    const aIsKnockout = isWorldCupKnockoutMarket(a);
+    const bIsKnockout = isWorldCupKnockoutMarket(b);
+
+    if (aIsKnockout && bIsKnockout) {
+      return sortMarketsByKickoff(a, b);
+    }
+
+    if (aIsKnockout !== bIsKnockout) {
+      return aIsKnockout ? -1 : 1;
+    }
+
+    return 0;
+  });
+}
+
 function marketMatchesSearch(market: MarketCardData, rawQuery: string) {
   const query = normalizeMarketText(rawQuery);
   if (!query) return true;
@@ -938,8 +972,10 @@ function HomeContent() {
     : categoryFilteredRegularMarkets.filter((market) =>
         marketMatchesViewFilter(market, activeMarketFilter, categoryFilteredRegularMarkets),
       );
-  const filteredRegularMarkets = [...baseFilteredRegularMarkets].sort((a, b) =>
-    sortMarketsByViewFilter(a, b, activeMarketFilter),
+  const filteredRegularMarkets = sortMarketsForBoard(
+    baseFilteredRegularMarkets,
+    activeCategory,
+    activeMarketFilter,
   );
   const showWorldCupDateSections = activeCategory === "World Cup" && !marketSearchQuery;
   const filteredWorldCupKnockoutMarkets =

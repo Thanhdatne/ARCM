@@ -211,19 +211,12 @@ function ClaimNotificationBell() {
   }, []);
 
   useEffect(() => {
-    if (!isMounted) return;
-    void loadRewards();
-  }, [isMounted, loadRewards]);
-
-  useEffect(() => {
-    if (!isMounted || !isConnected || !address) return;
-
-    const interval = window.setInterval(() => {
-      void loadRewards();
-    }, 45_000);
-
-    return () => window.clearInterval(interval);
-  }, [address, isConnected, isMounted, loadRewards]);
+    if (!isConnected || !address) {
+      setMarkets([]);
+      setError("");
+      setIsOpen(false);
+    }
+  }, [address, isConnected]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -240,8 +233,11 @@ function ClaimNotificationBell() {
 
   const toggleMenu = () => {
     if (!isMounted || !isConnected || !address) return;
-    setIsOpen((current) => !current);
-    void loadRewards();
+    setIsOpen((current) => {
+      const next = !current;
+      if (next) void loadRewards();
+      return next;
+    });
   };
 
   return (

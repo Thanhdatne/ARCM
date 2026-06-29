@@ -18,7 +18,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const scan = await scanWalletPositions(wallet as Address, url.searchParams.get("refresh") === "1");
+    const scan = await scanWalletPositions(
+      wallet as Address,
+      url.searchParams.get("refresh") === "1",
+      false,
+      { mode: url.searchParams.get("full") === "1" ? "full" : "fast" },
+    );
     const markets = scan.claimablePositions.map((position) => ({
       id: position.id,
       fixtureId: position.fixtureId,
