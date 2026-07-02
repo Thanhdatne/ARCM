@@ -154,12 +154,11 @@ export function ResolveTab({
     displayOracleState === OracleState.Proposed &&
     expirationSeconds !== undefined &&
     expirationSeconds > 0;
-  const readyToSettleOracle =
-    displayOracleState === OracleState.Expired ||
-    displayOracleState === OracleState.Resolved ||
-    (displayOracleState === OracleState.Proposed &&
-      expirationSeconds !== undefined &&
-      expirationSeconds <= 0);
+  const proposalExpiredLocally =
+    displayOracleState === OracleState.Proposed &&
+    expirationSeconds !== undefined &&
+    expirationSeconds <= 0;
+  const readyToSettleOracle = displayOracleState === OracleState.Expired;
 
   return (
     <div className="space-y-4">
@@ -176,6 +175,7 @@ export function ResolveTab({
         priceRequested={priceRequested}
         proposalLivenessActive={proposalLivenessActive}
         readyToSettleOracle={readyToSettleOracle}
+        proposalExpiredLocally={proposalExpiredLocally}
         receivedSettlementPrice={receivedSettlementPrice}
         oracleState={displayOracleState}
       />
@@ -287,26 +287,10 @@ export function ResolveTab({
               </Button>
               <TxStatus {...approveArctForOO} />
             </>
-          ) : expirationSeconds !== undefined && expirationSeconds <= 0 ? (
-            <>
-              <Button
-                className="w-full"
-                onClick={() => settleOracleWithTimer.settleOracle(fastForwardSettleTime)}
-                disabled={isSettleOracleWithTimerBusy}
-              >
-                {isSettleOracleWithTimerBusy
-                  ? isOracleSettlementRefreshing
-                    ? "Finalizing Oracle..."
-                    : "Settling Oracle..."
-                  : "Settle Oracle Request"}
-              </Button>
-              <TxStatus {...settleOracleWithTimer} />
-              {isOracleSettlementRefreshing && (
-                <p className="text-xs font-bold text-[#FF8A00]">
-                  Refreshing oracle state until settlement is fully reflected in the UI...
-                </p>
-              )}
-            </>
+          ) : proposalExpiredLocally ? (
+            <div className="terminal-card p-3 text-xs leading-5 text-[#AEB4BC]">
+              The proposal liveness appears expired locally, but the oracle has not reported an onchain settleable state yet. Refresh the market or use the admin Resolve &amp; Settle flow to advance the testnet timer safely.
+            </div>
           ) : (
             <>
               <Button
@@ -342,11 +326,11 @@ export function ResolveTab({
         </div>
       )}
 
-      {/* Phase 3: Expired or Resolved - settle the OO request */}
-      {adminSettlementEnabled && (oracleState === OracleState.Expired || oracleState === OracleState.Resolved) && (
+      {/* Phase 3: Expired - settle the OO request. Do not expose settle for Resolved/locally-expired states unless the onchain oracle state is Expired. */}
+      {adminSettlementEnabled && oracleState === OracleState.Expired && (
         <div className="space-y-3">
           <p className="terminal-card p-3 text-xs leading-5 text-[#707A8A]">
-            The oracle request is ready to be settled. Anyone can call settle to finalize the resolution.
+            The oracle request is in the onchain Expired state and can be settled.
           </p>
           <Button
             className="w-full"
@@ -565,6 +549,7 @@ function ResolveStatePanel({
   priceRequested,
   proposalLivenessActive,
   readyToSettleOracle,
+  proposalExpiredLocally,
   receivedSettlementPrice,
   oracleState,
 }: {
@@ -572,6 +557,7 @@ function ResolveStatePanel({
   priceRequested: boolean | undefined;
   proposalLivenessActive: boolean;
   readyToSettleOracle: boolean;
+  proposalExpiredLocally: boolean;
   receivedSettlementPrice: boolean | undefined;
   oracleState: OracleState | undefined;
 }) {
@@ -601,12 +587,12 @@ function ResolveStatePanel({
     },
     {
       label: "Liveness",
-      value: proposalLivenessActive ? "Active" : readyToSettleOracle ? "Expired" : "Waiting",
-      active: proposalLivenessActive || readyToSettleOracle,
+      value: proposalLivenessActive ? "Active" : readyToSettleOracle ? "Expired" : proposalExpiredLocally ? "Expired locally" : "Waiting",
+      active: proposalLivenessActive || readyToSettleOracle || proposalExpiredLocally,
     },
     {
       label: "Settlement",
-      value: receivedSettlementPrice ? "Settled" : readyToSettleOracle ? "Ready to settle" : "Not settled",
+      value: receivedSettlementPrice ? "Settled" : readyToSettleOracle ? "Ready to settle" : proposalExpiredLocally ? "Waiting oracle state" : "Not settled",
       active: !!receivedSettlementPrice || readyToSettleOracle,
     },
     {
