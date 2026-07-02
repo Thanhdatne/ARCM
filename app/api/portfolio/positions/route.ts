@@ -38,6 +38,13 @@ export async function GET(request: Request) {
         decimals: COLLATERAL_DECIMALS,
         scanned: scan.scanned,
         failed: scan.failed,
+        ...(debug && scan.debug
+          ? {
+              scanMode: scan.debug.scanMode,
+              totalAvailableMarkets: scan.debug.totalAvailableMarkets,
+              skippedByFastMode: scan.debug.skippedByFastMode,
+            }
+          : {}),
         arctBalance: "0",
         positions,
         totals: {

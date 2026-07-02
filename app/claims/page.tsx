@@ -151,11 +151,15 @@ export default function ClaimsPage() {
             {!walletReady ? (
               <EmptyState title="Connect wallet to view claimable rewards." />
             ) : scanError ? (
-              <EmptyState title={scanError} />
+              <EmptyState
+                actionLabel="Retry"
+                onAction={() => void loadClaimable(true)}
+                title={scanError}
+              />
             ) : isLoading && !response ? (
               <EmptyState title="Checking claimable rewards..." />
             ) : claimableMarkets.length === 0 ? (
-              <EmptyState title="No claimable winning position found for this wallet." />
+              <EmptyState title="No claimable rewards yet." />
             ) : (
               <div className="space-y-2">
                 {claimableMarkets.map((market) => (
@@ -337,10 +341,28 @@ function WalletPill({
   );
 }
 
-function EmptyState({ title }: { title: string }) {
+function EmptyState({
+  actionLabel,
+  onAction,
+  title,
+}: {
+  actionLabel?: string;
+  onAction?: () => void;
+  title: string;
+}) {
   return (
     <div className="terminal-card p-6 text-center text-sm text-[#707A8A]">
-      {title}
+      <p>{title}</p>
+      {actionLabel && onAction ? (
+        <Button
+          className="mt-3 h-8 px-3 text-xs"
+          onClick={onAction}
+          type="button"
+          variant="outline"
+        >
+          {actionLabel}
+        </Button>
+      ) : null}
     </div>
   );
 }

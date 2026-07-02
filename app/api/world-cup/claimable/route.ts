@@ -18,10 +18,11 @@ export async function GET(request: Request) {
   }
 
   try {
+    const debug = url.searchParams.get("debug") === "1";
     const scan = await scanWalletPositions(
       wallet as Address,
       url.searchParams.get("refresh") === "1",
-      false,
+      debug,
       { mode: url.searchParams.get("full") === "1" ? "full" : "fast" },
     );
     const markets = scan.claimablePositions.map((position) => ({
@@ -54,8 +55,16 @@ export async function GET(request: Request) {
         scanned: scan.scanned,
         settled: scan.settledMarketCount,
         failed: scan.failed,
+        ...(debug && scan.debug
+          ? {
+              scanMode: scan.debug.scanMode,
+              totalAvailableMarkets: scan.debug.totalAvailableMarkets,
+              skippedByFastMode: scan.debug.skippedByFastMode,
+            }
+          : {}),
         withWinningBalance: markets.length,
         markets,
+        ...(debug && scan.debug ? { debug: scan.debug } : {}),
       },
       { headers: { "Cache-Control": "no-store" } },
     );

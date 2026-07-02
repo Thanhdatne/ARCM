@@ -158,7 +158,11 @@ export default function PortfolioPage() {
           {!walletReady ? (
             <EmptyState title="Connect wallet to view positions." />
           ) : error ? (
-            <EmptyState title={error} />
+            <EmptyState
+              actionLabel="Retry"
+              onAction={() => void loadPortfolio(true)}
+              title={error}
+            />
           ) : isLoading && !portfolio ? (
             <EmptyState title="Checking wallet positions..." />
           ) : openPositions.length === 0 ? (
@@ -317,10 +321,28 @@ function OverviewCard({
   );
 }
 
-function EmptyState({ title }: { title: string }) {
+function EmptyState({
+  actionLabel,
+  onAction,
+  title,
+}: {
+  actionLabel?: string;
+  onAction?: () => void;
+  title: string;
+}) {
   return (
     <div className="terminal-card p-6 text-center text-sm text-[#707A8A]">
-      {title}
+      <p>{title}</p>
+      {actionLabel && onAction ? (
+        <Button
+          className="mt-3 h-8 px-3 text-xs"
+          onClick={onAction}
+          type="button"
+          variant="outline"
+        >
+          {actionLabel}
+        </Button>
+      ) : null}
     </div>
   );
 }

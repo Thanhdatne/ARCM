@@ -178,6 +178,8 @@ function ClaimNotificationBell() {
   const badgeCount = markets.length > 9 ? "9+" : String(markets.length);
 
   const loadRewards = useCallback(async () => {
+    if (isLoading) return;
+
     if (!isConnected || !address) {
       setMarkets([]);
       setError("");
@@ -204,7 +206,7 @@ function ClaimNotificationBell() {
     } finally {
       setIsLoading(false);
     }
-  }, [address, isConnected]);
+  }, [address, isConnected, isLoading]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -233,6 +235,8 @@ function ClaimNotificationBell() {
 
   const toggleMenu = () => {
     if (!isMounted || !isConnected || !address) return;
+    if (isLoading) return;
+
     setIsOpen((current) => {
       const next = !current;
       if (next) void loadRewards();
@@ -272,7 +276,7 @@ function ClaimNotificationBell() {
                   Rewards
                 </p>
                 <h2 className="mt-1 text-sm font-bold text-[#EAECEF]">
-                  {hasRewards ? `${markets.length} market${markets.length > 1 ? "s" : ""} won` : "No rewards yet"}
+                  {hasRewards ? `${markets.length} market${markets.length > 1 ? "s" : ""} won` : "No rewards ready"}
                 </h2>
               </div>
               <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#FF8A00]/30 bg-[#FF8A00]/10 text-[#FF8A00]">
@@ -322,7 +326,7 @@ function ClaimNotificationBell() {
               </div>
             ) : (
               <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] px-3 py-5 text-center">
-                <p className="text-sm font-bold text-[#EAECEF]">Nothing to claim right now</p>
+                <p className="text-sm font-bold text-[#EAECEF]">No rewards ready</p>
                 <p className="mt-1 text-xs leading-5 text-[#707A8A]">
                   Winning settled positions will appear here automatically.
                 </p>

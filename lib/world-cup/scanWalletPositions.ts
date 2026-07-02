@@ -647,7 +647,7 @@ async function performScan(
   const scanMode = options.mode ?? "fast";
   const deployments = prioritizeDeployments(
     allDeployments,
-    includeDebug ? "full" : scanMode,
+    scanMode,
     options.maxMarkets,
   );
   const roundOf32Deployments = deployments.filter(isRoundOf32Deployment);
@@ -1001,7 +1001,7 @@ async function performScan(
           roundOf32BalanceReads: Array.from(roundOf32BalanceReads.values()),
           totalAvailableMarkets: allDeployments.length,
           skippedByFastMode: Math.max(allDeployments.length - deployments.length, 0),
-          scanMode: includeDebug ? "full" : scanMode,
+          scanMode,
         }
       : undefined,
   };
