@@ -5,7 +5,7 @@ import {
   createPublicClient,
   createWalletClient,
   http,
-  parseEther,
+  parseUnits,
   type Address,
   type Hex,
 } from "viem";
@@ -18,6 +18,7 @@ export const maxDuration = 300;
 
 const YES_PRICE = 1000000000000000000n;
 const NO_PRICE = 0n;
+const ARC_NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 const MARKET_ABI = [
   {
@@ -208,6 +209,11 @@ interface WorldCupDeployment {
   createdAt?: string;
   txHash?: string;
   transactionHash?: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  isRoundOf32V2?: boolean;
 }
 
 interface WorldCupResultRecord {
@@ -220,6 +226,35 @@ interface WorldCupResultRecord {
   result?: OutcomeType | null;
   updatedAt: string;
   source?: string;
+  marketAddress?: string;
+}
+
+interface StoredMarketRecord {
+  id?: string;
+  address?: string;
+  marketAddress?: string;
+  ammAddress?: string;
+  title?: string;
+  category?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  stage?: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  finalHomeScore?: number;
+  finalAwayScore?: number;
+  winningSide?: "YES" | "NO";
+  winningTeam?: string;
+  resultSource?: string;
+  resultUpdatedAt?: string;
+  resultStatus?: "saved" | "proposed" | "settled";
+  proposedAt?: string;
+  proposalTxHash?: string;
+  settledAt?: string;
+  settlementTxHash?: string;
+  oracleSettlementTxHash?: string;
 }
 
 interface ResolverItem {
@@ -230,6 +265,9 @@ interface ResolverItem {
   action:
     | "prepared"
     | "proposed"
+    | "oracleSettled"
+    | "marketSettled"
+    | "readyForClaim"
     | "timerAdvanced"
     | "settled"
     | "skipped"
@@ -252,6 +290,10 @@ function readJsonFile<T>(fileName: string, fallback: T): T {
   }
 }
 
+function writeJsonFile<T>(fileName: string, value: T) {
+  fs.writeFileSync(dataPath(fileName), `${JSON.stringify(value, null, 2)}\n`);
+}
+
 function readDeployments() {
   const parsed = readJsonFile<WorldCupDeployment[] | Record<string, WorldCupDeployment>>(
     "world-cup-deployments.json",
@@ -268,6 +310,154 @@ function readResults() {
   );
 
   return Array.isArray(parsed) ? parsed : Object.values(parsed);
+}
+
+function readMarkets() {
+  const parsed = readJsonFile<StoredMarketRecord[] | Record<string, StoredMarketRecord>>(
+    "markets.json",
+    [],
+  );
+
+  return Array.isArray(parsed) ? parsed : Object.values(parsed);
+}
+
+function writeMarkets(markets: StoredMarketRecord[]) {
+  writeJsonFile("markets.json", markets);
+}
+
+function isRoundOf32Title(value?: string) {
+  return /^Will .+? eliminate .+? in the Round of 32\??$/i.test(value ?? "");
+}
+
+function normalizeMatchText(value?: string | null) {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function roundOf32Title(homeTeam?: string, awayTeam?: string) {
+  if (!homeTeam || !awayTeam) return "";
+  return `Will ${homeTeam} eliminate ${awayTeam} in the Round of 32?`;
+}
+
+function roundOf32DeploymentMatchesResult(
+  deployment: WorldCupDeployment,
+  result: WorldCupResultRecord,
+) {
+  if (!deployment.isRoundOf32V2) return false;
+
+  const resultMarketAddress = result.marketAddress?.toLowerCase();
+  if (resultMarketAddress && deployment.marketAddress.toLowerCase() === resultMarketAddress) {
+    return true;
+  }
+
+  const normalizedQuestion = normalizeMatchText(deployment.question);
+  const exactTitle = normalizeMatchText(roundOf32Title(result.homeTeam, result.awayTeam));
+  if (exactTitle && normalizedQuestion === exactTitle) return true;
+
+  const homeTeam = normalizeMatchText(result.homeTeam);
+  const awayTeam = normalizeMatchText(result.awayTeam);
+  if (!homeTeam || !awayTeam) return false;
+
+  return (
+    normalizedQuestion.includes("round of 32") &&
+    normalizedQuestion.includes(homeTeam) &&
+    normalizedQuestion.includes(awayTeam)
+  );
+}
+
+function isSavedRoundOf32Market(market: StoredMarketRecord) {
+  const hasSavedResult =
+    market.resultStatus === "saved" ||
+    market.resultStatus === "proposed" ||
+    market.resultStatus === "settled";
+
+  return (
+    (market.category ?? "").toLowerCase().includes("world cup") &&
+    isRoundOf32Title(market.title) &&
+    market.contractVersion === 2 &&
+    hasSavedResult &&
+    (market.winningSide === "YES" || market.winningSide === "NO") &&
+    Boolean(market.marketAddress || market.address) &&
+    Boolean(market.ammAddress)
+  );
+}
+
+function roundOf32FixtureId(market: StoredMarketRecord) {
+  return market.id || market.marketAddress || market.address || "";
+}
+
+function readRoundOf32Deployments(): WorldCupDeployment[] {
+  return readMarkets()
+    .filter(isSavedRoundOf32Market)
+    .map((market) => ({
+      worldCupMarketId: roundOf32FixtureId(market),
+      fixtureId: roundOf32FixtureId(market),
+      group: "Round of 32",
+      question: market.title ?? "World Cup Round of 32 market",
+      outcomeType: "home_win",
+      marketAddress: market.marketAddress ?? market.address ?? "",
+      ammAddress: market.ammAddress ?? "",
+      createdAt: undefined,
+      contractVersion: 2,
+      collateralAddress:
+        market.collateralAddress ??
+        (market.collateralSymbol?.toUpperCase() === "USDC"
+          ? ARC_NATIVE_USDC_ADDRESS
+          : undefined),
+      collateralSymbol: market.collateralSymbol ?? "USDC",
+      collateralDecimals: market.collateralDecimals ?? 6,
+      isRoundOf32V2: true,
+    }));
+}
+
+function readRoundOf32Results(): WorldCupResultRecord[] {
+  return readMarkets()
+    .filter(isSavedRoundOf32Market)
+    .map((market) => ({
+      fixtureId: roundOf32FixtureId(market),
+      homeTeam: market.homeTeam ?? "",
+      awayTeam: market.awayTeam ?? "",
+      homeScore: typeof market.finalHomeScore === "number" ? market.finalHomeScore : null,
+      awayScore: typeof market.finalAwayScore === "number" ? market.finalAwayScore : null,
+      status: "final",
+      result: market.winningSide === "YES" ? "home_win" : "away_win",
+      updatedAt: market.resultUpdatedAt ?? new Date(0).toISOString(),
+      source: market.resultSource,
+      marketAddress: market.marketAddress ?? market.address,
+    }));
+}
+
+function updateRoundOf32MarketMetadata(
+  marketAddress: string,
+  patch: Pick<
+    StoredMarketRecord,
+    | "resultStatus"
+    | "proposedAt"
+    | "proposalTxHash"
+    | "settledAt"
+    | "settlementTxHash"
+    | "oracleSettlementTxHash"
+  >,
+) {
+  const markets = readMarkets();
+  const index = markets.findIndex((market) => {
+    const address = (market.marketAddress || market.address || "").toLowerCase();
+    return address === marketAddress.toLowerCase() && isRoundOf32Title(market.title);
+  });
+
+  if (index === -1) return;
+
+  markets[index] = {
+    ...markets[index],
+    ...patch,
+  };
+  writeMarkets(markets);
 }
 
 function envAddress(name: string) {
@@ -384,11 +574,13 @@ function proposalActiveState(state: number) {
   return state === 2;
 }
 
-async function queueCollateralSetup({
+async function queueCollateralApproval({
   publicClient,
   walletClient,
   accountAddress,
-  arctAddress,
+  collateralAddress,
+  collateralSymbol,
+  collateralDecimals,
   oracleAddress,
   getNonce,
   items,
@@ -396,23 +588,25 @@ async function queueCollateralSetup({
   publicClient: ReturnType<typeof createPublicClient>;
   walletClient: any;
   accountAddress: Address;
-  arctAddress: Address;
+  collateralAddress: Address;
+  collateralSymbol: string;
+  collateralDecimals: number;
   oracleAddress: Address;
   getNonce: () => number;
   items: ResolverItem[];
 }) {
-  const minimumBalance = parseEther("1000");
-  const approvalAmount = parseEther("1000000");
+  const minimumBalance = parseUnits("1", collateralDecimals);
+  const approvalAmount = parseUnits("1000000", collateralDecimals);
 
   const [balance, allowance] = await Promise.all([
     publicClient.readContract({
-      address: arctAddress,
+      address: collateralAddress,
       abi: ERC20_ABI,
       functionName: "balanceOf",
       args: [accountAddress],
     }),
     publicClient.readContract({
-      address: arctAddress,
+      address: collateralAddress,
       abi: ERC20_ABI,
       functionName: "allowance",
       args: [accountAddress, oracleAddress],
@@ -420,27 +614,19 @@ async function queueCollateralSetup({
   ]);
 
   if ((balance as bigint) < minimumBalance) {
-    const hash = await walletClient.writeContract({
-      address: arctAddress,
-      abi: ERC20_ABI,
-      functionName: "allocateTo",
-      args: [accountAddress, approvalAmount],
-      nonce: getNonce(),
-    });
-
     items.push({
       fixtureId: "setup",
       outcomeType: "collateral",
-      question: "Top up resolver ARCT",
-      action: "prepared",
-      reason: "Queued ARCT top up for resolver wallet.",
-      txHash: hash as Hex,
+      question: `Check resolver ${collateralSymbol}`,
+      action: "skipped",
+      reason: `Resolver wallet has insufficient ${collateralSymbol} for UMA proposer bond.`,
     });
+    return;
   }
 
   if ((allowance as bigint) < minimumBalance) {
     const hash = await walletClient.writeContract({
-      address: arctAddress,
+      address: collateralAddress,
       abi: ERC20_ABI,
       functionName: "approve",
       args: [oracleAddress, approvalAmount],
@@ -450,12 +636,27 @@ async function queueCollateralSetup({
     items.push({
       fixtureId: "setup",
       outcomeType: "approval",
-      question: "Approve ARCT for UMA Oracle",
+      question: `Approve ${collateralSymbol} for UMA Oracle`,
       action: "prepared",
-      reason: "Queued ARCT approval for UMA Oracle.",
+      reason: `Queued ${collateralSymbol} approval for UMA Oracle.`,
       txHash: hash as Hex,
     });
   }
+}
+
+function deploymentCollateral(deployment: WorldCupDeployment) {
+  const symbol = deployment.collateralSymbol?.trim() || "ARCT";
+  const address =
+    deployment.collateralAddress ||
+    (symbol.toUpperCase() === "USDC"
+      ? ARC_NATIVE_USDC_ADDRESS
+      : process.env.NEXT_PUBLIC_ARCT_ADDRESS?.trim() ?? "");
+
+  return {
+    address,
+    symbol,
+    decimals: deployment.collateralDecimals ?? (symbol.toUpperCase() === "USDC" ? 6 : 18),
+  };
 }
 
 async function queueTimerSync({
@@ -510,6 +711,357 @@ function getProposedPrice(requestData: unknown) {
   return typeof value === "bigint" ? value : null;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForMarketSettlement(
+  publicClient: ReturnType<typeof createPublicClient>,
+  marketAddress: Address,
+) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const context = await getOracleRequestContext(publicClient, marketAddress);
+    if (context.receivedSettlementPrice) return context;
+    await sleep(1_000);
+  }
+
+  return getOracleRequestContext(publicClient, marketAddress);
+}
+
+async function runRoundOf32Lifecycle({
+  action,
+  deployment,
+  result,
+  publicClient,
+  walletClient,
+  oracleAddress,
+  getNonce,
+  items,
+}: {
+  action: ResolverAction;
+  deployment: WorldCupDeployment;
+  result: WorldCupResultRecord | undefined;
+  publicClient: ReturnType<typeof createPublicClient>;
+  walletClient: any;
+  oracleAddress: Address;
+  getNonce: () => number;
+  items: ResolverItem[];
+}) {
+  const counts = {
+    proposed: 0,
+    timerAdvanced: 0,
+    settled: 0,
+    skipped: 0,
+    failed: 0,
+  };
+  const marketAddress = deployment.marketAddress as Address;
+  const baseItem = {
+    fixtureId: deployment.fixtureId,
+    outcomeType: deployment.outcomeType,
+    question: deployment.question,
+  };
+  const price = outcomePrice(deployment.outcomeType, result?.result);
+
+  if (price === null) {
+    counts.skipped += 1;
+    items.push({
+      ...baseItem,
+      action: "skipped",
+      reason: "Missing saved Round of 32 result or winning side.",
+    });
+    return counts;
+  }
+
+  let context = await getOracleRequestContext(publicClient, marketAddress);
+
+  if (context.receivedSettlementPrice) {
+    counts.settled += 1;
+    updateRoundOf32MarketMetadata(deployment.marketAddress, {
+      resultStatus: "settled",
+      settledAt: new Date().toISOString(),
+    });
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "readyForClaim",
+      reason: "Market is already settled. Winning positions can claim.",
+    });
+    return counts;
+  }
+
+  if (!context.priceRequested) {
+    counts.skipped += 1;
+    items.push({
+      ...baseItem,
+      action: "skipped",
+      reason: "Market has not requested an oracle price yet.",
+    });
+    return counts;
+  }
+
+  let state = Number(
+    await publicClient.readContract({
+      address: oracleAddress,
+      abi: OO_V2_ABI,
+      functionName: "getState",
+      args: [
+        marketAddress,
+        context.priceIdentifier,
+        context.requestTimestamp,
+        context.ancillaryData,
+      ],
+    }),
+  );
+  const allowProposal = action === "resolveFixture" || action === "resolveAndFastSettle";
+
+  if ((state === 0 || state === 1) && allowProposal) {
+    const proposalHash = await walletClient.writeContract({
+      address: oracleAddress,
+      abi: OO_V2_ABI,
+      functionName: "proposePrice",
+      args: [
+        marketAddress,
+        context.priceIdentifier,
+        context.requestTimestamp,
+        context.ancillaryData,
+        price,
+      ],
+      nonce: getNonce(),
+    });
+    const proposalReceipt = await publicClient.waitForTransactionReceipt({
+      hash: proposalHash,
+    });
+
+    if (proposalReceipt.status !== "success") {
+      throw new Error("Proposal transaction reverted.");
+    }
+
+    counts.proposed += 1;
+    updateRoundOf32MarketMetadata(deployment.marketAddress, {
+      resultStatus: "proposed",
+      proposedAt: new Date().toISOString(),
+      proposalTxHash: proposalHash,
+    });
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "proposed",
+      reason: `Confirmed ${outcomeLabel(price)} proposal.`,
+      state,
+      txHash: proposalHash as Hex,
+    });
+    state = 2;
+  } else if (state === 0 || state === 1) {
+    counts.skipped += 1;
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "skipped",
+      reason: "No proposal exists yet. Use Resolve & Settle first.",
+      state,
+    });
+    return counts;
+  }
+
+  if (action === "resolveFixture") {
+    counts.skipped += 1;
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "skipped",
+      reason: "Proposal is recorded. Use fast settle only when the test Timer is configured, otherwise wait for UMA liveness.",
+      state,
+    });
+    return counts;
+  }
+
+  if (proposalActiveState(state)) {
+    const requestData = await publicClient.readContract({
+      address: oracleAddress,
+      abi: OO_V2_ABI,
+      functionName: "getRequest",
+      args: [
+        marketAddress,
+        context.priceIdentifier,
+        context.requestTimestamp,
+        context.ancillaryData,
+      ],
+    });
+    const expirationTime = getExpirationTime(requestData);
+    const proposedPrice = getProposedPrice(requestData);
+
+    if (expirationTime === 0n) {
+      throw new Error("Proposal expiration time was not readable.");
+    }
+
+    if (proposedPrice === null || proposedPrice !== price) {
+      throw new Error(
+        `Existing proposal does not match the saved ${outcomeLabel(price)} result.`,
+      );
+    }
+
+    const timerHash = await queueTimerSync({
+      walletClient,
+      getNonce,
+      items,
+      targetTime: expirationTime + 1n,
+      marketItem: baseItem,
+      recordItem: false,
+    });
+
+    if (!timerHash) {
+      counts.skipped += 1;
+      items.push({
+        ...baseItem,
+        proposedSide: outcomeLabel(price),
+        action: "skipped",
+        reason: `Proposal submitted, waiting for UMA liveness until ${new Date(Number(expirationTime) * 1000).toLocaleString()}. Fast settlement is not available because NEXT_PUBLIC_TIMER_ADDRESS is not configured, so the route did not call settle.`,
+        state,
+      });
+      return counts;
+    }
+
+    const timerReceipt = await publicClient.waitForTransactionReceipt({
+      hash: timerHash,
+    });
+    if (timerReceipt.status !== "success") {
+      throw new Error("UMA Timer transaction reverted.");
+    }
+
+    counts.timerAdvanced += 1;
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "timerAdvanced",
+      reason: `Confirmed UMA Timer advance past expiration ${expirationTime.toString()}.`,
+      state,
+      txHash: timerHash,
+    });
+  }
+
+  state = Number(
+    await publicClient.readContract({
+      address: oracleAddress,
+      abi: OO_V2_ABI,
+      functionName: "getState",
+      args: [
+        marketAddress,
+        context.priceIdentifier,
+        context.requestTimestamp,
+        context.ancillaryData,
+      ],
+    }),
+  );
+
+  if (state === 6) {
+    context = await waitForMarketSettlement(publicClient, marketAddress);
+
+    if (context.receivedSettlementPrice) {
+      counts.settled += 1;
+      updateRoundOf32MarketMetadata(deployment.marketAddress, {
+        resultStatus: "settled",
+        settledAt: new Date().toISOString(),
+      });
+      items.push({
+        ...baseItem,
+        proposedSide: outcomeLabel(price),
+        action: "readyForClaim",
+        reason: "Oracle is already settled and the market received settlement price. Winning positions can claim.",
+        state,
+      });
+      return counts;
+    }
+
+    counts.skipped += 1;
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "skipped",
+      reason: "Oracle request is already settled, but the market callback state is not reflected yet. Refresh status.",
+      state,
+    });
+    return counts;
+  }
+
+  if (!isSettleableState(state)) {
+    counts.skipped += 1;
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "skipped",
+      reason: `Oracle state ${state} is not settleable onchain. The route will not send a reverting settle transaction.`,
+      state,
+    });
+    return counts;
+  }
+
+  const settleHash = await walletClient.writeContract({
+    address: oracleAddress,
+    abi: OO_V2_ABI,
+    functionName: "settle",
+    args: [
+      marketAddress,
+      context.priceIdentifier,
+      context.requestTimestamp,
+      context.ancillaryData,
+    ],
+    nonce: getNonce(),
+  });
+  const settleReceipt = await publicClient.waitForTransactionReceipt({
+    hash: settleHash,
+  });
+
+  if (settleReceipt.status !== "success") {
+    throw new Error("Oracle settlement transaction reverted.");
+  }
+
+  counts.settled += 1;
+  items.push({
+    ...baseItem,
+    proposedSide: outcomeLabel(price),
+    action: "oracleSettled",
+    reason: "Confirmed UMA oracle settlement.",
+    state,
+    txHash: settleHash as Hex,
+  });
+
+  context = await waitForMarketSettlement(publicClient, marketAddress);
+
+  if (context.receivedSettlementPrice) {
+    updateRoundOf32MarketMetadata(deployment.marketAddress, {
+      resultStatus: "settled",
+      settledAt: new Date().toISOString(),
+      oracleSettlementTxHash: settleHash,
+      settlementTxHash: settleHash,
+    });
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "marketSettled",
+      reason: "Market received settlement price.",
+      txHash: settleHash as Hex,
+    });
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "readyForClaim",
+      reason: "Ready for claim. Winning positions can be redeemed by users.",
+      txHash: settleHash as Hex,
+    });
+  } else {
+    counts.skipped += 1;
+    items.push({
+      ...baseItem,
+      proposedSide: outcomeLabel(price),
+      action: "skipped",
+      reason: "Oracle settled, but market settlement callback is not reflected yet. Refresh status.",
+      txHash: settleHash as Hex,
+    });
+  }
+
+  return counts;
+}
+
 export async function POST(request: Request) {
   const adminError = getAdminRequestError(
     request,
@@ -556,7 +1108,6 @@ export async function POST(request: Request) {
   try {
     const privateKey = getPrivateKey();
     const oracleAddress = envAddress("NEXT_PUBLIC_OO_V2_ADDRESS");
-    const arctAddress = envAddress("NEXT_PUBLIC_ARCT_ADDRESS");
 
     const account = privateKeyToAccount(privateKey);
     const rpcUrl =
@@ -585,7 +1136,25 @@ export async function POST(request: Request) {
       return nonce;
     };
 
-    const resultsByFixtureId = readResults().reduce<Record<string, WorldCupResultRecord>>(
+    const allResults = [...readResults(), ...readRoundOf32Results()];
+    const allDeployments = [...readDeployments(), ...readRoundOf32Deployments()];
+    const aliasedDeployments: WorldCupDeployment[] = [];
+
+    for (const result of allResults) {
+      for (const deployment of allDeployments) {
+        if (
+          result.fixtureId !== deployment.fixtureId &&
+          roundOf32DeploymentMatchesResult(deployment, result)
+        ) {
+          aliasedDeployments.push({
+            ...deployment,
+            fixtureId: result.fixtureId,
+          });
+        }
+      }
+    }
+
+    const resultsByFixtureId = allResults.reduce<Record<string, WorldCupResultRecord>>(
       (acc, result) => {
         if (result.fixtureId) acc[result.fixtureId] = result;
         return acc;
@@ -593,7 +1162,7 @@ export async function POST(request: Request) {
       {},
     );
 
-    let deployments = readDeployments()
+    let deployments = [...allDeployments, ...aliasedDeployments]
       .filter((deployment) =>
         action !== "resolveAndFastSettle" ||
         (Boolean(deployment.marketAddress) && Boolean(deployment.ammAddress)),
@@ -661,15 +1230,42 @@ export async function POST(request: Request) {
     }
 
     if (action === "resolveFixture" || action === "resolveAndFastSettle") {
-      await queueCollateralSetup({
-        publicClient,
-        walletClient,
-        accountAddress: account.address,
-        arctAddress,
-        oracleAddress,
-        getNonce,
-        items,
-      });
+      const collateralSetups = new Map<string, {
+        address: Address;
+        symbol: string;
+        decimals: number;
+      }>();
+
+      for (const deployment of deployments) {
+        const collateral = deploymentCollateral(deployment);
+        if (!collateral.address || !collateral.address.startsWith("0x")) {
+          throw new Error(
+            deployment.isRoundOf32V2
+              ? "Round of 32 V2 market collateral is not configured."
+              : "NEXT_PUBLIC_ARCT_ADDRESS is not configured.",
+          );
+        }
+
+        collateralSetups.set(collateral.address.toLowerCase(), {
+          address: collateral.address as Address,
+          symbol: collateral.symbol,
+          decimals: collateral.decimals,
+        });
+      }
+
+      for (const collateral of collateralSetups.values()) {
+        await queueCollateralApproval({
+          publicClient,
+          walletClient,
+          accountAddress: account.address,
+          collateralAddress: collateral.address,
+          collateralSymbol: collateral.symbol,
+          collateralDecimals: collateral.decimals,
+          oracleAddress,
+          getNonce,
+          items,
+        });
+      }
     }
 
     if (action === "settleFixture" || action === "settleReady") {
@@ -692,6 +1288,34 @@ export async function POST(request: Request) {
       };
 
       try {
+        if (
+          deployment.isRoundOf32V2 &&
+          (
+            action === "resolveFixture" ||
+            action === "resolveAndFastSettle" ||
+            action === "settleFixture" ||
+            action === "settleReady"
+          )
+        ) {
+          const roundOf32Counts = await runRoundOf32Lifecycle({
+            action,
+            deployment,
+            result,
+            publicClient,
+            walletClient,
+            oracleAddress,
+            getNonce,
+            items,
+          });
+
+          proposed += roundOf32Counts.proposed;
+          timerAdvanced += roundOf32Counts.timerAdvanced;
+          settled += roundOf32Counts.settled;
+          skipped += roundOf32Counts.skipped;
+          failed += roundOf32Counts.failed;
+          continue;
+        }
+
         if (!context.priceRequested) {
           skipped += 1;
           items.push({

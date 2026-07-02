@@ -62,6 +62,36 @@ interface WorldCupResultRecord {
   updateAllowedAt?: string;
 }
 
+interface RoundOf32Market {
+  id: string;
+  address?: string;
+  marketAddress?: string;
+  ammAddress?: string;
+  title: string;
+  category: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  stage?: string;
+  kickoffTime?: string;
+  contractVersion?: number;
+  finalHomeScore?: number;
+  finalAwayScore?: number;
+  winningSide?: "YES" | "NO";
+  winningTeam?: string;
+  resultSource?: string;
+  resultUpdatedAt?: string;
+  resultStatus?: "saved" | "proposed" | "settled";
+}
+
+interface ResultFormState {
+  homeScore: string;
+  awayScore: string;
+  winningSide: "YES" | "NO";
+  resultSource: string;
+  status?: "idle" | "saving" | "success" | "error";
+  message?: string;
+}
+
 interface WorldCupDeployment {
   worldCupMarketId?: string;
   fixtureId: string;
@@ -73,6 +103,7 @@ interface WorldCupDeployment {
   contractVersion?: number;
   collateralSymbol?: string;
   createdAt?: string;
+  isRoundOf32V2?: boolean;
 }
 
 interface ResolverItem {
@@ -80,7 +111,16 @@ interface ResolverItem {
   outcomeType: string;
   question: string;
   proposedSide?: "YES" | "NO";
-  action: "prepared" | "proposed" | "timerAdvanced" | "settled" | "skipped" | "failed";
+  action:
+    | "prepared"
+    | "proposed"
+    | "oracleSettled"
+    | "marketSettled"
+    | "readyForClaim"
+    | "timerAdvanced"
+    | "settled"
+    | "skipped"
+    | "failed";
   reason: string;
   state?: number;
   txHash?: string;
@@ -119,6 +159,7 @@ interface FixtureResolverStatus {
   settled: number;
   oracleSettled: number;
   failed: number;
+  fastSettleAvailable?: boolean;
 }
 
 const adminMarketCreateEnabled =
@@ -264,6 +305,9 @@ export default function AdminMarketsPage() {
   const [saved, setSaved] = useState(false);
   const [worldCupResults, setWorldCupResults] = useState<WorldCupResultRecord[]>([]);
   const [worldCupDeployments, setWorldCupDeployments] = useState<WorldCupDeployment[]>([]);
+  const [roundOf32Markets, setRoundOf32Markets] = useState<RoundOf32Market[]>([]);
+  const [roundOf32Loading, setRoundOf32Loading] = useState(true);
+  const [resultForms, setResultForms] = useState<Record<string, ResultFormState>>({});
   const [resultsLoading, setResultsLoading] = useState(true);
   const [deploymentsLoading, setDeploymentsLoading] = useState(true);
   const [resolverBusy, setResolverBusy] = useState("");
@@ -341,6 +385,31 @@ export default function AdminMarketsPage() {
     }
   };
 
+  const loadRoundOf32Markets = async () => {
+    setRoundOf32Loading(true);
+
+    try {
+      const response = await fetch("/api/markets", {
+        cache: "no-store",
+      });
+      const data = (await response.json()) as RoundOf32Market[];
+      const markets = Array.isArray(data) ? data : [];
+
+      setRoundOf32Markets(
+        markets.filter((market) => (
+          market.category === "World Cup" &&
+          market.stage === "Round of 32" &&
+          Boolean(market.marketAddress || market.address) &&
+          Boolean(market.ammAddress)
+        )),
+      );
+    } catch {
+      setRoundOf32Markets([]);
+    } finally {
+      setRoundOf32Loading(false);
+    }
+  };
+
   const loadResolverStatuses = async () => {
     setStatusesLoading(true);
 
@@ -366,6 +435,7 @@ export default function AdminMarketsPage() {
   useEffect(() => {
     void loadWorldCupResults();
     void loadWorldCupDeployments();
+    void loadRoundOf32Markets();
     void loadResolverStatuses();
   }, []);
 
@@ -527,14 +597,43 @@ export default function AdminMarketsPage() {
 
   const deploymentsByFixture = useMemo(() => {
     const grouped: Record<string, WorldCupDeployment[]> = {};
+    const savedRoundOf32Deployments: WorldCupDeployment[] = roundOf32Markets
+      .filter(isRoundOf32Market)
+      .map((market) => ({
+        worldCupMarketId: market.id,
+        fixtureId: market.id,
+        group: "Round of 32",
+        question: market.title,
+        outcomeType: "home_win",
+        marketAddress: market.marketAddress ?? market.address ?? "",
+        ammAddress: market.ammAddress,
+        contractVersion: 2,
+        collateralSymbol: "USDC",
+        createdAt: undefined,
+        isRoundOf32V2: true,
+      }));
 
-    for (const deployment of worldCupDeployments) {
+    for (const deployment of [...worldCupDeployments, ...savedRoundOf32Deployments]) {
       if (!deployment.fixtureId) continue;
 
       grouped[deployment.fixtureId] = [
         ...(grouped[deployment.fixtureId] ?? []),
         deployment,
       ];
+
+      if (deployment.isRoundOf32V2) {
+        for (const result of finalResults) {
+          if (
+            result.fixtureId !== deployment.fixtureId &&
+            roundOf32DeploymentMatchesResult(deployment, result)
+          ) {
+            grouped[result.fixtureId] = [
+              ...(grouped[result.fixtureId] ?? []),
+              deployment,
+            ];
+          }
+        }
+      }
     }
 
     for (const fixtureDeployments of Object.values(grouped)) {
@@ -544,7 +643,21 @@ export default function AdminMarketsPage() {
     }
 
     return grouped;
-  }, [worldCupDeployments]);
+  }, [finalResults, roundOf32Markets, worldCupDeployments]);
+
+  const startedRoundOf32Markets = useMemo(() => {
+    const now = Date.now();
+
+    return roundOf32Markets
+      .filter((market) => {
+        if (!market.kickoffTime) return false;
+        const kickoff = new Date(market.kickoffTime).getTime();
+        return !Number.isNaN(kickoff) && kickoff <= now;
+      })
+      .sort((a, b) => (
+        new Date(a.kickoffTime ?? 0).getTime() - new Date(b.kickoffTime ?? 0).getTime()
+      ));
+  }, [roundOf32Markets]);
 
   const hiddenNotDeployedCount = finalResults.length - deployedFinalResults.length;
   const settledFixtureCount = deployedFinalResults.filter((result) => (
@@ -555,6 +668,9 @@ export default function AdminMarketsPage() {
   )).length;
   const waitingFixtureCount = visibleFinalResults.filter((result) => (
     resolverStatuses[result.fixtureId]?.status === "waiting"
+  )).length;
+  const fastSettleVisibleCount = visibleFinalResults.filter((result) => (
+    resolverStatuses[result.fixtureId]?.fastSettleAvailable === true
   )).length;
 
   const runResolver = async (
@@ -601,6 +717,109 @@ export default function AdminMarketsPage() {
       );
     } finally {
       setResolverBusy("");
+    }
+  };
+
+  const updateResultForm = (
+    marketId: string,
+    patch: Partial<ResultFormState>,
+  ) => {
+    const defaultForm: ResultFormState = {
+      homeScore: "",
+      awayScore: "",
+      winningSide: "YES",
+      resultSource: "Official match result",
+    };
+
+    setResultForms((current) => ({
+      ...current,
+      [marketId]: {
+        ...(current[marketId] ?? defaultForm),
+        ...patch,
+      },
+    }));
+  };
+
+  const getResultForm = (market: RoundOf32Market): ResultFormState => (
+    resultForms[market.id] ?? {
+      homeScore:
+        typeof market.finalHomeScore === "number" ? String(market.finalHomeScore) : "",
+      awayScore:
+        typeof market.finalAwayScore === "number" ? String(market.finalAwayScore) : "",
+      winningSide: market.winningSide ?? "YES",
+      resultSource: market.resultSource || "Official match result",
+      status: "idle",
+    }
+  );
+
+  const saveRoundOf32Result = async (market: RoundOf32Market) => {
+    const key = adminKey.trim();
+    const form = getResultForm(market);
+    const homeScore = Number(form.homeScore);
+    const awayScore = Number(form.awayScore);
+
+    if (!key) {
+      updateResultForm(market.id, {
+        status: "error",
+        message: "Paste ADMIN_API_KEY first.",
+      });
+      return;
+    }
+
+    if (
+      !Number.isInteger(homeScore) ||
+      !Number.isInteger(awayScore) ||
+      homeScore < 0 ||
+      awayScore < 0
+    ) {
+      updateResultForm(market.id, {
+        status: "error",
+        message: "Enter whole-number scores for both teams.",
+      });
+      return;
+    }
+
+    updateResultForm(market.id, { status: "saving", message: "" });
+
+    try {
+      const response = await fetch("/api/world-cup/results", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": key,
+        },
+        body: JSON.stringify({
+          fixtureId: market.id,
+          marketAddress: market.marketAddress ?? market.address,
+          homeScore,
+          awayScore,
+          status: "final",
+          winningSide: form.winningSide,
+          resultSource: form.resultSource || "Official match result",
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Result save failed.");
+      }
+
+      updateResultForm(market.id, {
+        status: "success",
+        message: "Result saved.",
+      });
+      await loadRoundOf32Markets();
+      await loadWorldCupResults();
+      window.setTimeout(() => {
+        void loadResolverStatuses();
+      }, 1_000);
+    } catch (error) {
+      updateResultForm(market.id, {
+        status: "error",
+        message: error instanceof Error ? error.message : "Result save failed.",
+      });
     }
   };
 
@@ -695,6 +914,233 @@ export default function AdminMarketsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+      <section className="exchange-panel overflow-hidden border border-[#FCD535]/20">
+        <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
+          <span>Finished / Started World Cup Fixtures</span>
+          <span className="rounded-full border border-[#FCD535]/50 bg-[#FCD535]/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FCD535]">
+            Round of 32
+          </span>
+        </div>
+
+        <div className="p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-black text-[#EAECEF]">
+                Enter final knockout results
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-[#707A8A]">
+                Save the official score and advancing side before using the UMA resolver.
+              </p>
+            </div>
+
+            <button
+              className="focus-ring rounded-lg border border-[#2B3139] bg-[#0B0E11] px-4 py-2 text-sm font-black text-[#EAECEF] transition hover:border-[#FCD535]"
+              onClick={() => {
+                void loadRoundOf32Markets();
+                void loadWorldCupResults();
+                void loadResolverStatuses();
+              }}
+              type="button"
+            >
+              Refresh fixtures
+            </button>
+          </div>
+
+          {!adminKey.trim() ? (
+            <p className="mt-3 rounded-lg border border-[#FF8A00]/40 bg-[#FF8A00]/10 px-3 py-2 text-xs font-bold text-[#FF9D2E]">
+              Paste and save ADMIN_API_KEY in the Admin deploy key box before saving results or resolving.
+            </p>
+          ) : null}
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {roundOf32Loading ? (
+              <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-sm font-bold text-[#707A8A]">
+                Loading started Round of 32 fixtures...
+              </div>
+            ) : null}
+
+            {!roundOf32Loading && startedRoundOf32Markets.length === 0 ? (
+              <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-sm font-bold text-[#707A8A]">
+                No deployed Round of 32 fixtures have reached kickoff yet.
+              </div>
+            ) : null}
+
+            {startedRoundOf32Markets.map((market) => {
+              const form = getResultForm(market);
+              const marketAddress = market.marketAddress ?? market.address ?? "";
+              const status = resolverStatuses[market.id]?.status ?? "unknown";
+              const saved = market.resultStatus === "saved" && !!market.winningSide;
+              const saving = form.status === "saving";
+              const busyResolve = resolverBusy === `resolveFixture:${market.id}`;
+              const busyFastSettle = resolverBusy === `resolveAndFastSettle:${market.id}`;
+              const canResolve =
+                saved &&
+                (
+                  status === "needsResolve" ||
+                  status === "partial" ||
+                  status === "unknown" ||
+                  status === "waiting" ||
+                  status === "readyToSettle" ||
+                  status === "oracleSettled"
+                );
+              const canSettle = saved && status === "readyToSettle";
+              const canFastSettle =
+                saved &&
+                resolverStatuses[market.id]?.fastSettleAvailable === true &&
+                (
+                  status === "needsResolve" ||
+                  status === "partial" ||
+                  status === "unknown" ||
+                  status === "waiting" ||
+                  status === "readyToSettle"
+                );
+
+              return (
+                <article
+                  className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-3"
+                  key={market.id}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#707A8A]">
+                        {market.homeTeam} vs {market.awayTeam}
+                      </p>
+                      <h3 className="mt-1 text-base font-black text-[#EAECEF]">
+                        {market.title}
+                      </h3>
+                      <p className="mt-1 text-xs font-bold text-[#707A8A]">
+                        Kickoff {formatDateTime(market.kickoffTime)}
+                      </p>
+                    </div>
+
+                    <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${resultStatusClass(market.resultStatus)}`}>
+                      {resultStatusLabel(market.resultStatus)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 text-xs">
+                    <Meta label="Market" value={marketAddress ? shortAddress(marketAddress) : "Missing"} />
+                    <Meta
+                      label="Current result"
+                      value={
+                        saved
+                          ? `${market.finalHomeScore ?? "-"}-${market.finalAwayScore ?? "-"} / ${market.winningTeam ?? market.winningSide} advances`
+                          : "No result saved"
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-3 grid gap-3 rounded-lg border border-[#1E2329] bg-[#181A20] p-3 sm:grid-cols-2">
+                    <label className="text-xs font-bold text-[#AEB4BC]">
+                      {market.homeTeam} score
+                      <Input
+                        className="mt-1"
+                        min={0}
+                        onChange={(event) => updateResultForm(market.id, { homeScore: event.target.value })}
+                        type="number"
+                        value={form.homeScore}
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold text-[#AEB4BC]">
+                      {market.awayTeam} score
+                      <Input
+                        className="mt-1"
+                        min={0}
+                        onChange={(event) => updateResultForm(market.id, { awayScore: event.target.value })}
+                        type="number"
+                        value={form.awayScore}
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold text-[#AEB4BC]">
+                      Winning team / advances
+                      <select
+                        className="focus-ring mt-1 h-10 w-full rounded-lg border border-[#2B3139] bg-[#0B0E11] px-3 text-sm font-bold text-[#EAECEF]"
+                        onChange={(event) => updateResultForm(market.id, { winningSide: event.target.value as "YES" | "NO" })}
+                        value={form.winningSide}
+                      >
+                        <option value="YES">{market.homeTeam} = YES</option>
+                        <option value="NO">{market.awayTeam} = NO</option>
+                      </select>
+                    </label>
+
+                    <label className="text-xs font-bold text-[#AEB4BC]">
+                      Notes / source
+                      <Input
+                        className="mt-1"
+                        onChange={(event) => updateResultForm(market.id, { resultSource: event.target.value })}
+                        value={form.resultSource}
+                      />
+                    </label>
+                  </div>
+
+                  {form.message ? (
+                    <p className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${
+                      form.status === "error"
+                        ? "border-[#F6465D]/40 bg-[#F6465D]/10 text-[#FFD7DD]"
+                        : "border-[#0ECB81]/40 bg-[#0ECB81]/10 text-[#BFFFE7]"
+                    }`}>
+                      {form.message}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-3 rounded-lg border border-[#1E2329] bg-[#06080A] px-3 py-2 text-xs leading-5 text-[#AEB4BC]">
+                    <span className="font-black uppercase tracking-[0.12em] text-[#FCD535]">
+                      {saved ? statusLabel(status) : "No result saved"}
+                    </span>
+                    <span className="ml-2">
+                      {saved
+                        ? resolverStatuses[market.id]?.reason ?? "Save refreshes status; resolve is gated by result metadata."
+                        : "Resolve stays disabled until an admin-saved result exists."}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      className="terminal-button focus-ring px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || !adminKey.trim()}
+                      onClick={() => void saveRoundOf32Result(market)}
+                      type="button"
+                    >
+                      {saving ? "Saving..." : "Save Result"}
+                    </button>
+
+                    <button
+                      className="terminal-button focus-ring px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!canResolve || !adminKey.trim() || !!resolverBusy}
+                      onClick={() => void runResolver("resolveFixture", market.id)}
+                      type="button"
+                    >
+                      {busyResolve ? "Proposing..." : "Propose Result"}
+                    </button>
+
+                    <button
+                      className="terminal-button focus-ring px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!canFastSettle || !adminKey.trim() || !!resolverBusy}
+                      onClick={() => void runResolver("resolveAndFastSettle", market.id)}
+                      type="button"
+                    >
+                      {busyFastSettle ? "Resolving & settling..." : "Resolve & Fast Settle"}
+                    </button>
+
+                    {canSettle ? (
+                      <button
+                        className="terminal-button focus-ring px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!adminKey.trim() || !!resolverBusy}
+                        onClick={() => void runResolver("settleFixture", market.id)}
+                        type="button"
+                      >
+                        Settle Fixture
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       <section className="exchange-panel overflow-hidden border border-[#FF8A00]/20">
         <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
@@ -731,6 +1177,7 @@ export default function AdminMarketsPage() {
                 onClick={() => {
                   void loadWorldCupResults();
                   void loadWorldCupDeployments();
+                  void loadRoundOf32Markets();
                   void loadResolverStatuses();
                 }}
                 type="button"
@@ -740,13 +1187,20 @@ export default function AdminMarketsPage() {
 
               <button
                 className="terminal-button focus-ring px-4 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!adminKey.trim() || !!resolverBusy || visibleFinalResults.length === 0}
+                disabled={
+                  !adminKey.trim() ||
+                  !!resolverBusy ||
+                  visibleFinalResults.length === 0 ||
+                  fastSettleVisibleCount === 0
+                }
                 onClick={() => void runVisibleFastSettleBatch()}
                 type="button"
               >
                 {resolverBusy === "resolveVisibleFastSettle"
                   ? "Resolving visible fixtures..."
-                  : "Resolve & Fast Settle Visible"}
+                  : fastSettleVisibleCount > 0
+                    ? "Resolve & Fast Settle Visible"
+                    : "Visible Fixtures Waiting Liveness"}
               </button>
 
               {readyToSettleCount > 0 ? (
@@ -764,7 +1218,7 @@ export default function AdminMarketsPage() {
 
               {waitingFixtureCount > 0 ? (
                 <span className="rounded-lg border border-[#FF8A00]/30 bg-[#FF8A00]/10 px-3 py-2 text-xs font-bold text-[#FF9D2E]">
-                  {waitingFixtureCount} fixture{waitingFixtureCount > 1 ? "s" : ""} eligible for fast settle
+                  {waitingFixtureCount} fixture{waitingFixtureCount > 1 ? "s" : ""} waiting liveness
                 </span>
               ) : null}
 
@@ -820,6 +1274,9 @@ export default function AdminMarketsPage() {
                 const statusKey = status?.status ?? "unknown";
                 const fixtureDeployments = deploymentsByFixture[result.fixtureId] ?? [];
                 const deployedCount = fixtureDeployments.length;
+                const isRoundOf32Result = fixtureDeployments.some((deployment) => deployment.isRoundOf32V2);
+                const expectedDeploymentCount = isRoundOf32Result ? 1 : 3;
+                const fastSettleAvailable = status?.fastSettleAvailable === true;
                 const canResolve =
                   statusKey === "needsResolve" ||
                   statusKey === "partial" ||
@@ -858,10 +1315,10 @@ export default function AdminMarketsPage() {
                     <div className="mt-3 rounded-lg border border-[#1E2329] bg-[#06080A] p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#707A8A]">
-                          Deployed V2 markets
+                          {isRoundOf32Result ? "Deployed V2 market" : "Deployed V2 markets"}
                         </p>
                         <span className="font-mono text-[11px] font-black text-[#FF8A00]">
-                          {deploymentsLoading ? "..." : `${deployedCount}/3`}
+                          {deploymentsLoading ? "..." : `${deployedCount}/${expectedDeploymentCount}`}
                         </span>
                       </div>
 
@@ -871,7 +1328,7 @@ export default function AdminMarketsPage() {
                         </p>
                       ) : fixtureDeployments.length === 0 ? (
                         <p className="mt-2 text-xs font-bold text-[#707A8A]">
-                          No deployed V2 markets indexed for this finished fixture.
+                          No deployed V2 {isRoundOf32Result ? "market" : "markets"} indexed for this finished fixture.
                         </p>
                       ) : (
                         <div className="mt-2 grid gap-2">
@@ -911,11 +1368,15 @@ export default function AdminMarketsPage() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         className="terminal-button focus-ring px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!adminKey.trim() || !!resolverBusy}
+                        disabled={!adminKey.trim() || !!resolverBusy || !fastSettleAvailable}
                         onClick={() => void runResolver("resolveAndFastSettle", result.fixtureId)}
                         type="button"
                       >
-                        {busyFastSettle ? "Resolving & settling..." : "Resolve & Fast Settle"}
+                        {busyFastSettle
+                          ? "Resolving & settling..."
+                          : fastSettleAvailable
+                            ? "Resolve & Fast Settle"
+                            : "Propose / Check Liveness"}
                       </button>
 
                       {canResolve ? (
@@ -946,7 +1407,7 @@ export default function AdminMarketsPage() {
                           disabled
                           type="button"
                         >
-                          Fast settle available
+                          {fastSettleAvailable ? "Fast settle available" : "Waiting liveness"}
                         </button>
                       ) : null}
 
@@ -1279,6 +1740,54 @@ function getTemplateWorldCupMarketId(template: MarketTemplate) {
   return "";
 }
 
+function normalizeMatchText(value?: string | null) {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function isRoundOf32Market(market: RoundOf32Market) {
+  return (
+    market.category === "World Cup" &&
+    normalizeMatchText(market.stage) === "round of 32" &&
+    market.contractVersion === 2 &&
+    Boolean(market.marketAddress || market.address) &&
+    Boolean(market.ammAddress)
+  );
+}
+
+function roundOf32Title(homeTeam?: string, awayTeam?: string) {
+  if (!homeTeam || !awayTeam) return "";
+  return `Will ${homeTeam} eliminate ${awayTeam} in the Round of 32?`;
+}
+
+function roundOf32DeploymentMatchesResult(
+  deployment: WorldCupDeployment,
+  result: WorldCupResultRecord,
+) {
+  if (!deployment.isRoundOf32V2) return false;
+
+  const normalizedQuestion = normalizeMatchText(deployment.question);
+  const exactTitle = normalizeMatchText(roundOf32Title(result.homeTeam, result.awayTeam));
+  if (exactTitle && normalizedQuestion === exactTitle) return true;
+
+  const homeTeam = normalizeMatchText(result.homeTeam);
+  const awayTeam = normalizeMatchText(result.awayTeam);
+  const questionWithStage = normalizeMatchText(`${deployment.question} Round of 32`);
+  if (!homeTeam || !awayTeam) return false;
+
+  return (
+    questionWithStage.includes("round of 32") &&
+    questionWithStage.includes(homeTeam) &&
+    questionWithStage.includes(awayTeam)
+  );
+}
+
 function shortAddress(address: string) {
   return address.length > 12
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -1367,6 +1876,44 @@ function statusLabel(status: FixtureResolverStatus["status"] | "unknown") {
     default:
       return "Unknown";
   }
+}
+
+function resultStatusLabel(status?: RoundOf32Market["resultStatus"]) {
+  if (status === "saved") return "Result saved";
+  if (status === "proposed") return "Proposed";
+  if (status === "settled") return "Settled";
+
+  return "No result saved";
+}
+
+function resultStatusClass(status?: RoundOf32Market["resultStatus"]) {
+  if (status === "saved") {
+    return "border-[#0ECB81]/40 bg-[#0ECB81]/10 text-[#BFFFE7]";
+  }
+
+  if (status === "proposed") {
+    return "border-[#FF8A00]/40 bg-[#FF8A00]/10 text-[#FF9D2E]";
+  }
+
+  if (status === "settled") {
+    return "border-[#FCD535]/40 bg-[#FCD535]/10 text-[#FCD535]";
+  }
+
+  return "border-[#2B3139] bg-[#1E2329] text-[#707A8A]";
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return "Unknown";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function ResolveMetric({ label, value }: { label: string; value: number }) {

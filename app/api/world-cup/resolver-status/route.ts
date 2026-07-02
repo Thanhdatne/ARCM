@@ -107,6 +107,7 @@ const OO_V2_ABI = [
 ] as const;
 
 type OutcomeType = "home_win" | "draw" | "away_win";
+const ARC_NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 interface WorldCupDeployment {
   worldCupMarketId: string;
@@ -116,6 +117,11 @@ interface WorldCupDeployment {
   outcomeType: string;
   marketAddress: string;
   ammAddress: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  isRoundOf32V2?: boolean;
 }
 
 interface WorldCupResultRecord {
@@ -128,6 +134,28 @@ interface WorldCupResultRecord {
   result?: OutcomeType | null;
   updatedAt: string;
   source?: string;
+  marketAddress?: string;
+}
+
+interface StoredMarketRecord {
+  id?: string;
+  address?: string;
+  marketAddress?: string;
+  ammAddress?: string;
+  title?: string;
+  category?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  stage?: string;
+  contractVersion?: number;
+  collateralAddress?: string;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  finalHomeScore?: number;
+  finalAwayScore?: number;
+  winningSide?: "YES" | "NO";
+  resultUpdatedAt?: string;
+  resultStatus?: "saved" | "proposed" | "settled";
 }
 
 function dataPath(fileName: string) {
@@ -161,6 +189,121 @@ function readResults() {
   return Array.isArray(parsed) ? parsed : Object.values(parsed);
 }
 
+function readMarkets() {
+  const parsed = readJsonFile<StoredMarketRecord[] | Record<string, StoredMarketRecord>>(
+    "markets.json",
+    [],
+  );
+
+  return Array.isArray(parsed) ? parsed : Object.values(parsed);
+}
+
+function isRoundOf32Title(value?: string) {
+  return /^Will .+? eliminate .+? in the Round of 32\??$/i.test(value ?? "");
+}
+
+function normalizeMatchText(value?: string | null) {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function roundOf32Title(homeTeam?: string, awayTeam?: string) {
+  if (!homeTeam || !awayTeam) return "";
+  return `Will ${homeTeam} eliminate ${awayTeam} in the Round of 32?`;
+}
+
+function roundOf32DeploymentMatchesResult(
+  deployment: WorldCupDeployment,
+  result: WorldCupResultRecord,
+) {
+  if (!deployment.isRoundOf32V2) return false;
+
+  const resultMarketAddress = result.marketAddress?.toLowerCase();
+  if (resultMarketAddress && deployment.marketAddress.toLowerCase() === resultMarketAddress) {
+    return true;
+  }
+
+  const normalizedQuestion = normalizeMatchText(deployment.question);
+  const exactTitle = normalizeMatchText(roundOf32Title(result.homeTeam, result.awayTeam));
+  if (exactTitle && normalizedQuestion === exactTitle) return true;
+
+  const homeTeam = normalizeMatchText(result.homeTeam);
+  const awayTeam = normalizeMatchText(result.awayTeam);
+  if (!homeTeam || !awayTeam) return false;
+
+  return (
+    normalizedQuestion.includes("round of 32") &&
+    normalizedQuestion.includes(homeTeam) &&
+    normalizedQuestion.includes(awayTeam)
+  );
+}
+
+function isSavedRoundOf32Market(market: StoredMarketRecord) {
+  const hasSavedResult =
+    market.resultStatus === "saved" ||
+    market.resultStatus === "proposed" ||
+    market.resultStatus === "settled";
+
+  return (
+    (market.category ?? "").toLowerCase().includes("world cup") &&
+    isRoundOf32Title(market.title) &&
+    market.contractVersion === 2 &&
+    hasSavedResult &&
+    (market.winningSide === "YES" || market.winningSide === "NO") &&
+    Boolean(market.marketAddress || market.address) &&
+    Boolean(market.ammAddress)
+  );
+}
+
+function roundOf32FixtureId(market: StoredMarketRecord) {
+  return market.id || market.marketAddress || market.address || "";
+}
+
+function readRoundOf32Deployments(): WorldCupDeployment[] {
+  return readMarkets()
+    .filter(isSavedRoundOf32Market)
+    .map((market) => ({
+      worldCupMarketId: roundOf32FixtureId(market),
+      fixtureId: roundOf32FixtureId(market),
+      group: "Round of 32",
+      question: market.title ?? "World Cup Round of 32 market",
+      outcomeType: "home_win",
+      marketAddress: market.marketAddress ?? market.address ?? "",
+      ammAddress: market.ammAddress ?? "",
+      contractVersion: 2,
+      collateralAddress:
+        market.collateralAddress ??
+        (market.collateralSymbol?.toUpperCase() === "USDC"
+          ? ARC_NATIVE_USDC_ADDRESS
+          : undefined),
+      collateralSymbol: market.collateralSymbol ?? "USDC",
+      collateralDecimals: market.collateralDecimals ?? 6,
+      isRoundOf32V2: true,
+    }));
+}
+
+function readRoundOf32Results(): WorldCupResultRecord[] {
+  return readMarkets()
+    .filter(isSavedRoundOf32Market)
+    .map((market) => ({
+      fixtureId: roundOf32FixtureId(market),
+      homeTeam: market.homeTeam ?? "",
+      awayTeam: market.awayTeam ?? "",
+      homeScore: typeof market.finalHomeScore === "number" ? market.finalHomeScore : null,
+      awayScore: typeof market.finalAwayScore === "number" ? market.finalAwayScore : null,
+      status: "final",
+      result: market.winningSide === "YES" ? "home_win" : "away_win",
+      updatedAt: market.resultUpdatedAt ?? new Date(0).toISOString(),
+      marketAddress: market.marketAddress ?? market.address,
+    }));
+}
+
 function envAddress(name: string) {
   const value = process.env[name]?.trim();
   if (!value || !value.startsWith("0x")) {
@@ -186,6 +329,7 @@ function reasonForStatus({
   oracleSettled,
   failed,
   total,
+  fastSettleAvailable,
 }: {
   status: string;
   needsResolve: number;
@@ -195,11 +339,18 @@ function reasonForStatus({
   oracleSettled: number;
   failed: number;
   total: number;
+  fastSettleAvailable: boolean;
 }) {
-  if (status === "settled") return "All 3 market contracts are settled. Winners can claim.";
-  if (status === "readyToSettle") return `${readyToSettle}/${total} markets are ready to settle. Timer will sync before settlement.`;
-  if (status === "waiting") return `${waiting}/${total} markets were proposed. Wait UMA liveness before settle.`;
-  if (status === "needsResolve") return `${needsResolve}/${total} markets still need a proposal.`;
+  const marketLabel = total === 1 ? "market" : "markets";
+
+  if (status === "settled") return `All ${total} ${marketLabel} are settled. Winners can claim.`;
+  if (status === "readyToSettle") return `${readyToSettle}/${total} ${marketLabel} ${total === 1 ? "is" : "are"} ready to settle. Timer will sync before settlement.`;
+  if (status === "waiting") {
+    return fastSettleAvailable
+      ? `${waiting}/${total} ${marketLabel} ${total === 1 ? "was" : "were"} proposed. Test Timer fast settlement is configured.`
+      : `${waiting}/${total} ${marketLabel} ${total === 1 ? "was" : "were"} proposed. Waiting for UMA liveness; test Timer fast settlement is not configured.`;
+  }
+  if (status === "needsResolve") return `${needsResolve}/${total} ${marketLabel} still ${total === 1 ? "needs" : "need"} a proposal.`;
   if (status === "oracleSettled") return `${oracleSettled}/${total} oracle requests are settled but market state is not updated.`;
   if (status === "notDeployed") return "No deployed markets found for this fixture.";
   if (failed > 0) return `${failed}/${total} markets failed status checks.`;
@@ -218,8 +369,12 @@ export async function GET() {
       transport: http(rpcUrl),
     });
 
-    const results = readResults().filter((result) => result.status === "final" && result.result);
-    const deployments = readDeployments();
+    const results = [...readResults(), ...readRoundOf32Results()].filter((result) => result.status === "final" && result.result);
+    const timerAddress = process.env.NEXT_PUBLIC_TIMER_ADDRESS?.trim() ?? "";
+    const fastSettleAvailable =
+      timerAddress.startsWith("0x") &&
+      timerAddress.toLowerCase() !== "0x0000000000000000000000000000000000000000";
+    const deployments = [...readDeployments(), ...readRoundOf32Deployments()];
     const deploymentsByFixture = deployments.reduce<Record<string, WorldCupDeployment[]>>(
       (acc, deployment) => {
         if (!acc[deployment.fixtureId]) acc[deployment.fixtureId] = [];
@@ -229,7 +384,20 @@ export async function GET() {
       {},
     );
 
-    const now = BigInt(Math.floor(Date.now() / 1000));
+    for (const result of results) {
+      for (const deployment of deployments) {
+        if (
+          result.fixtureId !== deployment.fixtureId &&
+          roundOf32DeploymentMatchesResult(deployment, result)
+        ) {
+          deploymentsByFixture[result.fixtureId] = [
+            ...(deploymentsByFixture[result.fixtureId] ?? []),
+            deployment,
+          ];
+        }
+      }
+    }
+
     const fixtures = [];
 
     for (const result of results) {
@@ -254,6 +422,7 @@ export async function GET() {
           settled: 0,
           oracleSettled: 0,
           failed: 0,
+          fastSettleAvailable,
         });
         continue;
       }
@@ -347,11 +516,9 @@ export async function GET() {
 
             const expirationTime = getExpirationTime(requestData);
 
-            if (expirationTime === 0n || expirationTime > now) {
-              waiting += 1;
-            } else {
-              readyToSettle += 1;
-            }
+            // Do not mark a Proposed request as ready solely from wall-clock time.
+            // The onchain OO state must become Expired before settle() is safe.
+            waiting += 1;
 
             continue;
           }
@@ -406,6 +573,7 @@ export async function GET() {
           oracleSettled,
           failed,
           total,
+          fastSettleAvailable,
         }),
         marketsTotal: total,
         needsResolve,
@@ -414,6 +582,7 @@ export async function GET() {
         settled,
         oracleSettled,
         failed,
+        fastSettleAvailable,
       });
     }
 
