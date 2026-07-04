@@ -1,4 +1,5 @@
 ﻿export type MarketTemplateCategory =
+  | "World Cup"
   | "Arc"
   | "Crypto"
   | "Stablecoins"
@@ -10,6 +11,7 @@
 export type MarketTemplate = {
   id: string;
   title: string;
+  description?: string;
   category: MarketTemplateCategory;
   settlementRule: string;
   source: string;
@@ -21,6 +23,15 @@ export type MarketTemplate = {
   kickoffTime?: string;
   homeCountryCode?: string;
   awayCountryCode?: string;
+  worldCupMarketId?: string;
+  fixtureId?: string;
+  group?: string;
+  outcomeType?: "home_win" | "draw" | "away_win" | "knockout";
+  contractVersion?: number;
+  collateralSymbol?: string;
+  collateralDecimals?: number;
+  deployDisabled?: boolean;
+  deployDisabledReason?: string;
 };
 
 export const MARKET_TEMPLATES: MarketTemplate[] = [
@@ -264,6 +275,199 @@ export const MARKET_TEMPLATES: MarketTemplate[] = [
     kickoffTime: "2026-07-04T01:30:00Z",
     homeCountryCode: "co",
     awayCountryCode: "gh",
+  },
+  // World Cup Round of 16 knockout templates.
+  {
+    id: "world-cup-r16-canada-eliminate-morocco",
+    worldCupMarketId: "world-cup-r16-canada-eliminate-morocco",
+    fixtureId: "world-cup-r16-canada-vs-morocco",
+    group: "Round of 16",
+    outcomeType: "home_win",
+    title: "Will Canada eliminate Morocco in the Round of 16?",
+    description: "Team A = YES, Team B = NO.",
+    category: "World Cup" as MarketTemplateCategory,
+    settlementRule:
+      "YES if Canada advances to the Quarter-finals from this Round of 16 match, including extra time or penalties. NO if Morocco advances.",
+    source: "Official FIFA match result",
+    endDate: "2026-07-04",
+    riskLevel: "Low",
+    homeTeam: "Canada",
+    awayTeam: "Morocco",
+    stage: "Round of 16",
+    kickoffTime: "2026-07-04T17:00:00Z",
+    homeCountryCode: "ca",
+    awayCountryCode: "ma",
+    contractVersion: 2,
+    collateralSymbol: "USDC",
+    collateralDecimals: 6,
+  },
+  {
+    id: "world-cup-r16-paraguay-eliminate-france",
+    worldCupMarketId: "world-cup-r16-paraguay-eliminate-france",
+    fixtureId: "world-cup-r16-paraguay-vs-france",
+    group: "Round of 16",
+    outcomeType: "home_win",
+    title: "Will Paraguay eliminate France in the Round of 16?",
+    description: "Team A = YES, Team B = NO.",
+    category: "World Cup" as MarketTemplateCategory,
+    settlementRule:
+      "YES if Paraguay advances to the Quarter-finals from this Round of 16 match, including extra time or penalties. NO if France advances.",
+    source: "Official FIFA match result",
+    endDate: "2026-07-04",
+    riskLevel: "Low",
+    homeTeam: "Paraguay",
+    awayTeam: "France",
+    stage: "Round of 16",
+    kickoffTime: "2026-07-04T21:00:00Z",
+    homeCountryCode: "py",
+    awayCountryCode: "fr",
+    contractVersion: 2,
+    collateralSymbol: "USDC",
+    collateralDecimals: 6,
+  },
+  {
+    id: "world-cup-r16-portugal-eliminate-spain",
+    worldCupMarketId: "world-cup-r16-portugal-eliminate-spain",
+    fixtureId: "world-cup-r16-portugal-vs-spain",
+    group: "Round of 16",
+    outcomeType: "home_win",
+    title: "Will Portugal eliminate Spain in the Round of 16?",
+    description: "Team A = YES, Team B = NO.",
+    category: "World Cup" as MarketTemplateCategory,
+    settlementRule:
+      "YES if Portugal advances to the Quarter-finals from this Round of 16 match, including extra time or penalties. NO if Spain advances.",
+    source: "Official FIFA match result",
+    endDate: "2026-07-06",
+    riskLevel: "Low",
+    homeTeam: "Portugal",
+    awayTeam: "Spain",
+    stage: "Round of 16",
+    kickoffTime: "2026-07-06T19:00:00Z",
+    homeCountryCode: "pt",
+    awayCountryCode: "es",
+    contractVersion: 2,
+    collateralSymbol: "USDC",
+    collateralDecimals: 6,
+  },
+  {
+    id: "world-cup-r16-united-states-eliminate-belgium",
+    worldCupMarketId: "world-cup-r16-united-states-eliminate-belgium",
+    fixtureId: "world-cup-r16-united-states-vs-belgium",
+    group: "Round of 16",
+    outcomeType: "home_win",
+    title: "Will United States eliminate Belgium in the Round of 16?",
+    description: "Team A = YES, Team B = NO.",
+    category: "World Cup" as MarketTemplateCategory,
+    settlementRule:
+      "YES if United States advances to the Quarter-finals from this Round of 16 match, including extra time or penalties. NO if Belgium advances.",
+    source: "Official FIFA match result",
+    endDate: "2026-07-07",
+    riskLevel: "Low",
+    homeTeam: "United States",
+    awayTeam: "Belgium",
+    stage: "Round of 16",
+    kickoffTime: "2026-07-07T00:00:00Z",
+    homeCountryCode: "us",
+    awayCountryCode: "be",
+    contractVersion: 2,
+    collateralSymbol: "USDC",
+    collateralDecimals: 6,
+  },
+  {
+    id: "world-cup-r16-brazil-eliminate-norway",
+    worldCupMarketId: "world-cup-r16-brazil-eliminate-norway",
+    fixtureId: "world-cup-r16-brazil-vs-norway",
+    group: "Round of 16",
+    outcomeType: "home_win",
+    title: "Will Brazil eliminate Norway in the Round of 16?",
+    description: "Team A = YES, Team B = NO.",
+    category: "World Cup" as MarketTemplateCategory,
+    settlementRule:
+      "YES if Brazil advances to the Quarter-finals from this Round of 16 match, including extra time or penalties. NO if Norway advances.",
+    source: "Official FIFA match result",
+    endDate: "2026-07-05",
+    riskLevel: "Low",
+    homeTeam: "Brazil",
+    awayTeam: "Norway",
+    stage: "Round of 16",
+    kickoffTime: "2026-07-05T20:00:00Z",
+    homeCountryCode: "br",
+    awayCountryCode: "no",
+    contractVersion: 2,
+    collateralSymbol: "USDC",
+    collateralDecimals: 6,
+  },
+  {
+    id: "world-cup-r16-mexico-eliminate-england",
+    worldCupMarketId: "world-cup-r16-mexico-eliminate-england",
+    fixtureId: "world-cup-r16-mexico-vs-england",
+    group: "Round of 16",
+    outcomeType: "home_win",
+    title: "Will Mexico eliminate England in the Round of 16?",
+    description: "Team A = YES, Team B = NO.",
+    category: "World Cup" as MarketTemplateCategory,
+    settlementRule:
+      "YES if Mexico advances to the Quarter-finals from this Round of 16 match, including extra time or penalties. NO if England advances.",
+    source: "Official FIFA match result",
+    endDate: "2026-07-06",
+    riskLevel: "Low",
+    homeTeam: "Mexico",
+    awayTeam: "England",
+    stage: "Round of 16",
+    kickoffTime: "2026-07-06T00:00:00Z",
+    homeCountryCode: "mx",
+    awayCountryCode: "gb-eng",
+    contractVersion: 2,
+    collateralSymbol: "USDC",
+    collateralDecimals: 6,
+  },
+  {
+    id: "world-cup-r16-argentina-eliminate-egypt",
+    worldCupMarketId: "world-cup-r16-argentina-eliminate-egypt",
+    fixtureId: "world-cup-r16-argentina-vs-egypt",
+    group: "Round of 16",
+    outcomeType: "home_win",
+    title: "Will Argentina eliminate Egypt in the Round of 16?",
+    description: "Team A = YES, Team B = NO.",
+    category: "World Cup" as MarketTemplateCategory,
+    settlementRule:
+      "YES if Argentina advances to the Quarter-finals from this Round of 16 match, including extra time or penalties. NO if Egypt advances.",
+    source: "Official FIFA match result",
+    endDate: "2026-07-07",
+    riskLevel: "Low",
+    homeTeam: "Argentina",
+    awayTeam: "Egypt",
+    stage: "Round of 16",
+    kickoffTime: "2026-07-07T16:00:00Z",
+    homeCountryCode: "ar",
+    awayCountryCode: "eg",
+    contractVersion: 2,
+    collateralSymbol: "USDC",
+    collateralDecimals: 6,
+  },
+  {
+    id: "world-cup-r16-switzerland-eliminate-colombia",
+    worldCupMarketId: "world-cup-r16-switzerland-eliminate-colombia",
+    fixtureId: "world-cup-r16-switzerland-vs-colombia",
+    group: "Round of 16",
+    outcomeType: "home_win",
+    title: "Will Switzerland eliminate Colombia in the Round of 16?",
+    description: "Team A = YES, Team B = NO.",
+    category: "World Cup" as MarketTemplateCategory,
+    settlementRule:
+      "YES if Switzerland advances to the Quarter-finals from this Round of 16 match, including extra time or penalties. NO if Colombia advances.",
+    source: "Official FIFA match result",
+    endDate: "2026-07-07",
+    riskLevel: "Low",
+    homeTeam: "Switzerland",
+    awayTeam: "Colombia",
+    stage: "Round of 16",
+    kickoffTime: "2026-07-07T20:00:00Z",
+    homeCountryCode: "ch",
+    awayCountryCode: "co",
+    contractVersion: 2,
+    collateralSymbol: "USDC",
+    collateralDecimals: 6,
   },
   // New multi-category templates
   {

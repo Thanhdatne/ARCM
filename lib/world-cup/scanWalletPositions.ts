@@ -126,6 +126,7 @@ export interface RoundOf32PositionDebug {
 export interface WalletPositionScanDebug {
   totalScannedMarkets: number;
   totalRoundOf32MarketsIncluded: number;
+  totalKnockoutMarketsIncluded: number;
   roundOf32Markets: Array<{
     title: string;
     marketAddress: string;
@@ -259,7 +260,7 @@ function slugify(value: string) {
 
 function parseRoundOf32Title(title: string) {
   const match = title.match(
-    /^Will (.+?) eliminate (.+?) in the (Round of 32)\??$/i,
+    /^Will (.+?) eliminate (.+?) in the (Round of (?:32|16))\??$/i,
   );
   if (!match) return null;
 
@@ -308,7 +309,7 @@ function roundOf32MarketToDeployment(
     text(item.awayTeam ?? item.away_team) || parsedTitle.awayTeam;
   const stage = text(item.stage) || parsedTitle.stage;
   const id =
-    text(item.id) || `round-of-32-${slugify(homeTeam)}-${slugify(awayTeam)}`;
+    text(item.id) || `${slugify(stage)}-${slugify(homeTeam)}-${slugify(awayTeam)}`;
 
   return {
     worldCupMarketId: id,
@@ -600,8 +601,8 @@ function prioritizeDeployments(
     if (key && !byKey.has(key)) byKey.set(key, deployment);
   };
 
-  const roundOf32 = deployments.filter(isRoundOf32Deployment);
-  roundOf32.forEach(add);
+  const knockout = deployments.filter(isRoundOf32Deployment);
+  knockout.forEach(add);
 
   const scored = deployments
     .filter((deployment) => !isRoundOf32Deployment(deployment))
@@ -993,6 +994,7 @@ async function performScan(
       ? {
           totalScannedMarkets: deployments.length,
           totalRoundOf32MarketsIncluded: roundOf32Deployments.length,
+          totalKnockoutMarketsIncluded: roundOf32Deployments.length,
           roundOf32Markets: roundOf32Deployments.map((deployment) => ({
             title: deployment.question,
             marketAddress: deployment.marketAddress,

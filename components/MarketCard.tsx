@@ -25,7 +25,7 @@ import { useMarketCardData } from "@/hooks/useMarket";
 import { type Address } from "viem";
 
 function parseKnockoutMatchTitle(title: string) {
-  const match = title.match(/^Will (.+?) eliminate (.+?) in the (Round of 32)\??$/i);
+  const match = title.match(/^Will (.+?) eliminate (.+?) in the (Round of (?:32|16))\??$/i);
 
   if (!match) {
     return null;

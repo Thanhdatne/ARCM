@@ -161,7 +161,7 @@ function extractFixtureVisual(question?: string): FixtureVisual | null {
     };
   }
 
-  const knockoutMatch = cleanQuestion.match(/^Will\s+(.+?)\s+eliminate\s+(.+?)\s+in\s+the\s+(Round of 32)\??$/i);
+  const knockoutMatch = cleanQuestion.match(/^Will\s+(.+?)\s+eliminate\s+(.+?)\s+in\s+the\s+(Round of (?:32|16))\??$/i);
   if (knockoutMatch) {
     const homeTeam = normalizeTeamName(knockoutMatch[1]);
     const awayTeam = normalizeTeamName(knockoutMatch[2]);

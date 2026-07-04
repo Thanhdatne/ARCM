@@ -88,6 +88,12 @@ interface StoredMarketV2 {
   collateralSymbol: string;
   collateralDecimals: number;
   outcomeDecimals: number;
+  homeTeam?: string;
+  awayTeam?: string;
+  stage?: string;
+  kickoffTime?: string;
+  homeCountryCode?: string;
+  awayCountryCode?: string;
 }
 
 function validConfiguredAddress(value: string): value is Address {
@@ -338,6 +344,17 @@ export async function POST(request: Request) {
     await waitForSuccess(publicClient, transactionHash);
 
     const createdAt = new Date().toISOString();
+    const worldCupMetadata =
+      category.toLowerCase() === "world cup"
+        ? {
+            homeTeam: optionalText(body.homeTeam, "", 80) || undefined,
+            awayTeam: optionalText(body.awayTeam, "", 80) || undefined,
+            stage: optionalText(body.stage, "", 40) || undefined,
+            kickoffTime: optionalText(body.kickoffTime, "", 40) || undefined,
+            homeCountryCode: optionalText(body.homeCountryCode, "", 16) || undefined,
+            awayCountryCode: optionalText(body.awayCountryCode, "", 16) || undefined,
+          }
+        : {};
     const market: StoredMarketV2 = {
       id: optionalText(body.worldCupMarketId, `v2-${Date.now()}`, 100),
       address: marketAddress,
@@ -352,6 +369,7 @@ export async function POST(request: Request) {
       collateralSymbol: collateralConfig.symbol,
       collateralDecimals: decimals,
       outcomeDecimals: decimals,
+      ...worldCupMetadata,
     };
 
     const markets = readRecords<StoredMarketV2>("markets.json");
@@ -377,6 +395,7 @@ export async function POST(request: Request) {
         collateralSymbol: collateralConfig.symbol,
         collateralDecimals: decimals,
         outcomeDecimals: decimals,
+        ...worldCupMetadata,
       };
       const deployments = readRecords<typeof deployment>("world-cup-deployments.json");
       writeRecords("world-cup-deployments.json", [

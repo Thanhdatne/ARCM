@@ -326,7 +326,7 @@ function writeMarkets(markets: StoredMarketRecord[]) {
 }
 
 function isRoundOf32Title(value?: string) {
-  return /^Will .+? eliminate .+? in the Round of 32\??$/i.test(value ?? "");
+  return /^Will .+? eliminate .+? in the Round of (?:32|16)\??$/i.test(value ?? "");
 }
 
 function normalizeMatchText(value?: string | null) {
@@ -341,8 +341,12 @@ function normalizeMatchText(value?: string | null) {
 }
 
 function roundOf32Title(homeTeam?: string, awayTeam?: string) {
+  return knockoutTitle(homeTeam, awayTeam, "Round of 32");
+}
+
+function knockoutTitle(homeTeam?: string, awayTeam?: string, stage = "Round of 32") {
   if (!homeTeam || !awayTeam) return "";
-  return `Will ${homeTeam} eliminate ${awayTeam} in the Round of 32?`;
+  return `Will ${homeTeam} eliminate ${awayTeam} in the ${stage}?`;
 }
 
 function roundOf32DeploymentMatchesResult(
@@ -357,15 +361,17 @@ function roundOf32DeploymentMatchesResult(
   }
 
   const normalizedQuestion = normalizeMatchText(deployment.question);
-  const exactTitle = normalizeMatchText(roundOf32Title(result.homeTeam, result.awayTeam));
-  if (exactTitle && normalizedQuestion === exactTitle) return true;
+  const exactTitles = ["Round of 32", "Round of 16"].map((stage) =>
+    normalizeMatchText(knockoutTitle(result.homeTeam, result.awayTeam, stage)),
+  );
+  if (exactTitles.some((title) => title && normalizedQuestion === title)) return true;
 
   const homeTeam = normalizeMatchText(result.homeTeam);
   const awayTeam = normalizeMatchText(result.awayTeam);
   if (!homeTeam || !awayTeam) return false;
 
   return (
-    normalizedQuestion.includes("round of 32") &&
+    (normalizedQuestion.includes("round of 32") || normalizedQuestion.includes("round of 16")) &&
     normalizedQuestion.includes(homeTeam) &&
     normalizedQuestion.includes(awayTeam)
   );
@@ -398,8 +404,8 @@ function readRoundOf32Deployments(): WorldCupDeployment[] {
     .map((market) => ({
       worldCupMarketId: roundOf32FixtureId(market),
       fixtureId: roundOf32FixtureId(market),
-      group: "Round of 32",
-      question: market.title ?? "World Cup Round of 32 market",
+      group: market.stage ?? "Knockout",
+      question: market.title ?? "World Cup knockout market",
       outcomeType: "home_win",
       marketAddress: market.marketAddress ?? market.address ?? "",
       ammAddress: market.ammAddress ?? "",
@@ -767,7 +773,7 @@ async function runRoundOf32Lifecycle({
     items.push({
       ...baseItem,
       action: "skipped",
-      reason: "Missing saved Round of 32 result or winning side.",
+      reason: "Missing saved knockout result or winning side.",
     });
     return counts;
   }
@@ -1241,7 +1247,7 @@ export async function POST(request: Request) {
         if (!collateral.address || !collateral.address.startsWith("0x")) {
           throw new Error(
             deployment.isRoundOf32V2
-              ? "Round of 32 V2 market collateral is not configured."
+              ? "Knockout V2 market collateral is not configured."
               : "NEXT_PUBLIC_ARCT_ADDRESS is not configured.",
           );
         }

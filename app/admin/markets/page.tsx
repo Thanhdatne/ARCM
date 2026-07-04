@@ -183,7 +183,7 @@ const categoryCopy: Record<AdminCatalogCategory, { label: string; icon: string; 
   "World Cup": {
     label: "World Cup",
     icon: "WC",
-    description: "Round of 32 binary knockout markets.",
+    description: "Binary knockout markets.",
   },
   Arc: {
     label: "Arc",
@@ -398,7 +398,7 @@ export default function AdminMarketsPage() {
       setRoundOf32Markets(
         markets.filter((market) => (
           market.category === "World Cup" &&
-          market.stage === "Round of 32" &&
+          isSupportedKnockoutStage(market.stage) &&
           Boolean(market.marketAddress || market.address) &&
           Boolean(market.ammAddress)
         )),
@@ -480,6 +480,20 @@ export default function AdminMarketsPage() {
     });
   }, [activeCategory, query]);
 
+  const deployedTemplateIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    for (const deployment of worldCupDeployments) {
+      if (deployment.worldCupMarketId) ids.add(deployment.worldCupMarketId);
+    }
+
+    for (const market of roundOf32Markets) {
+      if (market.id) ids.add(market.id);
+    }
+
+    return ids;
+  }, [roundOf32Markets, worldCupDeployments]);
+
   const saveAdminKey = () => {
     window.localStorage.setItem("ARCM-admin-key", adminKey.trim());
     setSaved(true);
@@ -521,6 +535,15 @@ export default function AdminMarketsPage() {
           liveness: 7200,
           feeBps: 200,
           ...(worldCupMarketId ? { worldCupMarketId } : {}),
+          ...(template.fixtureId ? { fixtureId: template.fixtureId } : {}),
+          ...(template.group ? { group: template.group } : {}),
+          ...(template.outcomeType ? { outcomeType: template.outcomeType } : {}),
+          ...(template.homeTeam ? { homeTeam: template.homeTeam } : {}),
+          ...(template.awayTeam ? { awayTeam: template.awayTeam } : {}),
+          ...(template.stage ? { stage: template.stage } : {}),
+          ...(template.kickoffTime ? { kickoffTime: template.kickoffTime } : {}),
+          ...(template.homeCountryCode ? { homeCountryCode: template.homeCountryCode } : {}),
+          ...(template.awayCountryCode ? { awayCountryCode: template.awayCountryCode } : {}),
         }),
       });
 
@@ -602,7 +625,7 @@ export default function AdminMarketsPage() {
       .map((market) => ({
         worldCupMarketId: market.id,
         fixtureId: market.id,
-        group: "Round of 32",
+        group: market.stage ?? "Knockout",
         question: market.title,
         outcomeType: "home_win",
         marketAddress: market.marketAddress ?? market.address ?? "",
@@ -918,7 +941,7 @@ export default function AdminMarketsPage() {
         <div className="terminal-titlebar flex items-center justify-between gap-3 px-3 py-2 text-sm font-bold">
           <span>Finished / Started World Cup Fixtures</span>
           <span className="rounded-full border border-[#FCD535]/50 bg-[#FCD535]/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#FCD535]">
-            Round of 32
+            Knockout
           </span>
         </div>
 
@@ -955,13 +978,13 @@ export default function AdminMarketsPage() {
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {roundOf32Loading ? (
               <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-sm font-bold text-[#707A8A]">
-                Loading started Round of 32 fixtures...
+                Loading started knockout fixtures...
               </div>
             ) : null}
 
             {!roundOf32Loading && startedRoundOf32Markets.length === 0 ? (
               <div className="rounded-xl border border-[#2B3139] bg-[#0B0E11] p-4 text-sm font-bold text-[#707A8A]">
-                No deployed Round of 32 fixtures have reached kickoff yet.
+                No deployed knockout fixtures have reached kickoff yet.
               </div>
             ) : null}
 
@@ -1600,6 +1623,15 @@ export default function AdminMarketsPage() {
           const copy = categoryCopy[template.category as AdminCatalogCategory];
           const deployState = templateDeployStates[template.id] ?? { status: "idle" };
           const deploying = deployState.status === "deploying";
+          const alreadyDeployed =
+            deployedTemplateIds.has(template.worldCupMarketId ?? template.id) ||
+            deployState.status === "success";
+          const disabledReason =
+            template.deployDisabledReason ??
+            (!template.kickoffTime && template.category === "World Cup" && template.stage === "Round of 16"
+              ? "Exact kickoffTime is not configured yet."
+              : "");
+          const deployDisabled = deploying || alreadyDeployed || template.deployDisabled === true || Boolean(disabledReason);
 
           return (
             <article
@@ -1649,12 +1681,18 @@ export default function AdminMarketsPage() {
               <div className="mt-4">
                 <button
                   className="terminal-button focus-ring w-full px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={deploying}
+                  disabled={deployDisabled}
                   onClick={() => void deployTemplate(template)}
                   type="button"
                 >
-                  {deploying ? "Deploying…" : deployState.status === "success" ? "Deployed" : "Deploy on Arc"}
+                  {deploying ? "Deploying…" : alreadyDeployed ? "Deployed" : disabledReason ? "Needs kickoff time" : "Deploy on Arc"}
                 </button>
+
+                {disabledReason && !alreadyDeployed ? (
+                  <p className="mt-3 rounded-lg border border-[#FF8A00]/40 bg-[#FF8A00]/10 px-3 py-2 text-xs font-bold text-[#FF9D2E]">
+                    {disabledReason}
+                  </p>
+                ) : null}
 
                 {deployState.status === "success" ? (
                   <div className="mt-3 rounded-lg border border-[#0ECB81]/40 bg-[#0ECB81]/10 p-3 text-xs">
@@ -1751,10 +1789,15 @@ function normalizeMatchText(value?: string | null) {
     .replace(/\s+/g, " ");
 }
 
+function isSupportedKnockoutStage(stage?: string | null) {
+  const normalized = normalizeMatchText(stage);
+  return normalized === "round of 32" || normalized === "round of 16";
+}
+
 function isRoundOf32Market(market: RoundOf32Market) {
   return (
     market.category === "World Cup" &&
-    normalizeMatchText(market.stage) === "round of 32" &&
+    isSupportedKnockoutStage(market.stage) &&
     market.contractVersion === 2 &&
     Boolean(market.marketAddress || market.address) &&
     Boolean(market.ammAddress)
@@ -1762,8 +1805,12 @@ function isRoundOf32Market(market: RoundOf32Market) {
 }
 
 function roundOf32Title(homeTeam?: string, awayTeam?: string) {
+  return knockoutTitle(homeTeam, awayTeam, "Round of 32");
+}
+
+function knockoutTitle(homeTeam?: string, awayTeam?: string, stage = "Round of 32") {
   if (!homeTeam || !awayTeam) return "";
-  return `Will ${homeTeam} eliminate ${awayTeam} in the Round of 32?`;
+  return `Will ${homeTeam} eliminate ${awayTeam} in the ${stage}?`;
 }
 
 function roundOf32DeploymentMatchesResult(
@@ -1773,16 +1820,18 @@ function roundOf32DeploymentMatchesResult(
   if (!deployment.isRoundOf32V2) return false;
 
   const normalizedQuestion = normalizeMatchText(deployment.question);
-  const exactTitle = normalizeMatchText(roundOf32Title(result.homeTeam, result.awayTeam));
-  if (exactTitle && normalizedQuestion === exactTitle) return true;
+  const exactTitles = ["Round of 32", "Round of 16"].map((stage) =>
+    normalizeMatchText(knockoutTitle(result.homeTeam, result.awayTeam, stage)),
+  );
+  if (exactTitles.some((title) => title && normalizedQuestion === title)) return true;
 
   const homeTeam = normalizeMatchText(result.homeTeam);
   const awayTeam = normalizeMatchText(result.awayTeam);
-  const questionWithStage = normalizeMatchText(`${deployment.question} Round of 32`);
+  const questionWithStage = normalizeMatchText(`${deployment.question} ${deployment.group ?? ""}`);
   if (!homeTeam || !awayTeam) return false;
 
   return (
-    questionWithStage.includes("round of 32") &&
+    (questionWithStage.includes("round of 32") || questionWithStage.includes("round of 16")) &&
     questionWithStage.includes(homeTeam) &&
     questionWithStage.includes(awayTeam)
   );

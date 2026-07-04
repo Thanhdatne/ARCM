@@ -126,7 +126,7 @@ function parseWinningSide(value: unknown): WinningSide {
 function isRoundOf32Market(market: StoredMarketRecord) {
   return (
     (market.category ?? "").toLowerCase().includes("world cup") &&
-    /^Will .+? eliminate .+? in the Round of 32\??$/i.test(market.title ?? "") &&
+    /^Will .+? eliminate .+? in the Round of (?:32|16)\??$/i.test(market.title ?? "") &&
     market.contractVersion === 2 &&
     Boolean(market.marketAddress || market.address) &&
     Boolean(market.ammAddress) &&
@@ -147,8 +147,12 @@ function normalizeMatchText(value?: string | null) {
 }
 
 function roundOf32Title(homeTeam?: string, awayTeam?: string) {
+  return knockoutTitle(homeTeam, awayTeam, "Round of 32");
+}
+
+function knockoutTitle(homeTeam?: string, awayTeam?: string, stage = "Round of 32") {
   if (!homeTeam || !awayTeam) return "";
-  return `Will ${homeTeam} eliminate ${awayTeam} in the Round of 32?`;
+  return `Will ${homeTeam} eliminate ${awayTeam} in the ${stage}?`;
 }
 
 function roundOf32MarketMatchesInput(
@@ -161,16 +165,19 @@ function roundOf32MarketMatchesInput(
     return true;
   }
 
-  const exactTitle = normalizeMatchText(roundOf32Title(input.homeTeam, input.awayTeam));
+  const exactTitles = ["Round of 32", "Round of 16"].map((stage) =>
+    normalizeMatchText(knockoutTitle(input.homeTeam, input.awayTeam, stage)),
+  );
   const marketTitle = normalizeMatchText(market.title);
-  if (exactTitle && marketTitle === exactTitle) return true;
+  if (exactTitles.some((title) => title && marketTitle === title)) return true;
 
   const homeTeam = normalizeMatchText(input.homeTeam);
   const awayTeam = normalizeMatchText(input.awayTeam);
   if (!homeTeam || !awayTeam) return false;
 
   return (
-    normalizeMatchText(market.stage) === "round of 32" &&
+    (normalizeMatchText(market.stage) === "round of 32" ||
+      normalizeMatchText(market.stage) === "round of 16") &&
     marketTitle.includes(homeTeam) &&
     marketTitle.includes(awayTeam)
   );

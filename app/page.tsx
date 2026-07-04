@@ -288,7 +288,7 @@ function marketMatchesSearch(market: MarketCardData, rawQuery: string) {
 function isWorldCupKnockoutMarket(market: MarketCardData) {
   return (
     normalizeMarketText(market.category) === "world cup" &&
-    /^Will .+? eliminate .+? in the Round of 32\??$/i.test(market.title)
+    /^Will .+? eliminate .+? in the Round of (?:32|16)\??$/i.test(market.title)
   );
 }
 
